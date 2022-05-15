@@ -18,8 +18,8 @@ Run the demo program:
 dotnet run --project Demo
 ```
 
-The demo runs three examples from [1] (PCB, BOD, Puromycin) and produces parameter estimates, predictions and a list of points on the 
-the approximate pairwise confidence region contours.
+The demo runs three examples from [1] (PCB, BOD, Puromycin) and produces parameter estimates, predictions, and the 
+approximate pairwise confidence region contour.
 ```
 Puromycin example
 -----------------
