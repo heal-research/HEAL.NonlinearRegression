@@ -16,7 +16,7 @@ namespace HEAL.NonlinearRegression {
     public double[] resStdError; // standard error for residuals
     private Tuple<double[], double[][]>[] t_profiles;
     private alglib.spline1dinterpolant[] spline_tau2p, spline_p2tau;
-    private alglib.spline1dinterpolant[,] spline_tau2pq;
+    private alglib.spline1dinterpolant[,] spline_p2q;
 
 
     // TODO
@@ -115,7 +115,11 @@ namespace HEAL.NonlinearRegression {
     // produces points on the contour in tau space (taup, tauq) and contour points in the original parameter space
     public void ApproximateProfilePairContour(int pIdx, int qIdx, double alpha, out double[] taup, out double[] tauq, out double[] p, out double[] q) {
       // initialize splines of interpolation if necessary
-      if (spline_p2tau == null) PrepareSplinesForProfileSketches(m, n, alpha: 0.05);
+      if (spline_p2tau == null) PrepareSplinesForProfileSketches();
+
+      // scale tau coordinates by dividing by sqrt(n * F(n, m-n, alpha)) 
+      // to get a nominal 1 - alpha joint likelihood contour
+      var tauScale = Math.Sqrt(n * alglib.invfdistribution(n, m - n, alpha));
 
       // produce plot for two parameters
       // angles for points on traces as described in Appendix 6
@@ -126,11 +130,11 @@ namespace HEAL.NonlinearRegression {
       // anglePairs[3] = (alglib.spline1dcalc(spline_tau2gpq[qIdx, pIdx], -k), Math.PI);
 
       // from R package 'ellipse'
-      double MapTau(double tauA, int aIdx, int pIdx) {
-        var a = alglib.spline1dcalc(spline_tau2p[aIdx], tauA); // map from tau to a (using t-profile of a)
-        var b = alglib.spline1dcalc(spline_tau2pq[aIdx, pIdx], a); // map from a to b
-        var tauB = alglib.spline1dcalc(spline_p2tau[pIdx], b); // map from b to tau (using t-profile of b)
-        return tauB;
+      double MapTau(double tauA, int aIdx, int bIdx) {
+        var a = alglib.spline1dcalc(spline_tau2p[aIdx], tauA * tauScale); // map from tau to a (using t-profile of a)
+        var b = alglib.spline1dcalc(spline_p2q[aIdx, bIdx], a); // map from a to b
+        var tauB = alglib.spline1dcalc(spline_p2tau[bIdx], b); // map from b to tau (using t-profile of b)
+        return tauB / tauScale;
       }
       anglePairs[0] = (0, Math.Acos(MapTau(1, pIdx, qIdx)));
       anglePairs[1] = (Math.PI, Math.Acos(MapTau(-1, pIdx, qIdx)));
@@ -280,25 +284,18 @@ namespace HEAL.NonlinearRegression {
       this.t_profiles = t_profiles.ToArray();
     }
 
-    private void PrepareSplinesForProfileSketches(int m, int n, double alpha) {
-      // scale tau coordinates by dividing by sqrt(n * F(n, m-n, alpha)) 
-      // to get a nominal 1 - alpha joint likelihood contour
-      var tauScale = Math.Sqrt(n * alglib.invfdistribution(n, m - n, alpha));
-
+    private void PrepareSplinesForProfileSketches() {
       // profile pair plots
       spline_tau2p = new alglib.spline1dinterpolant[n];
       spline_p2tau = new alglib.spline1dinterpolant[n];
-      spline_tau2pq = new alglib.spline1dinterpolant[n, n];
+      spline_p2q = new alglib.spline1dinterpolant[n, n];
       for (int pIdx = 0; pIdx < n; pIdx++) {
-        // interpolating spline for pth column of M as a function of tau
+        // interpolating spline for p-th column of M as a function of tau
         var tau = t_profiles[pIdx].Item1; // tau
         
-        var tauScaled = (double[])tau.Clone();
-        for (int i = 0; i < tauScaled.Length; i++) tauScaled[i] /= tauScale;
-
-        var p = t_profiles[pIdx].Item2[pIdx]; // pth column of M_p
-        alglib.spline1dbuildcubic(tauScaled, p, out spline_tau2p[pIdx]);   // s tau->theta
-        alglib.spline1dbuildcubic(p, tauScaled, out spline_p2tau[pIdx]);   // s theta->tau
+        var p = t_profiles[pIdx].Item2[pIdx]; // p-th column of M_p
+        alglib.spline1dbuildcubic(tau, p, out spline_tau2p[pIdx]);   // s tau->theta
+        alglib.spline1dbuildcubic(p, tau, out spline_p2tau[pIdx]);   // s theta->tau
 
         // from Bates and Watts
         // couldn't get the alg. from the book to work
@@ -316,8 +313,8 @@ namespace HEAL.NonlinearRegression {
         // this from R package 'ellipse'
         for (int qIdx = 0; qIdx < n; qIdx++) {
           if (pIdx == qIdx) continue;
-          var q = t_profiles[pIdx].Item2[qIdx]; // q th column of Mp
-          alglib.spline1dbuildcubic(p, q, out spline_tau2pq[pIdx, qIdx]);
+          var q = t_profiles[pIdx].Item2[qIdx]; // q-th column of Mp
+          alglib.spline1dbuildcubic(p, q, out spline_p2q[pIdx, qIdx]);
         }
       } // prepare splines for interpolation
     }

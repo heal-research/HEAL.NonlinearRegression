@@ -88,7 +88,7 @@ namespace HEAL.NonlinearRegression {
         };
 
         statistics.CalcParameterStatistics(jacobian);
-        // statistics.CalcTProfiles(y, func, jacobian);
+        statistics.CalcTProfiles(y, func, jacobian);
 
         report = new Report() {
           Success = true,

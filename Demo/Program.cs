@@ -1,7 +1,7 @@
 ﻿using HEAL.NonlinearRegression;
 
 
-DemoExponential();
+// DemoExponential();
 DemoPCB();
 DemoBOD();
 DemoPuromycin();
@@ -34,7 +34,7 @@ void DemoExponential() {
   for (int i = 0; i < m; i++) {
     x[i, 0] = i / (double)m;
   }
-  F(pOpt, y);
+  F(pOpt, y); 
 
   // fit with starting point [1, 1]
   var p = new double[] { 1.0, 1.0 };
