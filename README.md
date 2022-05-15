@@ -56,14 +56,13 @@ For example for the Puromycin model the functions F and Jac are:
     0.02, 0.02, 0.06, 0.06, 0.11, 0.11, 0.22, 0.22, 0.56, 0.56, 1.10, 1.10
   };
 
+  // target
   var treated = new double[] {
     76, 47, 97, 107, 123, 139, 159, 152, 191, 201, 207, 200
   };
 
-  var m = x.Length;
 
   // model: y = p1 x / (p2 + x)
-
   void F(double[] p, double[] fi) {
     for (int i = 0; i < m; i++) {
       fi[i] = p[0] * x[i] / (p[1] + x[i]);
