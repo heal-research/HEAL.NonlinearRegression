@@ -19,7 +19,7 @@ namespace HEAL.NonlinearRegression {
     // uses Levenberg-Marquardt algorithm.
     // p is updated with optimized parameters if successful.
     // report parameter contains fitting results and statistics
-    
+
     /// <summary>
     /// Least-squares fitting for func with Jacobian to target y using initial values p.
     /// Uses Levenberg-Marquardt algorithm.
@@ -63,11 +63,11 @@ namespace HEAL.NonlinearRegression {
           alglib.minlmrequesttermination(state);
         }
       }
-      alglib.minlmoptguardgradient(state, 1e-6);
+      // alglib.minlmoptguardgradient(state, 1e-6);
       alglib.minlmoptimize(state, residual, residualJac, _rep, obj: null);
       alglib.minlmresults(state, out var pOpt, out var rep);
-      alglib.minlmoptguardresults(state, out var optGuardReport);
-      if (optGuardReport.badgradsuspected) throw new InvalidProgramException();
+      // alglib.minlmoptguardresults(state, out var optGuardReport);
+      // if (optGuardReport.badgradsuspected) throw new InvalidProgramException();
 
       if (rep.terminationtype >= 0) {
         Array.Copy(pOpt, p, p.Length);
@@ -88,7 +88,11 @@ namespace HEAL.NonlinearRegression {
         };
 
         statistics.CalcParameterStatistics(jacobian);
-        statistics.CalcTProfiles(y, func, jacobian);
+
+        // t-profiles are problematic to calculate when the noise level is too low
+        if (statistics.s >= 1e-8) {
+          statistics.CalcTProfiles(y, func, jacobian);
+        }
 
         report = new Report() {
           Success = true,

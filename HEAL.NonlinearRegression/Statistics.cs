@@ -114,6 +114,7 @@ namespace HEAL.NonlinearRegression {
     // Bates and Watts, Appendix 6
     // produces points on the contour in tau space (taup, tauq) and contour points in the original parameter space
     public void ApproximateProfilePairContour(int pIdx, int qIdx, double alpha, out double[] taup, out double[] tauq, out double[] p, out double[] q) {
+      if (t_profiles == null) throw new InvalidOperationException("t-profiles have not been calculate for this model. The error is too small for reliable determination of t-profiles.");
       // initialize splines of interpolation if necessary
       if (spline_p2tau == null) PrepareSplinesForProfileSketches();
 
@@ -157,15 +158,15 @@ namespace HEAL.NonlinearRegression {
       a[4] = a[0] + 2 * Math.PI; // period 2*pi
       d[4] = d[0];
 
-      alglib.spline1dbuildcubic(a, d, 5, -1, 0, -1, 0, out var spline_ad); // periodic boundary conditions
+      alglib.spline1dbuildcubic(a, d, a.Length, -1, 0, -1, 0, out var spline_ad); // periodic boundary conditions
       var nSteps = 100;
       taup = new double[nSteps]; tauq = new double[nSteps];
       p = new double[nSteps]; q = new double[nSteps];
       for (int i = 0; i < nSteps; i++) {
         var ai = i * Math.PI * 2 / nSteps - Math.PI;
         var di = alglib.spline1dcalc(spline_ad, ai);
-        taup[i] = Math.Cos(ai + di / 2);
-        tauq[i] = Math.Cos(ai - di / 2);
+        taup[i] = Math.Cos(ai + di / 2) * tauScale;
+        tauq[i] = Math.Cos(ai - di / 2) * tauScale;
         p[i] = alglib.spline1dcalc(spline_tau2p[pIdx], taup[i]);
         q[i] = alglib.spline1dcalc(spline_tau2p[qIdx], tauq[i]);
         // Console.WriteLine($"{tau_p} {tau_q} {theta_p} {theta_q}");          
@@ -292,7 +293,7 @@ namespace HEAL.NonlinearRegression {
       for (int pIdx = 0; pIdx < n; pIdx++) {
         // interpolating spline for p-th column of M as a function of tau
         var tau = t_profiles[pIdx].Item1; // tau
-        
+
         var p = t_profiles[pIdx].Item2[pIdx]; // p-th column of M_p
         alglib.spline1dbuildcubic(tau, p, out spline_tau2p[pIdx]);   // s tau->theta
         alglib.spline1dbuildcubic(p, tau, out spline_p2tau[pIdx]);   // s theta->tau

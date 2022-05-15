@@ -1,7 +1,7 @@
 ﻿using HEAL.NonlinearRegression;
 
 
-// DemoExponential();
+DemoExponential();
 DemoPCB();
 DemoBOD();
 DemoPuromycin();
@@ -44,11 +44,6 @@ void DemoExponential() {
     Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
     Console.WriteLine($"{report}");
     report.Statistics.WriteStatistics(Console.Out);
-    report.Statistics.ApproximateProfilePairContour(0, 1, alpha: 0.05, out _, out _, out var p1, out var p2);
-    Console.WriteLine("Approximate profile pair contour (p0 vs p1)");
-    for (int i = 0; i < p1.Length; i++) {
-      Console.WriteLine($"{p1[i]} {p2[i]}");
-    }
 
   } else {
     Console.WriteLine("There was a problem while fitting.");
@@ -218,7 +213,7 @@ void DemoBOD() {
     Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
     Console.WriteLine($"{report}");
     report.Statistics.WriteStatistics(Console.Out);
-    report.Statistics.ApproximateProfilePairContour(0, 1, alpha: 0.05, out _, out _, out var p1, out var p2);
+    report.Statistics.ApproximateProfilePairContour(0, 1, alpha: 0.10, out _, out _, out var p1, out var p2);
     Console.WriteLine("Approximate profile pair contour (p0 vs p1)");
     for (int i = 0; i < p1.Length; i++) {
       Console.WriteLine($"{p1[i]} {p2[i]}");
