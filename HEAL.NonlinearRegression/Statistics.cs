@@ -4,16 +4,17 @@ using System.Linq;
 
 namespace HEAL.NonlinearRegression {
   public class Statistics {
-    public int m; // number of observations
-    public int n; // number of parameters
-    public double[] yPred;
-    public double SSR; // S(θ) in Bates and Watts
+    public int m { get; internal set; } // number of observations
+    public int n { get; internal set; } // number of parameters
+    public double[] yPred { get; internal set; }
+    public double SSR { get; internal set; } // S(θ) in Bates and Watts
     public double s => Math.Sqrt(SSR / (m - n)); // residual mean square or variance estimate based on m-n degrees of freedom 
-    public double[] paramEst; // estimated values for parameters θ
-    public double[] paramStdError; // standard error for parameters (se(θ) in Bates and Watts)
-    public double[,] correlation; // correlation matrix for parameters
+    public double[] paramEst { get; internal set; } // estimated values for parameters θ
+    public double[] paramStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
+    public double[,] correlation { get; internal set; }// correlation matrix for parameters
 
-    public double[] resStdError; // standard error for residuals
+    public double[] resStdError { get; internal set; } // standard error for residuals
+
     private Tuple<double[], double[][]>[] t_profiles;
     private alglib.spline1dinterpolant[] spline_tau2p, spline_p2tau;
     private alglib.spline1dinterpolant[,] spline_p2q;
@@ -29,8 +30,8 @@ namespace HEAL.NonlinearRegression {
     // Appendix A3.2
     // Linear approximation for parameter and inference intervals.
     // Exact for linear models. Good approximation for nonlinear models when parameters are close to linear.
-    // Check profile t profiles and pairwise profile plots for deviation from linearity.
-    public void CalcParameterStatistics(Action<double[], double[], double[,]> jacobian) {
+    // Check t profiles and pairwise profile plots for deviation from linearity.
+    internal void CalcParameterStatistics(Action<double[], double[], double[,]> jacobian) {
       var pOpt = paramEst;
 
       var yPred = new double[m];
@@ -111,8 +112,18 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    // Bates and Watts, Appendix 6
-    // produces points on the contour in tau space (taup, tauq) and contour points in the original parameter space
+    /// <summary>
+    /// Produces points on the contour in tau space (taup, tauq) and contour points in the original parameter space (p, q).
+    /// (Bates and Watts, Appendix 6)
+    /// </summary>
+    /// <param name="pIdx">First parameter index</param>
+    /// <param name="qIdx">Second parameter index</param>
+    /// <param name="alpha">Approximation for 1-alpha confidence region is calculated (e.g. 0.05, value should be between 0.5 and 0.01)</param>
+    /// <param name="taup">Contour values for first parameter (in tau scale)</param>
+    /// <param name="tauq">Contour values for second parameter (in tau scale)</param>
+    /// <param name="p">Contour values for first parameter.</param>
+    /// <param name="q">Contour values for second parameter.</param>
+    /// <exception cref="InvalidOperationException"></exception>
     public void ApproximateProfilePairContour(int pIdx, int qIdx, double alpha, out double[] taup, out double[] tauq, out double[] p, out double[] q) {
       if (t_profiles == null) throw new InvalidOperationException("t-profiles have not been calculate for this model. The error is too small for reliable determination of t-profiles.");
       // initialize splines of interpolation if necessary
@@ -176,7 +187,7 @@ namespace HEAL.NonlinearRegression {
 
     // Calculate t-profiles for all parameters.
     // Bates and Watts, Appendix A3.5
-    public void CalcTProfiles(double[] y, Action<double[], double[]> func, Action<double[], double[], double[,]> jacobian) {
+    internal void CalcTProfiles(double[] y, Action<double[], double[]> func, Action<double[], double[], double[,]> jacobian) {
       var pOpt = paramEst;
 
       var tmax = Math.Sqrt(alglib.invfdistribution(m, m - n, 0.01)); // limit for t (use small alpha here)
@@ -217,7 +228,6 @@ namespace HEAL.NonlinearRegression {
       var t_profiles = new List<Tuple<double[], double[][]>>(); // for each parameter the tau values and the matrix of parameters
 
       for (int pIdx = 0; pIdx < n; pIdx++) {
-        // Console.WriteLine($"t profile for parameter {pIdx}");
         var tau = new List<double>();
         var M = new List<double[]>();
         var delta = -paramStdError[pIdx] / step;
@@ -253,7 +263,6 @@ namespace HEAL.NonlinearRegression {
             var tau_i = Math.Sign(delta) * Math.Sqrt(SSR_cond - SSR) / s;
 
             invSlope = Math.Abs(tau_i * s * s / (paramStdError[pIdx] * zv));
-            // Console.WriteLine($"tau {tau_i} theta {string.Join(" ", p_cond.Select(pi => pi.ToString("e4")))} invslope {invSlope}");
             tau.Add(tau_i);
             M.Add((double[])p_cond.Clone());
 
@@ -261,8 +270,8 @@ namespace HEAL.NonlinearRegression {
 
             if (Math.Abs(tau_i) > tmax) break;
           }
-          delta = -delta; // repeat into other direction
-        } while (delta > 0);
+          delta = -delta; // repeat for other direction
+        } while (delta > 0);  // exactly two iterations
 
 
         // sort M by tau
