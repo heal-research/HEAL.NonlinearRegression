@@ -90,7 +90,7 @@ The fitting `report` contains statistics and allows to generate profile pair con
 ```
 
 # Dependencies
-The implementation uses alglib (https://alglib.net) for linear algebra and Levenberg-Marquard nonlinear least squares fitting. 
+The implementation uses alglib (https://alglib.net) for linear algebra and Levenberg-Marquardt nonlinear least squares fitting. 
 Alglib is licensed under GPL2+ and includes code from other projects. Commercial licenses for alglib are available.
 
 # License
