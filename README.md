@@ -50,7 +50,7 @@ To call the library you have to provide a function for evaluating the output
 of your model for a given set of parameters and another function that also produces the Jacobian matrix.
 
 For example for the Puromycin model the functions F and Jac are:
-```
+```csharp
   // substrate concentration
   var x = new double[] {
     0.02, 0.02, 0.06, 0.06, 0.11, 0.11, 0.22, 0.22, 0.56, 0.56, 1.10, 1.10
@@ -79,13 +79,13 @@ For example for the Puromycin model the functions F and Jac are:
 ```
 
 Then you call the static fit method with a starting point for the parameters.
-```
+```csharp
   var p = new double[] { 205, 0.08 };  // Bates and Watts page 41
   NonlinearRegression.FitLeastSquares(p, F, Jac, treated, out var report);
 ```
 
 The fitting `report` contains statistics and allows to generate profile pair contours. 
-```
+```csharp
     report.Statistics.ApproximateProfilePairContour(0, 1, alpha: 0.05, out _, out _, out var p1, out var p2);
 ```
 
