@@ -20,6 +20,15 @@ namespace HEAL.NonlinearRegression {
     private alglib.spline1dinterpolant[,] spline_p2q;
 
 
+    public Statistics(int m, int n, double SSR, double[] yPred, double[] paramEst, Action<double[], double[], double[,]> jacobian) {
+      this.m = m;
+      this.n = n;
+      this.SSR = SSR;
+      this.yPred = (double[])yPred.Clone();
+      this.paramEst = (double[])paramEst.Clone();
+      CalcParameterStatistics(jacobian);
+    }
+
     // TODO
     // - Studentized residuals
     // - t-profile confidence intervals for parameters
@@ -31,7 +40,7 @@ namespace HEAL.NonlinearRegression {
     // Linear approximation for parameter and inference intervals.
     // Exact for linear models. Good approximation for nonlinear models when parameters are close to linear.
     // Check t profiles and pairwise profile plots for deviation from linearity.
-    internal void CalcParameterStatistics(Action<double[], double[], double[,]> jacobian) {
+    private void CalcParameterStatistics(Action<double[], double[], double[,]> jacobian) {
       var pOpt = paramEst;
 
       var yPred = new double[m];
@@ -192,108 +201,111 @@ namespace HEAL.NonlinearRegression {
     internal void CalcTProfiles(double[] y, Action<double[], double[]> func, Action<double[], double[], double[,]> jacobian) {
       var pOpt = paramEst;
 
-      var tmax = Math.Sqrt(alglib.invfdistribution(m, m - n, 0.01)); // limit for t (use small alpha here)
+      var t_profiles = new Tuple<double[], double[][]>[paramEst.Length]; // for each parameter the tau values and the matrix of parameters
 
-      var kmax = 30;
-      int step = 8;
-
-
-      // _f and _jac wrap func and jacobian and hold one of the parameters fixed
-      void _f(double[] x, double[] fi, object o) {
-        var tup = (Tuple<int, double>)o;
-
-        var fixedParamIdx = tup.Item1;
-        var fixedParamVal = tup.Item2;
-        x[fixedParamIdx] = fixedParamVal; // probably not necessary if we set the gradient zero in jac
-        func(x, fi);
-        for (int i = 0; i < m; i++) {
-          fi[i] = fi[i] - y[i];
-        }
+      for (int pIdx = 0; pIdx < n; pIdx++) {
+        t_profiles[pIdx] = CalcTProfile(y, func, jacobian, pOpt, pIdx);
       }
+    }
 
-      void _jac(double[] x, double[] fi, double[,] jac, object o) {
-        var tup = (Tuple<int, double>)o;
-        var fixedParamIdx = tup.Item1;
-        var fixedParamVal = tup.Item2;
-        x[fixedParamIdx] = fixedParamVal;
-        jacobian(x, fi, jac);
-        for (int i = 0; i < m; i++) {
-          fi[i] = fi[i] - y[i];
-          jac[i, fixedParamIdx] = 0.0;
-        }
-      }
+    private Tuple<double[], double[][]> CalcTProfile(double[] y, Action<double[], double[]> func, Action<double[], double[], double[,]> jacobian, double[] pOpt, int pIdx) {
+      const int kmax = 30;
+      const int step = 8;
+      var tmax = Math.Sqrt(alglib.invfdistribution(n, m - n, 0.01)); // limit for t (use small alpha here), book page 302
 
       // buffers
       var yPred_cond = new double[m];
       var jac = new double[m, n];
+      var tau = new List<double>();
+      var M = new List<double[]>();
+      var delta = -paramStdError[pIdx] / step;
+      var p_cond = (double[])pOpt.Clone();
 
-      var t_profiles = new List<Tuple<double[], double[][]>>(); // for each parameter the tau values and the matrix of parameters
+      alglib.minlmcreatevj(m, p_cond, out var state);
+      alglib.minlmsetcond(state, 0.0, maxits: 30);
 
-      for (int pIdx = 0; pIdx < n; pIdx++) {
-        var tau = new List<double>();
-        var M = new List<double[]>();
-        var delta = -paramStdError[pIdx] / step;
-        var p_cond = (double[])pOpt.Clone();
+      do {
+        var t = 0.0; // bug fix to pseudo-code in Bates and Watts
+        var invSlope = 1.0;
+        for (int k = 0; k < kmax; k++) {
+          t = t + invSlope;
+          var curP = paramEst[pIdx] + delta * t;
 
-        alglib.minlmcreatevj(m, p_cond, out var state);
-        alglib.minlmsetcond(state, 0.0, maxits: 30);
-        do {
-          var t = 0.0; // bug fix to pseudo-code in Bates and Watts
-          var invSlope = 1.0;
-          for (int k = 0; k < kmax; k++) {
-            t = t + invSlope;
-            var curP = paramEst[pIdx] + delta * t;
+          // _f and _jac wrap func and Jacobian and hold one of the parameters fixed
+          void _f(double[] x, double[] fi, object o) {
+            // var tup = (Tuple<int, double>)o;
 
-            // minimize
-            p_cond[pIdx] = curP;
-            alglib.minlmrestartfrom(state, p_cond);
-            alglib.minlmoptimize(state, _f, _jac, null, Tuple.Create(pIdx, curP));
-            alglib.minlmresults(state, out p_cond, out var report);
-            if (report.terminationtype < 0) throw new InvalidProgramException();
-
-            jacobian(p_cond, yPred_cond, jac); // get predicted values and Jacobian for calculation of z and v_p
-
-            var SSR_cond = 0.0; // S(\theta_p)
-            var zv = 0.0; // z^T v_p
-
+            // var fixedParamIdx = tup.Item1;
+            // var fixedParamVal = tup.Item2;
+            // x[fixedParamIdx] = fixedParamVal; // probably not necessary if we set the gradient zero in jac
+            x[pIdx] = curP;
+            func(x, fi);
             for (int i = 0; i < m; i++) {
-              var z = y[i] - yPred_cond[i];
-              SSR_cond += z * z;
-              zv += z * jac[i, pIdx];
+              fi[i] = fi[i] - y[i];
             }
-
-            var tau_i = Math.Sign(delta) * Math.Sqrt(SSR_cond - SSR) / s;
-
-            invSlope = Math.Abs(tau_i * s * s / (paramStdError[pIdx] * zv));
-            tau.Add(tau_i);
-            M.Add((double[])p_cond.Clone());
-
-            invSlope = Math.Min(4.0, Math.Max(invSlope, 1.0 / 16));
-
-            if (Math.Abs(tau_i) > tmax) break;
           }
-          delta = -delta; // repeat for other direction
-        } while (delta > 0);  // exactly two iterations
 
-
-        // sort M by tau
-        var tauArr = tau.ToArray();
-        var mArr = M.ToArray();
-        Array.Sort(tauArr, mArr);
-
-        // copy M to transposed (column-oriented) array
-        var mArrTransposed = new double[n][]; // column-oriented
-        for (int j = 0; j < n; j++) {
-          mArrTransposed[j] = new double[tau.Count];
-          for (int i = 0; i < mArrTransposed[j].Length; i++) {
-            mArrTransposed[j][i] = mArr[i][j];
+          void _jac(double[] x, double[] fi, double[,] jac, object o) {
+            // var tup = (Tuple<int, double>)o;
+            // var fixedParamIdx = tup.Item1;
+            // var fixedParamVal = tup.Item2;
+            // x[fixedParamIdx] = fixedParamVal;
+            x[pIdx] = curP;
+            jacobian(x, fi, jac);
+            for (int i = 0; i < m; i++) {
+              fi[i] = fi[i] - y[i];
+              jac[i, pIdx] = 0.0;
+            }
           }
+
+
+          // minimize
+          p_cond[pIdx] = curP;
+          alglib.minlmrestartfrom(state, p_cond);
+          alglib.minlmoptimize(state, _f, _jac, null, null);
+          alglib.minlmresults(state, out p_cond, out var report);
+          if (report.terminationtype < 0) throw new InvalidProgramException();
+
+          jacobian(p_cond, yPred_cond, jac); // get predicted values and Jacobian for calculation of z and v_p
+
+          var SSR_cond = 0.0; // S(\theta_p)
+          var zv = 0.0; // z^T v_p
+
+          for (int i = 0; i < m; i++) {
+            var z = y[i] - yPred_cond[i];
+            SSR_cond += z * z;
+            zv += z * jac[i, pIdx];
+          }
+
+          var tau_i = Math.Sign(delta) * Math.Sqrt(SSR_cond - SSR) / s;
+
+          invSlope = Math.Abs(tau_i * s * s / (paramStdError[pIdx] * zv));
+          tau.Add(tau_i);
+          M.Add((double[])p_cond.Clone());
+
+          invSlope = Math.Min(4.0, Math.Max(invSlope, 1.0 / 16));
+
+          if (Math.Abs(tau_i) > tmax) break;
         }
+        delta = -delta; // repeat for other direction
+      } while (delta > 0);  // exactly two iterations
 
-        t_profiles.Add(Tuple.Create(tauArr, mArrTransposed));
+
+      // sort M by tau
+      var tauArr = tau.ToArray();
+      var mArr = M.ToArray();
+      Array.Sort(tauArr, mArr);
+
+      // copy M to transposed (column-oriented) array
+      var mArrTransposed = new double[n][]; // column-oriented
+      for (int j = 0; j < n; j++) {
+        mArrTransposed[j] = new double[tau.Count];
+        for (int i = 0; i < mArrTransposed[j].Length; i++) {
+          mArrTransposed[j][i] = mArr[i][j];
+        }
       }
 
-      this.t_profiles = t_profiles.ToArray();
+      return Tuple.Create(tauArr, mArrTransposed);
     }
 
     private void PrepareSplinesForProfileSketches() {
@@ -340,12 +352,12 @@ namespace HEAL.NonlinearRegression {
       writer.WriteLine($"{"Para"} {"Estimate",14}  {"Std. error",14} {"Lower",14} {"Upper",14} Correlation matrix");
       for (int i = 0; i < n; i++) {
         var j = Enumerable.Range(0, i + 1);
-        writer.WriteLine($"{i,5} {p[i],14:e4} {se[i],14:e4} {seLow[i],14:e4} {seHigh[i],14:e4} { string.Join(" ", j.Select(ji => correlation[i, ji].ToString("f2")))}");
+        writer.WriteLine($"{i,5} {p[i],14:e4} {se[i],14:e4} {seLow[i],14:e4} {seHigh[i],14:e4} {string.Join(" ", j.Select(ji => correlation[i, ji].ToString("f2")))}");
       }
       writer.WriteLine();
 
       writer.WriteLine($"{"yPred",14} {"low",14}  {"high",14}");
-      GetPredictionIntervals(0.05, out var predLow, out var predHigh);
+      GetPredictionIntervals(0.05, out var predLow, out var predHigh, includeNoise: false);
       for (int i = 0; i < m; i++) {
         writer.WriteLine($"{yPred[i],14:e4} {predLow[i],14:e4} {predHigh[i],14:e4}");
       }

@@ -1,7 +1,7 @@
 ﻿using System;
 
 namespace HEAL.NonlinearRegression {
-  public static partial class NonlinearRegression {
+  public static class NonlinearRegression {
     public class Report {
       public int NumJacEvals { get; internal set; }
       public int NumFuncEvals { get; internal set; }
@@ -26,7 +26,7 @@ namespace HEAL.NonlinearRegression {
     /// </summary>
     /// <param name="p">Initial values and optimized parameters on exit. Initial parameters are overwritten.</param>
     /// <param name="func"></param>
-    /// <param name="jacobian">The jacobian of the function. The Action calculates the function values and the Jacobian</param>
+    /// <param name="jacobian">The Jacobian of the function. The Action calculates the function values and the Jacobian</param>
     /// <param name="y">Target values</param>
     /// <param name="report">Report with fitting results and statistics</param>
     /// <param name="maxIterations"></param>
@@ -79,15 +79,7 @@ namespace HEAL.NonlinearRegression {
           ssr += res * res;
         }
 
-        var statistics = new Statistics() {
-          m = m,
-          n = n,
-          SSR = ssr,
-          yPred = yPred,
-          paramEst = pOpt,
-        };
-
-        statistics.CalcParameterStatistics(jacobian);
+        var statistics = new Statistics(m, n, ssr, yPred, pOpt, jacobian);
 
         // t-profiles are problematic to calculate when the noise level is too low
         if (statistics.s >= 1e-8) {
