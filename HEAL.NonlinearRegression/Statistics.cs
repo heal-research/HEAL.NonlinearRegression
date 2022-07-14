@@ -7,8 +7,8 @@ namespace HEAL.NonlinearRegression {
     public int m { get; internal set; } // number of observations
     public int n { get; internal set; } // number of parameters
     public double[] yPred { get; internal set; }
-    public double SSR { get; internal set; } // S(θ) in Bates and Watts
-    public double s => Math.Sqrt(SSR / (m - n)); // residual mean square or variance estimate based on m-n degrees of freedom 
+    public double SSR { get; internal set; } // sum of squared residuals, S(θ) in Bates and Watts
+    public double s => Math.Sqrt(SSR / (m - n)); // s²: residual mean square or variance estimate based on m-n degrees of freedom 
     public double[] paramEst { get; internal set; } // estimated values for parameters θ
     public double[] paramStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
     public double[,] correlation { get; internal set; }// correlation matrix for parameters
@@ -43,7 +43,8 @@ namespace HEAL.NonlinearRegression {
       alglib.rmatrixqrunpackr(QR, n, n, out var R);
 
       // inverse of R
-      alglib.rmatrixtrinverse(ref R, isupper: true, out _, out _);
+      alglib.rmatrixtrinverse(ref R, isupper: true, out var info, out var invReport);
+      if (info < 0) throw new InvalidOperationException("Cannot invert R");
 
       // extract R^-1 into diag(|r1|,|r2|, ...|rp|) L where L has unit length rows
       var L = new double[n, n];
