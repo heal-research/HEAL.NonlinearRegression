@@ -106,11 +106,11 @@ namespace HEAL.NonlinearRegression {
       high = new double[m];
 
       // var f = alglib.invfdistribution(n, m - n, alpha);
-      var f = alglib.invstudenttdistribution(m - n, 1 - alpha / 2);
+      var t = alglib.invstudenttdistribution(m - n, 1 - alpha / 2);
 
       for (int i = 0; i < m; i++) {
-        low[i] = yPred[i] - resStdError[i] * Math.Sqrt(n * f) - (includeNoise ? s : 0.0);
-        high[i] = yPred[i] + resStdError[i] * Math.Sqrt(n * f) + (includeNoise ? s : 0.0);
+        low[i] = yPred[i] - resStdError[i] * Math.Sqrt(n * t) -(includeNoise ? t*s : 0.0);
+        high[i] = yPred[i] + resStdError[i] * Math.Sqrt(n * t) + (includeNoise ? t*s : 0.0);
       }
     }
 
