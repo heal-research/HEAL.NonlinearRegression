@@ -1,16 +1,15 @@
-﻿using HEAL.NonlinearRegression;
-using System;
+﻿using System;
 using System.Linq;
 
 namespace HEAL.NonlinearRegression {
   public class Program {
     public static void Main(string[] args) {
       DemoLinearUnivariate();
-      // DemoLinear();
-      // DemoExponential();
-      // DemoPCB();
-      // DemoBOD();
-      // DemoPuromycin();
+      DemoLinear();
+      DemoExponential();
+      DemoPCB();
+      DemoBOD();
+      DemoPuromycin();
     }
 
     public static void DemoLinearUnivariate() {
@@ -22,10 +21,23 @@ namespace HEAL.NonlinearRegression {
       var d = 2;
       var x = new double[m, d];
       var y = new double[m];
-      double[] yNoise = null;
 
-      NonlinearRegression.Report report = null;
 
+
+      void F(double[] p, double[,] X, double[] fi) {
+        for (int i = 0; i < m; i++) {
+          fi[i] = 0;
+          for (int j = 0; j < d; j++)
+            fi[i] += p[j] * X[i, j];
+        }
+      }
+
+      void Jac(double[] p, double[,] X, double[] fi, double[,] Jac) {
+        F(p, X, fi);
+        Array.Copy(X, Jac, X.Length); // for linear models J(f(X)) = X
+      }
+
+      // generate data
       for (int i = 0; i < m; i++) {
         for (int j = 0; j < d - 1; j++) {
           x[i, j] = i / (double)m * 20 - 10; //  rand.NextDouble() * 20 - 10;
@@ -34,36 +46,16 @@ namespace HEAL.NonlinearRegression {
       }
 
 
-      void F(double[] p, double[] fi) {
-        for (int i = 0; i < m; i++) {
-          fi[i] = 0;
-          for (int j = 0; j < d; j++)
-            fi[i] += p[j] * x[i, j];
-        }
-      }
+      F(pOpt, x, y); // calculate target
 
-      void Jac(double[] p, double[] fi, double[,] Jac) {
-        F(p, fi);
-        Array.Copy(x, Jac, x.Length);
-      }
-
-      F(pOpt, y);
-
-      yNoise = (double[])y.Clone();
-      for (int i = 0; i < m; i++) yNoise[i] += randNorm(rand, 0, 10);
+      // and create noisy version
+      var yNoise = (double[])y.Clone();
+      for (int i = 0; i < m; i++) yNoise[i] += RandNorm(rand, 0, stdDev: 10);
 
       var p = new double[] { .1, .1 };
-      NonlinearRegression.FitLeastSquares(p, F, Jac, yNoise, out report);
+      RunDemo(x, yNoise, F, Jac, p);
 
-      if (report.Success) {
-        Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
-        Console.WriteLine($"{report}");
-        report.Statistics.WriteStatistics(Console.Out);
-
-      } else {
-        Console.WriteLine("There was a problem while fitting.");
-      }
-
+      /*
 
       // re-parameterized function F_extendend has an additional parameter which is the output in predx
       // the re-parameterized function is f(x, p) - f(x0, p) + p_ext
@@ -107,18 +99,9 @@ namespace HEAL.NonlinearRegression {
         var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
         Console.WriteLine($"{report.Statistics.yPred[i],14:e4} {alglib.spline1dcalc(tau2theta, -t),14:e4} {alglib.spline1dcalc(tau2theta, t),14:e4}");
       }
+      */
     }
 
-    public static double randNorm(System.Random rand, int mean, int stdDev) {
-      double u, v, s;
-      do {
-        u = rand.NextDouble() * 2 - 1;
-        v = rand.NextDouble() * 2 - 1;
-        s = u * u + v * v;
-      } while (s >= 1 || s == 0);
-      s = Math.Sqrt(-2.0 * Math.Log(s) / s);
-      return mean + stdDev * u * s;
-    }
 
     public static void DemoLinear() {
       var rand = new System.Random(1234);
@@ -129,10 +112,24 @@ namespace HEAL.NonlinearRegression {
       var d = 4;
       var x = new double[m, d];
       var y = new double[m];
-      double[] yNoise = null;
 
-      NonlinearRegression.Report report = null;
 
+
+      void F(double[] p, double[,] X, double[] fi) {
+        for (int i = 0; i < m; i++) {
+          fi[i] = 0;
+          for (int j = 0; j < d; j++)
+            fi[i] += p[j] * X[i, j];
+        }
+      }
+
+      void Jac(double[] p, double[,] X, double[] fi, double[,] Jac) {
+        F(p, X, fi);
+        Array.Copy(X, Jac, X.Length); // for linear problems J(f(X)) = X
+      }
+
+
+      // generate data
       for (int i = 0; i < m; i++) {
         for (int j = 0; j < d - 1; j++) {
           x[i, j] = rand.NextDouble() * 2 - 1; // u~(-1,1)
@@ -140,38 +137,18 @@ namespace HEAL.NonlinearRegression {
         x[i, d - 1] = 1.0;
       }
 
+      // calculate target
+      F(pOpt, x, y);
 
-      void F(double[] p, double[] fi) {
-        for (int i = 0; i < m; i++) {
-          fi[i] = 0;
-          for (int j = 0; j < d; j++)
-            fi[i] += p[j] * x[i, j];
-        }
-      }
-
-      void Jac(double[] p, double[] fi, double[,] Jac) {
-        F(p, fi);
-        Array.Copy(x, Jac, x.Length);
-      }
-
-      F(pOpt, y);
-
-      yNoise = (double[])y.Clone();
+      // and generate noisy version
+      var yNoise = (double[])y.Clone();
       for (int i = 0; i < m; i++) yNoise[i] += rand.NextDouble() * 0.2 - 0.1;
 
       var p = new double[] { .1, .1, .1, .1 };
-      NonlinearRegression.FitLeastSquares(p, F, Jac, yNoise, out report);
-
-      if (report.Success) {
-        Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
-        Console.WriteLine($"{report}");
-        report.Statistics.WriteStatistics(Console.Out);
-
-      } else {
-        Console.WriteLine("There was a problem while fitting.");
-      }
+      RunDemo(x, yNoise, F, Jac, p);
 
 
+      /*
       // re-parameterized function F_extendend has an additional parameter which is the output in predx
       // the re-parameterized function is f(x, p) - f(x0, p) + p_ext
 
@@ -200,8 +177,6 @@ namespace HEAL.NonlinearRegression {
         }
       }
 
-
-
       var newParam = (double[])report.Statistics.paramEst.Clone();
       newParam[d - 1] = report.Statistics.yPred[0];
 
@@ -215,9 +190,10 @@ namespace HEAL.NonlinearRegression {
       var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
       alglib.spline1dcalc(tau2theta, t);
       // TODO CONTINUE HERE
+      */
     }
 
-    void DemoExponential() {
+    public static void DemoExponential() {
       var pOpt = new double[] { 0.2, -3.0 };
 
       int m = 20;
@@ -225,16 +201,16 @@ namespace HEAL.NonlinearRegression {
       var y = new double[m];
 
 
-      void F(double[] p, double[] fi) {
+      void F(double[] p, double[,] X, double[] fi) {
         for (int i = 0; i < m; i++) {
-          fi[i] = p[0] * Math.Exp(x[i, 0] * p[1]);
+          fi[i] = p[0] * Math.Exp(X[i, 0] * p[1]);
         }
       }
 
-      void Jac(double[] p, double[] fi, double[,] Jac) {
-        F(p, fi);
+      void Jac(double[] p, double[,] X, double[] fi, double[,] Jac) {
+        F(p, X, fi);
         for (int i = 0; i < m; i++) {
-          Jac[i, 0] = Math.Exp(x[i, 0] * p[1]);
+          Jac[i, 0] = Math.Exp(X[i, 0] * p[1]);
           Jac[i, 1] = x[i, 0] * fi[i];
         }
       }
@@ -243,90 +219,82 @@ namespace HEAL.NonlinearRegression {
       for (int i = 0; i < m; i++) {
         x[i, 0] = i / (double)m;
       }
-      F(pOpt, y);
+
+      F(pOpt, x, y); // calculate target vector
 
       // fit with starting point [1, 1]
       var p = new double[] { 1.0, 1.0 };
-      NonlinearRegression.FitLeastSquares(p, F, Jac, y, out var report);
-
-      if (report.Success) {
-        Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
-        Console.WriteLine($"{report}");
-        report.Statistics.WriteStatistics(Console.Out);
-
-      } else {
-        Console.WriteLine("There was a problem while fitting.");
-      }
+      RunDemo(x, y, F, Jac, p);
     }
 
 
-    void DemoPCB() {
+    public static void DemoPCB() {
       // PCB example from Nonlinear Regression Analysis and Its Applications, Bates and Watts, 1988
       Console.WriteLine("-----------");
       Console.WriteLine("PCB example");
       Console.WriteLine("-----------");
 
       var age = new double[] {
-  1,
-  1,
-  1,
-  1,
-  2,
-  2,
-  2,
-  3,
-  3,
-  3,
-  4,
-  4,
-  4,
-  5,
-  6,
-  6,
-  6,
-  7,
-  7,
-  7,
-  8,
-  8,
-  8,
-  9,
-  11,
-  12,
-  12,
-  12
-};
+                  1,
+                  1,
+                  1,
+                  1,
+                  2,
+                  2,
+                  2,
+                  3,
+                  3,
+                  3,
+                  4,
+                  4,
+                  4,
+                  5,
+                  6,
+                  6,
+                  6,
+                  7,
+                  7,
+                  7,
+                  8,
+                  8,
+                  8,
+                  9,
+                  11,
+                  12,
+                  12,
+                  12
+                };
 
       var PCB = new double[] {
-  0.6,
-  1.6,
-  0.5,
-  1.2,
-  2.0,
-  1.3,
-  2.5,
-  2.2,
-  2.4,
-  1.2,
-  3.5,
-  4.1,
-  5.1,
-  5.7,
-  3.4,
-  9.7,
-  8.6,
-  4.0,
-  5.5,
-  10.5,
-  17.5,
-  13.4,
-  4.5,
-  30.4,
-  12.4,
-  13.4,
-  26.2,
-  7.4
-};
+                  0.6,
+                  1.6,
+                  0.5,
+                  1.2,
+                  2.0,
+                  1.3,
+                  2.5,
+                  2.2,
+                  2.4,
+                  1.2,
+                  3.5,
+                  4.1,
+                  5.1,
+                  5.7,
+                  3.4,
+                  9.7,
+                  8.6,
+                  4.0,
+                  5.5,
+                  10.5,
+                  17.5,
+                  13.4,
+                  4.5,
+                  30.4,
+                  12.4,
+                  13.4,
+                  26.2,
+                  7.4
+                };
 
       var m = PCB.Length;
 
@@ -339,103 +307,74 @@ namespace HEAL.NonlinearRegression {
         x[i, 1] = Math.Cbrt(age[i]);    // cbrt(age)
       }
 
-      void F(double[] p, double[] fi) {
+      void F(double[] p, double[,] X, double[] fi) {
         for (int i = 0; i < m; i++) {
-          fi[i] = p[0] * x[i, 0] + p[1] * x[i, 1];
+          fi[i] = p[0] * X[i, 0] + p[1] * X[i, 1];
         }
       }
 
-      void Jac(double[] p, double[] fi, double[,] Jac) {
-        F(p, fi);
+      void Jac(double[] p, double[,] X, double[] fi, double[,] Jac) {
+        F(p, X, fi);
         for (int i = 0; i < m; i++) {
-          Jac[i, 0] = x[i, 0];
-          Jac[i, 1] = x[i, 1];
+          Jac[i, 0] = X[i, 0];
+          Jac[i, 1] = X[i, 1];
         }
       }
 
       // fit with starting point [1, 1]
       var p = new double[] { 1.0, 1.0 };
-      NonlinearRegression.FitLeastSquares(p, F, Jac, y, out var report);
-
-      if (report.Success) {
-        Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
-        Console.WriteLine($"{report}");
-        report.Statistics.WriteStatistics(Console.Out);
-        report.Statistics.ApproximateProfilePairContour(0, 1, alpha: 0.05, out _, out _, out var p1, out var p2);
-        Console.WriteLine("Approximate profile pair contour (p0 vs p1)");
-        for (int i = 0; i < p1.Length; i++) {
-          Console.WriteLine($"{p1[i]} {p2[i]}");
-        }
-
-      } else {
-        Console.WriteLine("There was a problem while fitting.");
-      }
+      RunDemo(x, y, F, Jac, p);
     }
 
-    void DemoBOD() {
+    public static void DemoBOD() {
       // BOD example from Nonlinear Regression Analysis and Its Applications, Bates and Watts, 1988
       Console.WriteLine("-----------");
       Console.WriteLine("BOD example");
       Console.WriteLine("-----------");
 
       // A 1.4     (there are two BOD datasets)
-      var days = new int[] {
-    1, 2, 3, 4, 5, 7
-  };
-
+      var days = new double[] { 1, 2, 3, 4, 5, 7 };
       var BOD = new double[] {
-    8.3,
-    10.3,
-    19.0,
-    16.0,
-    15.6,
-    19.8
-  };
+                  8.3,
+                  10.3,
+                  19.0,
+                  16.0,
+                  15.6,
+                  19.8
+                };
 
       var m = BOD.Length;
       double[] pOpt = null; // for prediction interval
       {
         // model: BOD = p1 * (1 - exp(-p2 * days))
 
-        void F(double[] p, double[] fi) {
+        void F(double[] p, double[,] X, double[] fi) {
           for (int i = 0; i < m; i++) {
-            fi[i] = p[0] * (1 - Math.Exp(-p[1] * days[i]));
+            fi[i] = p[0] * (1 - Math.Exp(-p[1] * X[i, 0]));
           }
         }
 
-        void Jac(double[] p, double[] fi, double[,] Jac) {
-          F(p, fi);
+        void Jac(double[] p, double[,] X, double[] fi, double[,] Jac) {
+          F(p, X, fi);
           for (int i = 0; i < m; i++) {
-            Jac[i, 0] = 1 - Math.Exp(-p[1] * days[i]);
-            Jac[i, 1] = p[0] * days[i] * Math.Exp(-p[1] * days[i]);
+            Jac[i, 0] = 1 - Math.Exp(-p[1] * X[i, 0]);
+            Jac[i, 1] = p[0] * X[i, 0] * Math.Exp(-p[1] * X[i, 0]);
           }
         }
 
-        var p = new double[] { 20, 0.24 }; // Bates and Watts, page 41
-                                           // expected results:
-                                           // p* = (19.143, 0.5311), s² = 6.498, 
-                                           // cor(p1, p2) = -0.85
-                                           // linear approximation 95% interval p1 = [12.2, 26.1], p2 = [-0.033, 1.095]
-                                           // t-profile 95% interval p1 = [14.05, 37.77], p2 = [0.132, 177]
-        NonlinearRegression.FitLeastSquares(p, F, Jac, BOD, out var report);
+        var p = new double[] { 20, 0.24 };
 
-        if (report.Success) {
-          pOpt = p;
-          Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
-          Console.WriteLine($"{report}");
-          report.Statistics.WriteStatistics(Console.Out);
-          report.Statistics.ApproximateProfilePairContour(0, 1, alpha: 0.10, out _, out _, out var p1, out var p2);
-          Console.WriteLine("Approximate profile pair contour (p0 vs p1)");
-          for (int i = 0; i < p1.Length; i++) {
-            Console.WriteLine($"{p1[i]} {p2[i]}");
-          }
-        } else {
-          Console.WriteLine("There was a problem while fitting.");
-        }
+        // Bates and Watts, page 41
+        // expected results:
+        // p* = (19.143, 0.5311), s² = 6.498, 
+        // cor(p1, p2) = -0.85
+        // linear approximation 95% interval p1 = [12.2, 26.1], p2 = [-0.033, 1.095]
+        // t-profile 95% interval p1 = [14.05, 37.77], p2 = [0.132, 177]
+        RunDemo(ToMatrix(days), BOD, F, Jac, p);
       }
     }
 
-    void DemoPuromycin() {
+    public static void DemoPuromycin() {
       // Puromycin example from Nonlinear Regression Analysis and Its Applications, Bates and Watts, 1988
       Console.WriteLine("-----------------");
       Console.WriteLine("Puromycin example");
@@ -453,31 +392,51 @@ namespace HEAL.NonlinearRegression {
 
       // model: y = p1 x / (p2 + x)
 
-      void F(double[] p, double[] fi) {
+      void F(double[] p, double[,] X, double[] fi) {
         for (int i = 0; i < m; i++) {
-          fi[i] = p[0] * x[i] / (p[1] + x[i]);
+          fi[i] = p[0] * X[i, 0] / (p[1] + X[i, 0]);
         }
       }
 
-      void Jac(double[] p, double[] fi, double[,] Jac) {
-        F(p, fi);
+      void Jac(double[] p, double[,] X, double[] fi, double[,] Jac) {
+        F(p, X, fi);
         for (int i = 0; i < m; i++) {
-          Jac[i, 0] = x[i] / (p[1] + x[i]);
-          Jac[i, 1] = -p[0] * x[i] / Math.Pow(p[1] + x[i], 2);
+          Jac[i, 0] = x[i] / (p[1] + X[i, 0]);
+          Jac[i, 1] = -p[0] * X[i, 0] / Math.Pow(p[1] + X[i, 0], 2);
         }
       }
 
       var p = new double[] { 205, 0.08 };  // Bates and Watts page 41
-      NonlinearRegression.FitLeastSquares(p, F, Jac, treated, out var report);
+
+      RunDemo(ToMatrix(x), treated, F, Jac, p);
+    }
+
+
+    /// <summary>
+    /// Runs the algorithm and analysis for a nonlinear regression problem.
+    /// </summary>
+    /// <param name="x">The matrix of input values for f.</param>
+    /// <param name="y">The vector of target values.</param>
+    /// <param name="f">The function to fit.</param>
+    /// <param name="jac">The Jacobian of f.</param>
+    /// <param name="start">The starting point for parameter values.</param>
+    private static void RunDemo(double[,] x, double[] y, Function f, Jacobian jac, double[] start) {
+      NonlinearRegression.FitLeastSquares(start, f, jac, x, y, out var report);
 
       if (report.Success) {
-        Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
+        Console.WriteLine($"p_opt: {string.Join(" ", start.Select(pi => pi.ToString("e5")))}");
         Console.WriteLine($"{report}");
         report.Statistics.WriteStatistics(Console.Out);
-        report.Statistics.ApproximateProfilePairContour(0, 1, alpha: 0.05, out _, out _, out var p1, out var p2);
-        Console.WriteLine("Approximate profile pair contour (p0 vs p1)");
-        for (int i = 0; i < p1.Length; i++) {
-          Console.WriteLine($"{p1[i]} {p2[i]}");
+
+
+
+        // TODO: extend this to produce some relevant output for all parameters instead of only a pairwise contour
+        if (report.Statistics.s > 1e-6) {
+          report.Statistics.ApproximateProfilePairContour(0, 1, alpha: 0.05, out _, out _, out var p1, out var p2);
+          Console.WriteLine("Approximate profile pair contour (p0 vs p1)");
+          for (int i = 0; i < p1.Length; i++) {
+            Console.WriteLine($"{p1[i]} {p2[i]}");
+          }
         }
 
       } else {
@@ -485,5 +444,26 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
+    #region helper
+    public static double RandNorm(Random rand, int mean, int stdDev) {
+      double u, v, s;
+      do {
+        u = rand.NextDouble() * 2 - 1;
+        v = rand.NextDouble() * 2 - 1;
+        s = u * u + v * v;
+      } while (s >= 1 || s == 0);
+      s = Math.Sqrt(-2.0 * Math.Log(s) / s);
+      return mean + stdDev * u * s;
+    }
+
+    private static double[,] ToMatrix(double[] x) {
+      // create a matrix from the vector x
+      var X = new double[x.Length, 1];
+      Buffer.BlockCopy(x, 0, X, 0, x.Length * sizeof(double));
+
+      return X;
+    }
+
+    #endregion
   }
 }

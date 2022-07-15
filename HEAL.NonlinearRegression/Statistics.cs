@@ -201,7 +201,7 @@ namespace HEAL.NonlinearRegression {
     internal void CalcTProfiles(double[] y, Action<double[], double[]> func, Action<double[], double[], double[,]> jacobian) {
       var pOpt = paramEst;
 
-      var t_profiles = new Tuple<double[], double[][]>[paramEst.Length]; // for each parameter the tau values and the matrix of parameters
+      t_profiles = new Tuple<double[], double[][]>[paramEst.Length]; // for each parameter the tau values and the matrix of parameters
 
       for (int pIdx = 0; pIdx < n; pIdx++) {
         t_profiles[pIdx] = CalcTProfile(y, func, jacobian, pOpt, pIdx);
