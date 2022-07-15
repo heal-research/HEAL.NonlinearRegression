@@ -4,6 +4,7 @@ using System.Linq;
 namespace HEAL.NonlinearRegression {
   public class Program {
     public static void Main(string[] args) {
+      RunDemo(new LinearUnivariateProblem());
       DemoLinearUnivariate();
       DemoLinear();
       DemoExponential();
@@ -12,48 +13,12 @@ namespace HEAL.NonlinearRegression {
       DemoPuromycin();
     }
 
+    private static void RunDemo(INLSProblem problem) {
+      RunDemo(problem.X, problem.y, problem.Func, problem.Jacobian, problem.ThetaStart);
+    }
+
     public static void DemoLinearUnivariate() {
-      var rand = new System.Random(1234);
 
-      var pOpt = new double[] { 2.5, 2 };
-
-      int m = 20;
-      var d = 2;
-      var x = new double[m, d];
-      var y = new double[m];
-
-
-
-      void F(double[] p, double[,] X, double[] fi) {
-        for (int i = 0; i < m; i++) {
-          fi[i] = 0;
-          for (int j = 0; j < d; j++)
-            fi[i] += p[j] * X[i, j];
-        }
-      }
-
-      void Jac(double[] p, double[,] X, double[] fi, double[,] Jac) {
-        F(p, X, fi);
-        Array.Copy(X, Jac, X.Length); // for linear models J(f(X)) = X
-      }
-
-      // generate data
-      for (int i = 0; i < m; i++) {
-        for (int j = 0; j < d - 1; j++) {
-          x[i, j] = i / (double)m * 20 - 10; //  rand.NextDouble() * 20 - 10;
-        }
-        x[i, d - 1] = 1.0;
-      }
-
-
-      F(pOpt, x, y); // calculate target
-
-      // and create noisy version
-      var yNoise = (double[])y.Clone();
-      for (int i = 0; i < m; i++) yNoise[i] += RandNorm(rand, 0, stdDev: 10);
-
-      var p = new double[] { .1, .1 };
-      RunDemo(x, yNoise, F, Jac, p);
 
       /*
 
@@ -370,7 +335,7 @@ namespace HEAL.NonlinearRegression {
         // cor(p1, p2) = -0.85
         // linear approximation 95% interval p1 = [12.2, 26.1], p2 = [-0.033, 1.095]
         // t-profile 95% interval p1 = [14.05, 37.77], p2 = [0.132, 177]
-        RunDemo(ToMatrix(days), BOD, F, Jac, p);
+        RunDemo(Util.ToMatrix(days), BOD, F, Jac, p);
       }
     }
 
@@ -408,7 +373,7 @@ namespace HEAL.NonlinearRegression {
 
       var p = new double[] { 205, 0.08 };  // Bates and Watts page 41
 
-      RunDemo(ToMatrix(x), treated, F, Jac, p);
+      RunDemo(Util.ToMatrix(x), treated, F, Jac, p);
     }
 
 
@@ -445,24 +410,7 @@ namespace HEAL.NonlinearRegression {
     }
 
     #region helper
-    public static double RandNorm(Random rand, int mean, int stdDev) {
-      double u, v, s;
-      do {
-        u = rand.NextDouble() * 2 - 1;
-        v = rand.NextDouble() * 2 - 1;
-        s = u * u + v * v;
-      } while (s >= 1 || s == 0);
-      s = Math.Sqrt(-2.0 * Math.Log(s) / s);
-      return mean + stdDev * u * s;
-    }
 
-    private static double[,] ToMatrix(double[] x) {
-      // create a matrix from the vector x
-      var X = new double[x.Length, 1];
-      Buffer.BlockCopy(x, 0, X, 0, x.Length * sizeof(double));
-
-      return X;
-    }
 
     #endregion
   }
