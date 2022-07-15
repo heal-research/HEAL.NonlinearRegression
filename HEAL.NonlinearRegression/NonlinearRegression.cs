@@ -1,19 +1,31 @@
 ﻿using System;
+using System.IO;
+using System.Linq;
 
 namespace HEAL.NonlinearRegression {
-  public static class NonlinearRegression {
-    public class Report {
+  public class NonlinearRegression {
+    public class OptimizationReport {
       public int NumJacEvals { get; internal set; }
       public int NumFuncEvals { get; internal set; }
       public int Iterations { get; internal set; }
       public bool Success { get; internal set; }
-
-      public Statistics? Statistics { get; internal set; }
-
       public override string ToString() {
         return $"Successful: {Success}, NumIters: {Iterations}, NumFuncEvals: {NumFuncEvals}, NumJacEvals: {NumJacEvals}";
       }
     }
+
+    private Function func;
+    private Jacobian jacobian;
+
+    // results
+    private double[] paramEst;
+
+    public double[]? ParamEst { get { return paramEst?.Clone() as double[]; } }
+
+    public OptimizationReport OptReport { get; private set; }
+    public LeastSquaresStatistics Statistics { get; private set; }
+
+    public NonlinearRegression() { }
 
     /// <summary>
     /// Least-squares fitting for func with Jacobian to target y using initial values p.
@@ -29,9 +41,11 @@ namespace HEAL.NonlinearRegression {
     /// <param name="stepMax">Optional parameter to limit the step size in Levenberg-Marquardt. Can be useful on quickly changing functions (e.g. exponentials).</param>
     /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
     /// <exception cref="InvalidProgramException"></exception>
-    public static void FitLeastSquares(double[] p, Function func, Jacobian jacobian, double[,] x, double[] y,
-        out Report report,
+    public void Fit(double[] p, Function func, Jacobian jacobian, double[,] x, double[] y,
         int maxIterations = 0, double[]? scale = null, double stepMax = 0.0, Func<double[], double, bool>? callback = null) {
+
+      this.func = func;
+      this.jacobian = jacobian;
       int m = y.Length;
       int n = p.Length;
       alglib.minlmcreatevj(m, p, out var state);
@@ -39,7 +53,7 @@ namespace HEAL.NonlinearRegression {
       if (scale != null) alglib.minlmsetscale(state, scale);
       if (stepMax > 0.0) alglib.minlmsetstpmax(state, stepMax);
 
-      void residual(double[] p, double[] fi, object o) {
+      void residualFunc(double[] p, double[] fi, object o) {
         func(p, x, fi);
         for (int i = 0; i < m; i++) {
           fi[i] = fi[i] - y[i]; // this order to simplify calculation of Jacobian for residuals (which is a pass-through)
@@ -59,37 +73,25 @@ namespace HEAL.NonlinearRegression {
         }
       }
       // alglib.minlmoptguardgradient(state, 1e-6);
-      alglib.minlmoptimize(state, residual, residualJac, _rep, obj: null);
-      alglib.minlmresults(state, out var pOpt, out var rep);
+      alglib.minlmoptimize(state, residualFunc, residualJac, _rep, obj: null);
+      alglib.minlmresults(state, out paramEst, out var rep);
       // alglib.minlmoptguardresults(state, out var optGuardReport);
       // if (optGuardReport.badgradsuspected) throw new InvalidProgramException();
 
       if (rep.terminationtype >= 0) {
-        Array.Copy(pOpt, p, p.Length);
-        var yPred = new double[m];
-        func(pOpt, x, yPred);
-        var ssr = 0.0;
-        for (int i = 0; i < m; i++) {
-          var res = y[i] - yPred[i];
-          ssr += res * res;
-        }
+        Array.Copy(paramEst, p, p.Length);
+        Statistics = new LeastSquaresStatistics(m, n, state.f, state.fi, paramEst, JacobianForX(x, jacobian));
 
-        var statistics = new Statistics(m, n, ssr, yPred, pOpt, JacobianForX(x, jacobian));
-
-        // t-profiles are problematic to calculate when the noise level is too low
-        if (statistics.s >= 1e-8) {
-          statistics.CalcTProfiles(y, FuncForX(x, func), JacobianForX(x, jacobian));
-        }
-
-        report = new Report() {
+        OptReport = new OptimizationReport() {
           Success = true,
           Iterations = rep.iterationscount,
           NumFuncEvals = rep.nfunc,
           NumJacEvals = rep.njac,
-          Statistics = statistics
         };
       } else {
-        report = new Report() {
+        // error
+        paramEst = null;
+        OptReport = new OptimizationReport() {
           Success = false,
           Iterations = rep.iterationscount,
           NumFuncEvals = rep.nfunc,
@@ -97,6 +99,59 @@ namespace HEAL.NonlinearRegression {
         };
       }
     }
+
+    public double[] Predict(double[,] x) {
+      if (paramEst == null) throw new InvalidOperationException("Call fit first.");
+      var m = x.GetLength(0);
+      var y = new double[m];
+      func(paramEst, x, y);
+      return y;
+    }
+
+    public double[,] PredictWithIntervals(double[,] x, IntervalEnum intervalType) {
+      switch (intervalType) {
+        case IntervalEnum.None: {
+            var yPred = Predict(x);
+            var y = new double[yPred.Length, 1];
+            Buffer.BlockCopy(yPred, 0, y, 0, yPred.Length * sizeof(double));
+            return y;
+          }
+        case IntervalEnum.LinearApproximation: {
+            throw new NotImplementedException();
+            break;
+          }
+        case IntervalEnum.TProfile: {
+            throw new NotImplementedException();
+            break;
+          }
+      }
+      throw new InvalidProgramException();
+    }
+
+    public void WriteStatistics() {
+      WriteStatistics(Console.Out);
+    }
+
+    private void WriteStatistics(TextWriter writer) {
+      var p = ParamEst;
+      var se = Statistics.paramStdError;
+      Statistics.GetParameterIntervals(0.05, out var seLow, out var seHigh);
+      writer.WriteLine($"SSR {Statistics.SSR:e4} s {Statistics.s:e4}");
+      writer.WriteLine($"{"Para"} {"Estimate",14}  {"Std. error",14} {"Lower",14} {"Upper",14} Correlation matrix");
+      for (int i = 0; i < Statistics.n; i++) {
+        var j = Enumerable.Range(0, i + 1);
+        writer.WriteLine($"{i,5} {p[i],14:e4} {se[i],14:e4} {seLow[i],14:e4} {seHigh[i],14:e4} {string.Join(" ", j.Select(ji => Statistics.correlation[i, ji].ToString("f2")))}");
+      }
+      writer.WriteLine();
+
+      writer.WriteLine($"{"yPred",14} {"low",14}  {"high",14}");
+      Statistics.GetPredictionIntervals(0.05, out var predLow, out var predHigh, includeNoise: false);
+      for (int i = 0; i < Statistics.m; i++) {
+        writer.WriteLine($"{Statistics.yPred[i],14:e4} {predLow[i],14:e4} {predHigh[i],14:e4}");
+      }
+    }
+
+    #region helper
 
     // TODO: potentially better to adjust CalcTProfiles and Statistics to take Function and Jacobian parameters
 
@@ -113,5 +168,6 @@ namespace HEAL.NonlinearRegression {
         jac(p, x, f, J);
       };
     }
+    #endregion
   }
 }

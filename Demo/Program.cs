@@ -136,23 +136,28 @@ namespace HEAL.NonlinearRegression {
     /// <param name="jac">The Jacobian of f.</param>
     /// <param name="start">The starting point for parameter values.</param>
     private static void RunDemo(double[,] x, double[] y, Function f, Jacobian jac, double[] start) {
-      NonlinearRegression.FitLeastSquares(start, f, jac, x, y, out var report);
+      var theta = (double[])start.Clone();
+      var nls = new NonlinearRegression();
+      nls.Fit(theta, f, jac, x, y);
 
-      if (report.Success) {
-        Console.WriteLine($"p_opt: {string.Join(" ", start.Select(pi => pi.ToString("e5")))}");
-        Console.WriteLine($"{report}");
-        report.Statistics.WriteStatistics(Console.Out);
+      if (nls.OptReport.Success) {
+        Console.WriteLine($"p_opt: {string.Join(" ", theta.Select(pi => pi.ToString("e5")))}");
+        Console.WriteLine($"{nls.OptReport}");
+        nls.WriteStatistics();
 
 
-
-        // TODO: extend this to produce some relevant output for all parameters instead of only a pairwise contour
-        if (report.Statistics.s > 1e-6) {
-          report.Statistics.ApproximateProfilePairContour(0, 1, alpha: 0.05, out _, out _, out var p1, out var p2);
-          Console.WriteLine("Approximate profile pair contour (p0 vs p1)");
-          for (int i = 0; i < p1.Length; i++) {
-            Console.WriteLine($"{p1[i]} {p2[i]}");
-          }
+        if(nls.Statistics.s > 1e-6) {
+          var tProfile = new TProfile(y, x, nls.Statistics, f, jac);
         }
+
+        // // TODO: extend this to produce some relevant output for all parameters instead of only a pairwise contour
+        // if (report.Statistics.s > 1e-6) {
+        //   report.Statistics.ApproximateProfilePairContour(0, 1, alpha: 0.05, out _, out _, out var p1, out var p2);
+        //   Console.WriteLine("Approximate profile pair contour (p0 vs p1)");
+        //   for (int i = 0; i < p1.Length; i++) {
+        //     Console.WriteLine($"{p1[i]} {p2[i]}");
+        //   }
+        // }
 
       } else {
         Console.WriteLine("There was a problem while fitting.");
