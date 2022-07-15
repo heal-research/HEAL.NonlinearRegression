@@ -1,4 +1,6 @@
 ﻿using HEAL.NonlinearRegression;
+using System;
+using System.Linq;
 
 namespace HEAL.NonlinearRegression {
   public class Program {
