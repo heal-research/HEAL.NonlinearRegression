@@ -14,8 +14,10 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    private Function func;
-    private Jacobian jacobian;
+    internal Function func;
+    internal Jacobian jacobian;
+    internal double[,] x;
+    internal double[] y;
 
     // results
     private double[] paramEst;
@@ -46,6 +48,9 @@ namespace HEAL.NonlinearRegression {
 
       this.func = func;
       this.jacobian = jacobian;
+      this.x = (double[,])x.Clone();
+      this.y = (double[])y.Clone();
+
       int m = y.Length;
       int n = p.Length;
       alglib.minlmcreatevj(m, p, out var state);
@@ -80,7 +85,7 @@ namespace HEAL.NonlinearRegression {
 
       if (rep.terminationtype >= 0) {
         Array.Copy(paramEst, p, p.Length);
-        Statistics = new LeastSquaresStatistics(m, n, state.f, state.fi, paramEst, JacobianForX(x, jacobian));
+        Statistics = new LeastSquaresStatistics(m, n, state.f, state.fi, paramEst, Util.JacobianForX(x, jacobian));
 
         OptReport = new OptimizationReport() {
           Success = true,
@@ -108,21 +113,37 @@ namespace HEAL.NonlinearRegression {
       return y;
     }
 
-    public double[,] PredictWithIntervals(double[,] x, IntervalEnum intervalType) {
+    public double[,] PredictWithIntervals(double[,] x, IntervalEnum intervalType, double alpha = 0.05, bool includeNoise = false) {
+      var m = x.GetLength(0);
       switch (intervalType) {
         case IntervalEnum.None: {
             var yPred = Predict(x);
-            var y = new double[yPred.Length, 1];
+            var y = new double[m, 1];
             Buffer.BlockCopy(yPred, 0, y, 0, yPred.Length * sizeof(double));
             return y;
           }
         case IntervalEnum.LinearApproximation: {
-            throw new NotImplementedException();
-            break;
+            var yPred = Predict(x);
+            var y = new double[m, 3];
+            Statistics.GetPredictionIntervals(alpha, out var low, out var high, includeNoise);
+            for (int i = 0; i < m; i++) {
+              y[i, 0] = yPred[i];
+              y[i, 1] = low[i];
+              y[i, 2] = high[i];
+            }
+            return y;
           }
         case IntervalEnum.TProfile: {
-            throw new NotImplementedException();
-            break;
+            if (includeNoise) throw new NotImplementedException("Prediction intervals based on tProfiles with noise not yet supported.");
+            var yPred = Predict(x);
+            var y = new double[m, 3];
+            TProfile.GetPredictionIntervals(x, this, out var low, out var high, alpha, includeNoise);
+            for (int i = 0; i < m; i++) {
+              y[i, 0] = yPred[i];
+              y[i, 1] = low[i];
+              y[i, 2] = high[i];
+            }
+            return y;
           }
       }
       throw new InvalidProgramException();
@@ -144,30 +165,16 @@ namespace HEAL.NonlinearRegression {
       }
       writer.WriteLine();
 
-      writer.WriteLine($"{"yPred",14} {"low",14}  {"high",14}");
-      Statistics.GetPredictionIntervals(0.05, out var predLow, out var predHigh, includeNoise: false);
-      for (int i = 0; i < Statistics.m; i++) {
-        writer.WriteLine($"{Statistics.yPred[i],14:e4} {predLow[i],14:e4} {predHigh[i],14:e4}");
-      }
+      // writer.WriteLine($"{"yPred",14} {"low",14}  {"high",14}");
+      // Statistics.GetPredictionIntervals(0.05, out var predLow, out var predHigh, includeNoise: false);
+      // for (int i = 0; i < Statistics.m; i++) {
+      //   writer.WriteLine($"{Statistics.yPred[i],14:e4} {predLow[i],14:e4} {predHigh[i],14:e4}");
+      // }
     }
 
     #region helper
 
-    // TODO: potentially better to adjust CalcTProfiles and Statistics to take Function and Jacobian parameters
 
-    // creates a new Action to calculate the function output for a fixed dataset
-    private static Action<double[], double[]> FuncForX(double[,] x, Function func) {
-      return (p, f) => {
-        func(p, x, f);
-      };
-    }
-
-    // creates a new Action to calculate the Jacobian for a fixed dataset x
-    private static Action<double[], double[], double[,]> JacobianForX(double[,] x, Jacobian jac) {
-      return (p, f, J) => {
-        jac(p, x, f, J);
-      };
-    }
     #endregion
   }
 }

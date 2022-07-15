@@ -40,25 +40,7 @@ namespace HEAL.NonlinearRegression {
 
 
 
-      void F_ext(double[] p, double[] fi) {
-        for (int i = 0; i < m; i++) {
-          fi[i] = 0;
-          for (int j = 0; j < d - 1; j++)
-            fi[i] += p[j] * x[i, j] - p[j] * predx[j];
-          fi[i] += p[d - 1];
-        }
-      }
-
-      void Jac_ext(double[] p, double[] fi, double[,] Jac) {
-        F_ext(p, fi);
-
-        for (int i = 0; i < m; i++) {
-          for (int j = 0; j < d - 1; j++)
-            Jac[i, j] = x[i, j] - predx[j];
-
-          Jac[i, d - 1] = 1;
-        }
-      }
+     
 
       Console.WriteLine("Prediction intervals based on t-profile");
       for (int i = 0; i < m; i++) {
@@ -69,11 +51,7 @@ namespace HEAL.NonlinearRegression {
         var modifiedStats = new Statistics(m, d, report.Statistics.SSR, report.Statistics.yPred, newParam, Jac_ext);
 
         var profile = PredictionInterval.Calculate(newParam, F_ext, Jac_ext, yNoise, modifiedStats.paramStdError.Last(), modifiedStats.s, modifiedStats.SSR);
-        alglib.spline1dbuildcubic(profile.Item1, profile.Item2, out var tau2theta);
-        var alpha = 0.05;
-        var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
-        Console.WriteLine($"{report.Statistics.yPred[i],14:e4} {alglib.spline1dcalc(tau2theta, -t),14:e4} {alglib.spline1dcalc(tau2theta, t),14:e4}");
-      }
+             }
       */
     }
 
@@ -146,8 +124,30 @@ namespace HEAL.NonlinearRegression {
         nls.WriteStatistics();
 
 
-        if(nls.Statistics.s > 1e-6) {
+        if (nls.Statistics.s > 1e-6) {
           var tProfile = new TProfile(y, x, nls.Statistics, f, jac);
+
+
+          nls.Statistics.GetPredictionIntervals(0.05, out var linLow, out var linHigh);
+          Console.WriteLine("Prediction intervals (linear approximation);");
+          for (int i = 0; i < 10; i++) {
+            Console.WriteLine($"{nls.Statistics.yPred[i],14:e4} {linLow[i],14:e4} {linHigh[i],14:e4}");
+          }
+          Console.WriteLine();
+
+          // produce predictions for the first few data points
+          double[,] xReduced;
+          if (x.GetLength(0) > 10) {
+            xReduced = new double[10, x.GetLength(1)];
+            Buffer.BlockCopy(x, 0, xReduced, 0, xReduced.Length * sizeof(double));
+          } else {
+            xReduced = x;
+          }
+          TProfile.GetPredictionIntervals(xReduced, nls, out var tLow, out var tHigh);
+          Console.WriteLine("Prediction intervals (t-profile);");
+          for (int i = 0; i < 10; i++) {
+            Console.WriteLine($"{nls.Statistics.yPred[i],14:e4} {tLow[i],14:e4} {tHigh[i],14:e4}");
+          }
         }
 
         // // TODO: extend this to produce some relevant output for all parameters instead of only a pairwise contour

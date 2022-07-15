@@ -193,6 +193,43 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
+    public static void GetPredictionIntervals(double[,] x, NonlinearRegression nls, out double[] low, out double[] high, double alpha = 0.05, bool includeNoise = false) {
+      var m = x.GetLength(0); // the points for which we calculate the prediction interval
+      var n = nls.Statistics.n; // number of parameters
+      var d = x.GetLength(1); // number of features
+      low = new double[m];
+      high = new double[m];
+      var yPred = new double[m];
+      nls.func(nls.Statistics.paramEst, x, yPred);
+
+      // buffers
+      var xi = new double[d];
+      var paramEstExt = new double[n + 1];
+      Array.Copy(nls.ParamEst, paramEstExt, n);
+
+      // prediction intervals for each point in x
+      for (int i = 0; i < m; i++) {
+        Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
+        var funcExt = Util.ReparameterizeFunc(nls.func, xi);
+        var jacExt = Util.ReparameterizeJacobian(nls.jacobian, xi);
+
+        paramEstExt[n] = yPred[i]; // last parameter is prediction at point xi
+        var statisticsExt = new LeastSquaresStatistics(m, n + 1, nls.Statistics.SSR, nls.Statistics.yPred, paramEstExt, Util.JacobianForX(nls.x, jacExt)); // slow, can we simplify this ?
+
+        var profile = CalcTProfile(nls.y, nls.x, nls.Statistics, funcExt, jacExt, n); // only for extra parameter
+
+        var tau = profile.Item1;
+        var theta = new double[tau.Length];
+        for (int k = 0; k < theta.Length; k++) {
+          theta[k] = profile.Item2[n][k]; // profile of extra parameter
+        }
+        alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
+        var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
+        low[i] = alglib.spline1dcalc(tau2theta, -t);
+        high[i] = alglib.spline1dcalc(tau2theta, t);
+      }
+    }
+
     private void PrepareSplinesForProfileSketches() {
       // profile pair plots
       for (int pIdx = 0; pIdx < n; pIdx++) {

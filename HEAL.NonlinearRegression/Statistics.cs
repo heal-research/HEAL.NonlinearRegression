@@ -15,6 +15,7 @@ namespace HEAL.NonlinearRegression {
     public double[] resStdError { get; internal set; } // standard error for residuals
 
 
+    // TODO change jacobian type
     public LeastSquaresStatistics(int m, int n, double SSR, double[] yPred, double[] paramEst, Action<double[], double[], double[,]> jacobian) {
       this.m = m;
       this.n = n;
