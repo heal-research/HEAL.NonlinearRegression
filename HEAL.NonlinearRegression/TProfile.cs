@@ -209,67 +209,40 @@ namespace HEAL.NonlinearRegression {
       nls.func(nls.Statistics.paramEst, x, yPred);
 
       var offsetIdx = FindOffsetParameterIndex(nls.ParamEst, nls.x, nls.jacobian); // returns -1 if there is no offset parameter
-
+      double[] paramEstExt;
       if (offsetIdx == -1) {
-        n = n + 1;
         // extend parameter vector to include an offset parameter
+        n = n + 1;
+        paramEstExt = new double[n];
         offsetIdx = n - 1;
-        var paramEstExt = new double[n];
-        Array.Copy(nls.ParamEst, paramEstExt, nls.ParamEst.Length);
-
-
-        // buffer
-        var xi = new double[d];
-
-        // prediction intervals for each point in x
-        for (int i = 0; i < m; i++) {
-          Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
-          var funcExt = Util.ReparameterizeFunc(nls.func, xi, offsetIdx);
-          var jacExt = Util.ReparameterizeJacobian(nls.jacobian, xi, offsetIdx);
-
-          paramEstExt[offsetIdx] = yPred[i]; // offset parameter is prediction at point xi
-          var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, nls.Statistics.yPred, paramEstExt, Util.JacobianForX(nls.x, jacExt)); // slow, can we simplify this ?
-
-          var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, offsetIdx); // only for extra parameter
-
-          var tau = profile.Item1;
-          var theta = new double[tau.Length];
-          for (int k = 0; k < theta.Length; k++) {
-            theta[k] = profile.Item2[offsetIdx][k]; // profile of extra parameter
-          }
-          alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
-          var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
-          low[i] = alglib.spline1dcalc(tau2theta, -t);
-          high[i] = alglib.spline1dcalc(tau2theta, t);
-        }
       } else {
-        var paramEstExt = new double[n];
-        Array.Copy(nls.ParamEst, paramEstExt, nls.ParamEst.Length);
+        paramEstExt = new double[n];
+      }
 
-        // buffer
-        var xi = new double[d];
+      // buffer
+      var xi = new double[d];
+      Array.Copy(nls.ParamEst, paramEstExt, nls.ParamEst.Length);
 
-        // prediction intervals for each point in x
-        for (int i = 0; i < m; i++) {
-          Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
-          var funcExt = Util.ReparameterizeFunc(nls.func, xi, offsetIdx);
-          var jacExt = Util.ReparameterizeJacobian(nls.jacobian, xi, offsetIdx);
+      // prediction intervals for each point in x
+      for (int i = 0; i < m; i++) {
+        Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
+        var funcExt = Util.ReparameterizeFunc(nls.func, xi, offsetIdx);
+        var jacExt = Util.ReparameterizeJacobian(nls.jacobian, xi, offsetIdx);
 
-          paramEstExt[offsetIdx] = yPred[i]; // offset parameter is prediction at point xi
-          var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, nls.Statistics.yPred, paramEstExt, Util.JacobianForX(nls.x, jacExt)); // slow, can we simplify this ?
+        paramEstExt[offsetIdx] = yPred[i]; // offset parameter is prediction at point xi
+        var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, nls.Statistics.yPred, paramEstExt, Util.JacobianForX(nls.x, jacExt)); // slow, can we simplify this ?
 
-          var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, offsetIdx); // only for extra parameter
+        var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, offsetIdx); // only for extra parameter
 
-          var tau = profile.Item1;
-          var theta = new double[tau.Length];
-          for (int k = 0; k < theta.Length; k++) {
-            theta[k] = profile.Item2[offsetIdx][k]; // profile of original parameter
-          }
-          alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
-          var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
-          low[i] = alglib.spline1dcalc(tau2theta, -t);
-          high[i] = alglib.spline1dcalc(tau2theta, t);
+        var tau = profile.Item1;
+        var theta = new double[tau.Length];
+        for (int k = 0; k < theta.Length; k++) {
+          theta[k] = profile.Item2[offsetIdx][k]; // profile of extra parameter
         }
+        alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
+        var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
+        low[i] = alglib.spline1dcalc(tau2theta, -t);
+        high[i] = alglib.spline1dcalc(tau2theta, t);
       }
     }
 
