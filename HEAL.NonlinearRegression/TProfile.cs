@@ -197,37 +197,100 @@ namespace HEAL.NonlinearRegression {
       var m = x.GetLength(0); // the points for which we calculate the prediction interval
       var n = nls.Statistics.n; // number of parameters
       var d = x.GetLength(1); // number of features
+
       low = new double[m];
       high = new double[m];
+
+      // calc predicted values
       var yPred = new double[m];
       nls.func(nls.Statistics.paramEst, x, yPred);
 
-      // buffers
-      var xi = new double[d];
-      var paramEstExt = new double[n + 1];
-      Array.Copy(nls.ParamEst, paramEstExt, n);
+      var offsetIdx = FindOffsetParameterIndex(nls.ParamEst, nls.x, nls.jacobian); // returns -1 if there is no offset parameter
 
-      // prediction intervals for each point in x
-      for (int i = 0; i < m; i++) {
-        Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
-        var funcExt = Util.ReparameterizeFunc(nls.func, xi);
-        var jacExt = Util.ReparameterizeJacobian(nls.jacobian, xi);
+      if (offsetIdx == -1) {
+        n = n + 1;
+        // extend parameter vector to include an offset parameter
+        offsetIdx = n - 1;
+        var paramEstExt = new double[n];
+        Array.Copy(nls.ParamEst, paramEstExt, nls.ParamEst.Length);
 
-        paramEstExt[n] = yPred[i]; // last parameter is prediction at point xi
-        var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n + 1, nls.Statistics.SSR, nls.Statistics.yPred, paramEstExt, Util.JacobianForX(nls.x, jacExt)); // slow, can we simplify this ?
 
-        var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, n); // only for extra parameter
+        // buffer
+        var xi = new double[d];
 
-        var tau = profile.Item1;
-        var theta = new double[tau.Length];
-        for (int k = 0; k < theta.Length; k++) {
-          theta[k] = profile.Item2[n][k]; // profile of extra parameter
+        // prediction intervals for each point in x
+        for (int i = 0; i < m; i++) {
+          Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
+          var funcExt = Util.ReparameterizeFunc(nls.func, xi, offsetIdx);
+          var jacExt = Util.ReparameterizeJacobian(nls.jacobian, xi, offsetIdx);
+
+          paramEstExt[offsetIdx] = yPred[i]; // offset parameter is prediction at point xi
+          var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, nls.Statistics.yPred, paramEstExt, Util.JacobianForX(nls.x, jacExt)); // slow, can we simplify this ?
+
+          var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, offsetIdx); // only for extra parameter
+
+          var tau = profile.Item1;
+          var theta = new double[tau.Length];
+          for (int k = 0; k < theta.Length; k++) {
+            theta[k] = profile.Item2[offsetIdx][k]; // profile of extra parameter
+          }
+          alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
+          var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
+          low[i] = alglib.spline1dcalc(tau2theta, -t);
+          high[i] = alglib.spline1dcalc(tau2theta, t);
         }
-        alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
-        var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
-        low[i] = alglib.spline1dcalc(tau2theta, -t);
-        high[i] = alglib.spline1dcalc(tau2theta, t);
+      } else {
+        var paramEstExt = new double[n];
+        Array.Copy(nls.ParamEst, paramEstExt, nls.ParamEst.Length);
+
+        // buffer
+        var xi = new double[d];
+
+        // prediction intervals for each point in x
+        for (int i = 0; i < m; i++) {
+          Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
+          var funcExt = Util.ReparameterizeFunc(nls.func, xi, offsetIdx);
+          var jacExt = Util.ReparameterizeJacobian(nls.jacobian, xi, offsetIdx);
+
+          paramEstExt[offsetIdx] = yPred[i]; // offset parameter is prediction at point xi
+          var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, nls.Statistics.yPred, paramEstExt, Util.JacobianForX(nls.x, jacExt)); // slow, can we simplify this ?
+
+          var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, offsetIdx); // only for extra parameter
+
+          var tau = profile.Item1;
+          var theta = new double[tau.Length];
+          for (int k = 0; k < theta.Length; k++) {
+            theta[k] = profile.Item2[offsetIdx][k]; // profile of original parameter
+          }
+          alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
+          var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
+          low[i] = alglib.spline1dcalc(tau2theta, -t);
+          high[i] = alglib.spline1dcalc(tau2theta, t);
+        }
       }
+    }
+
+    private static int FindOffsetParameterIndex(double[] theta, double[,] x, Jacobian jacobian) {
+      var m = x.GetLength(0);
+      var d = theta.Length;
+      var f = new double[m];
+      var jac = new double[m, d];
+      jacobian(theta, x, f, jac);
+      // find a column of constant values (stops on first column found)
+      var res = -1;
+      int colIdx = 0;
+      while (colIdx < d && res == -1) {
+        var isConstant = true;
+        var firstVal = jac[0, colIdx];
+        int i = 1;
+        while (i < m && isConstant) {
+          isConstant = jac[i, colIdx] == firstVal;
+          i++;
+        }
+        if (i >= m) res = colIdx; // found
+        colIdx++;
+      }
+      return res;
     }
 
     private void PrepareSplinesForProfileSketches() {

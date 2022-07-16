@@ -40,9 +40,9 @@ namespace HEAL.NonlinearRegression {
       };
     }
 
-    // takes function and reparameterizes it so that it produces paramValue for x0
-    // f'(x) = f(x,p[1..k]) - f(x0,p[1..k]) + p[k+1]
-    public static Function ReparameterizeFunc(Function func, double[] x0) {
+    // takes function and re-parameterizes it so that it produces paramValue for x0
+    // f'(x) = f(x,p[1..k]) - f(x0,p[1..k]) + p[offsetParamIdx]
+    public static Function ReparameterizeFunc(Function func, double[] x0, int offsetParamIdx) {
       return (p, x, f) => {
         // calculate f(x0) first
         var _x0 = new double[1, x0.Length];
@@ -53,12 +53,12 @@ namespace HEAL.NonlinearRegression {
         func(p, x, f); // func ignores the last parameter
         var m = x.GetLength(0);
         for (int i = 0; i < m; i++) {
-          f[i] = f[i] - f_x0 + p[p.Length - 1];
+          f[i] = f[i] - f_x0 + p[offsetParamIdx];
         }
       };
     }
 
-    public static Jacobian ReparameterizeJacobian(Jacobian jacobian, double[] x0) {
+    public static Jacobian ReparameterizeJacobian(Jacobian jacobian, double[] x0, int offsetParamIdx) {
       return (p, x, f, jac) => {
         var m = jac.GetLength(0);
         var n = jac.GetLength(1) - 1; // the extended function has one extra parameter
@@ -75,12 +75,12 @@ namespace HEAL.NonlinearRegression {
 
         jacobian(p, x, f, jac);
         for (int i = 0; i < m; i++) {
-          f[i] = f[i] - f_x0 + p[p.Length - 1];
+          f[i] = f[i] - f_x0 + p[offsetParamIdx];
 
           for (int j = 0; j < n; j++) {
             jac[i, j] -= j_x0[j];
           }
-          jac[i, n] = 1; // derivative of extra parameter
+          jac[i, offsetParamIdx] = 1; // derivative of extra parameter
         }
       };
     }
