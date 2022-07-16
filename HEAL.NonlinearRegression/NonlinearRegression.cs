@@ -74,7 +74,9 @@ namespace HEAL.NonlinearRegression {
 
       if (rep.terminationtype >= 0) {
         Array.Copy(paramEst, p, p.Length);
-        Statistics = new LeastSquaresStatistics(m, n, state.f, state.fi, paramEst, Util.JacobianForX(x, jacobian));
+        var yPred = new double[m];
+        func(paramEst, x, yPred);
+        Statistics = new LeastSquaresStatistics(m, n, state.f, yPred, paramEst, Util.JacobianForX(x, jacobian));
 
         OptReport = new OptimizationReport() {
           Success = true,
