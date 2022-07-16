@@ -58,19 +58,8 @@ namespace HEAL.NonlinearRegression {
       if (scale != null) alglib.minlmsetscale(state, scale);
       if (stepMax > 0.0) alglib.minlmsetstpmax(state, stepMax);
 
-      void residualFunc(double[] p, double[] fi, object o) {
-        func(p, x, fi);
-        for (int i = 0; i < m; i++) {
-          fi[i] = fi[i] - y[i]; // this order to simplify calculation of Jacobian for residuals (which is a pass-through)
-        }
-      }
-
-      void residualJac(double[] p, double[] fi, double[,] jac, object o) {
-        jacobian(p, x, fi, jac);
-        for (int i = 0; i < m; i++) {
-          fi[i] = fi[i] - y[i];
-        }
-      }
+      var alglibResFunc = Util.CreateAlgibResidualFunction(Util.CreateResidualFunction(func, this.x, this.y));
+      var alglibResJac = Util.CreateAlgibResidualJacobian(Util.CreateResidualJacobian(jacobian, this.x, this.y));
 
       void _rep(double[] x, double f, object o) {
         if (callback != null && callback(x, f)) {
@@ -78,7 +67,7 @@ namespace HEAL.NonlinearRegression {
         }
       }
       // alglib.minlmoptguardgradient(state, 1e-6);
-      alglib.minlmoptimize(state, residualFunc, residualJac, _rep, obj: null);
+      alglib.minlmoptimize(state, alglibResFunc, alglibResJac, _rep, obj: null);
       alglib.minlmresults(state, out paramEst, out var rep);
       // alglib.minlmoptguardresults(state, out var optGuardReport);
       // if (optGuardReport.badgradsuspected) throw new InvalidProgramException();

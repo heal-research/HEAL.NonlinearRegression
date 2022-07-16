@@ -53,7 +53,7 @@ namespace HEAL.NonlinearRegression {
         func(p, x, f); // func ignores the last parameter
         var m = x.GetLength(0);
         for (int i = 0; i < m; i++) {
-          f[i] -= f_x0 + p[p.Length - 1];
+          f[i] = f[i] - f_x0 + p[p.Length - 1];
         }
       };
     }
@@ -75,6 +75,8 @@ namespace HEAL.NonlinearRegression {
 
         jacobian(p, x, f, jac);
         for (int i = 0; i < m; i++) {
+          f[i] = f[i] - f_x0 + p[p.Length - 1];
+
           for (int j = 0; j < n; j++) {
             jac[i, j] -= j_x0[j];
           }

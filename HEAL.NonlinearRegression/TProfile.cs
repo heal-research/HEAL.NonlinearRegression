@@ -214,9 +214,9 @@ namespace HEAL.NonlinearRegression {
         var jacExt = Util.ReparameterizeJacobian(nls.jacobian, xi);
 
         paramEstExt[n] = yPred[i]; // last parameter is prediction at point xi
-        var statisticsExt = new LeastSquaresStatistics(m, n + 1, nls.Statistics.SSR, nls.Statistics.yPred, paramEstExt, Util.JacobianForX(nls.x, jacExt)); // slow, can we simplify this ?
+        var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n + 1, nls.Statistics.SSR, nls.Statistics.yPred, paramEstExt, Util.JacobianForX(nls.x, jacExt)); // slow, can we simplify this ?
 
-        var profile = CalcTProfile(nls.y, nls.x, nls.Statistics, funcExt, jacExt, n); // only for extra parameter
+        var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, n); // only for extra parameter
 
         var tau = profile.Item1;
         var theta = new double[tau.Length];

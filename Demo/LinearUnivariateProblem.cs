@@ -43,7 +43,14 @@ namespace HEAL.NonlinearRegression {
 
     public void Jacobian(double[] theta, double[,] X, double[] f, double[,] jac) {
       Func(theta, X, f);
-      Array.Copy(X, jac, X.Length); // for linear models J(f(X)) = X
+      // for linear models J(f(X)) = X
+      // BEWARE: we only fill the first d columns of jac because jac might be larger than x
+      int m = X.GetLength(0);
+      int d = X.GetLength(1);
+      for (int i = 0; i < m; i++) {
+        for (int j = 0; j < d; j++)
+          jac[i, j] = X[i, j];
+      }
     }
   }
 }
