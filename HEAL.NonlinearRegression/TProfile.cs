@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace HEAL.NonlinearRegression {
 
@@ -91,6 +92,8 @@ namespace HEAL.NonlinearRegression {
             SSR_cond += z * z;
             zv += z * J[i, pIdx];
           }
+
+          if (SSR_cond < SSR) throw new ArgumentException($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
 
           var tau_i = Math.Sign(delta) * Math.Sqrt(SSR_cond - SSR) / s;
 
