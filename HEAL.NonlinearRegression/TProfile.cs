@@ -211,7 +211,7 @@ namespace HEAL.NonlinearRegression {
       var offsetIdx = FindOffsetParameterIndex(nls.ParamEst, nls.x, nls.jacobian); // returns -1 if there is no offset parameter
       double[] paramEstExt = new double[n];
       if (offsetIdx == -1) {
-        throw new NotSupportedException("Only models with an explicit offset parameter are supported by the t-profile prediction intervals".);
+        throw new NotSupportedException("Only models with an explicit offset parameter are supported by the t-profile prediction intervals.");
       }
 
       // buffer
