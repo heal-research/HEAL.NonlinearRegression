@@ -16,7 +16,6 @@ namespace HEAL.NonlinearRegression {
     public double[] y => velocityTreated;
 
     public double[] ThetaStart => new double[] { 205, 0.08 };  // Bates and Watts page 41
-
     // model: y = p1 x / (p2 + x)
     public void Func(double[] theta, double[,] X, double[] f) {
       var m = X.GetLength(0);
