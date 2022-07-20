@@ -76,7 +76,7 @@ namespace HEAL.NonlinearRegression {
         Array.Copy(paramEst, p, p.Length);
         var yPred = new double[m];
         func(paramEst, x, yPred);
-        Statistics = new LeastSquaresStatistics(m, n, state.f, yPred, paramEst, Util.JacobianForX(x, jacobian));
+        Statistics = new LeastSquaresStatistics(m, n, state.f, yPred, paramEst, jacobian, x);
 
         OptReport = new OptimizationReport() {
           Success = true,

@@ -84,21 +84,5 @@ namespace HEAL.NonlinearRegression {
         }
       };
     }
-
-    // TODO: potentially better to adjust CalcTProfiles and Statistics to take Function and Jacobian parameters
-
-    // creates a new Action to calculate the function output for a fixed dataset
-    public static Action<double[], double[]> FuncForX(double[,] x, Function func) {
-      return (p, f) => {
-        func(p, x, f);
-      };
-    }
-
-    // creates a new Action to calculate the Jacobian for a fixed dataset x
-    public static Action<double[], double[], double[,]> JacobianForX(double[,] x, Jacobian jac) {
-      return (p, f, J) => {
-        jac(p, x, f, J);
-      };
-    }
   }
 }

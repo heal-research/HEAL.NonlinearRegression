@@ -14,13 +14,13 @@ namespace HEAL.NonlinearRegression {
     public double[] resStdError { get; internal set; } // standard error for residuals
 
 
-    public LeastSquaresStatistics(int m, int n, double SSR, double[] yPred, double[] paramEst, Action<double[], double[], double[,]> jacobian) {
+    public LeastSquaresStatistics(int m, int n, double SSR, double[] yPred, double[] paramEst, Jacobian jacobian, double[,] x) {
       this.m = m;
       this.n = n;
       this.SSR = SSR;
       this.yPred = (double[])yPred.Clone();
       this.paramEst = (double[])paramEst.Clone();
-      CalcParameterStatistics(jacobian);
+      CalcParameterStatistics(jacobian, x);
     }
 
     // TODO
@@ -33,12 +33,12 @@ namespace HEAL.NonlinearRegression {
     // Linear approximation for parameter and inference intervals.
     // Exact for linear models. Good approximation for nonlinear models when parameters are close to linear.
     // Check t profiles and pairwise profile plots for deviation from linearity.
-    private void CalcParameterStatistics(Action<double[], double[], double[,]> jacobian) {
+    private void CalcParameterStatistics(Jacobian jacobian, double[,] x) {
       var pOpt = paramEst;
 
       var yPred = new double[m];
       var J = new double[m, n];
-      jacobian(pOpt, yPred, J);
+      jacobian(pOpt, x, yPred, J);
       // clone J for the QR decomposition
       var QR = (double[,])J.Clone();
       alglib.rmatrixqr(ref QR, m, n, out _);
