@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 
 namespace HEAL.NonlinearRegression {
   public class LeastSquaresStatistics {
@@ -15,7 +14,6 @@ namespace HEAL.NonlinearRegression {
     public double[] resStdError { get; internal set; } // standard error for residuals
 
 
-    // TODO change jacobian type
     public LeastSquaresStatistics(int m, int n, double SSR, double[] yPred, double[] paramEst, Action<double[], double[], double[,]> jacobian) {
       this.m = m;
       this.n = n;
@@ -28,8 +26,7 @@ namespace HEAL.NonlinearRegression {
     // TODO
     // - Studentized residuals
     // - t-profile confidence intervals for parameters
-    // - t-profile prediction intervals
-
+    // - output for gnuplot
 
     // Douglas Bates and Donald Watts, Nonlinear Regression and Its Applications, John Wiley and Sons, 1988
     // Appendix A3.2
@@ -118,7 +115,5 @@ namespace HEAL.NonlinearRegression {
         high[i] = yPred[i] + resStdError[i] * Math.Sqrt(n * t) + (includeNoise ? t*s : 0.0);
       }
     }
-
-   
   }
 }

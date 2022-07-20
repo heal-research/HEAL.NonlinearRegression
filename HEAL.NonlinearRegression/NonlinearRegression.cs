@@ -156,11 +156,6 @@ namespace HEAL.NonlinearRegression {
       }
       writer.WriteLine();
 
-      // writer.WriteLine($"{"yPred",14} {"low",14}  {"high",14}");
-      // Statistics.GetPredictionIntervals(0.05, out var predLow, out var predHigh, includeNoise: false);
-      // for (int i = 0; i < Statistics.m; i++) {
-      //   writer.WriteLine($"{Statistics.yPred[i],14:e4} {predLow[i],14:e4} {predHigh[i],14:e4}");
-      // }
     }
 
     #region helper
