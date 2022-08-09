@@ -117,6 +117,8 @@ namespace HEAL.NonlinearRegression {
     private static Expression<Expr.ParametricGradientFunction> GradientExpr = Expr.Gradient(ModelExpr, thetaStart.Length);
     private static Expression<Expr.ParametricJacobianFunction> BroadcastJacobianExpr = Expr.Broadcast(GradientExpr);
     private static Expr.ParametricJacobianFunction JacobianFunc = BroadcastJacobianExpr.Compile();
+      
+
     public void Func(double[] theta, double[,] X, double[] f) {
       ModelFunc(theta, X, f);
     }
