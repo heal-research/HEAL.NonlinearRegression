@@ -23,6 +23,14 @@ namespace HEAL.Expressions {
     public delegate void ParametricJacobianFunction(double[] theta, double[,] X, double[] f, double[,] Jac);
     
     
+    // TODO method to check validity of model expression
+    // - can only contain variables theta and x
+    // - theta and x are always indexed and always indexed with constants. The model cannot determine x.length or
+    //   call methods for x or theta. LINQ Extension methods e.g. theta.Select() or theta.Zip(x, ...) are not supported
+    // - Parameters must be used only once in the expression. This is not strictly necessary, but the code assumes
+    //   this for now.
+    // - Only static methods of double parameters returning double (and one of a small list of supported methods, Log, Exp, Sin, Cos, ...)
+
     /// <summary>
     /// Broadcasts an expression to work on an array. 
     /// </summary>
@@ -202,6 +210,15 @@ namespace HEAL.Expressions {
     public static Expression Simplify(Expression expr) {
       var simplifyVisitor = new SimplifyVisitor();
       return simplifyVisitor.Visit(expr);
+    }
+
+    public static Expression<ParametricFunction> RemoveRedundantParameters(Expression<ParametricFunction> expr, double[] parameterValues, out double[] newParameterValues) {
+      var theta = expr.Parameters[0];
+      var x = expr.Parameters[1];
+      var visitor = new RemoveRedundantParametersVisitor(theta, parameterValues);
+      var newExpr = visitor.Visit(expr);
+      newParameterValues = visitor.GetNewParameterValues;
+      return (Expression<ParametricFunction>)newExpr;
     }
     
     // TODO: method to take an expression and extract all double constants as parameters
