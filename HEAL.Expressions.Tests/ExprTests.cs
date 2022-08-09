@@ -65,9 +65,16 @@ namespace HEAL.Expressions.Tests {
     [Test]
     public void RemoveRedundantParameters() {
       var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
-      var expr = Expr.RemoveRedundantParameters((p, x) => (p[0] + p[1]), paramValues, out var newParamValues);
-      Assert.AreEqual("(p, x) => p[0]", expr.ToString());
-      Assert.AreEqual("3.0d", newParamValues[0]);
+      {
+        var expr = Expr.RemoveRedundantParameters((p, x) => (p[0] + p[1]), paramValues, out var newParamValues);
+        Assert.AreEqual("(p, x) => p[0]", expr.ToString());
+        Assert.AreEqual(3.0, newParamValues[0]);
+      }
+      {
+        var expr = Expr.RemoveRedundantParameters((p, x) => Math.Log(p[0]), paramValues, out var newParamValues);
+        Assert.AreEqual("(p, x) => p[0]", expr.ToString());
+        Assert.AreEqual(0.0, newParamValues[0]);
+      }
     }
     
     private void CompileAndRun(Expression<Expr.ParametricFunction> expr) {

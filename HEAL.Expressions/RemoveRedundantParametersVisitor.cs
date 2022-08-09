@@ -81,7 +81,7 @@ namespace HEAL.Expressions {
         }
         
         newThetaValues.Add(newVal);
-        return Expression.ArrayIndex(thetaParam, Expression.Constant(newThetaValues.Count));
+        return Expression.ArrayIndex(thetaParam, Expression.Constant(newThetaValues.Count - 1));
       }
       return node.Update(node.Object, args);
     }
@@ -95,7 +95,7 @@ namespace HEAL.Expressions {
         : 0.0;
       newThetaValues.Add(newValue);
 
-      left.Update(left.Left, null, Expression.Constant(newThetaValues.Count));
+      left.Update(left.Left, null, Expression.Constant(newThetaValues.Count - 1));
       return left;
     }
 
