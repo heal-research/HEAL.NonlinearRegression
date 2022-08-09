@@ -66,11 +66,11 @@ namespace HEAL.NonlinearRegression {
           alglib.minlmrequesttermination(state);
         }
       }
-      // alglib.minlmoptguardgradient(state, 1e-6);
+      //alglib.minlmoptguardgradient(state, 1e-6);
       alglib.minlmoptimize(state, alglibResFunc, alglibResJac, _rep, obj: null);
       alglib.minlmresults(state, out paramEst, out var rep);
-      // alglib.minlmoptguardresults(state, out var optGuardReport);
-      // if (optGuardReport.badgradsuspected) throw new InvalidProgramException();
+      //alglib.minlmoptguardresults(state, out var optGuardReport);
+      //if (optGuardReport.badgradsuspected) throw new InvalidProgramException();
 
       if (rep.terminationtype >= 0) {
         Array.Copy(paramEst, p, p.Length);

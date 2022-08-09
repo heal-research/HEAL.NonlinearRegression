@@ -4,6 +4,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 
 namespace HEAL.Expressions {
+  // TODO: use the fact that parameters occur only once to speedup code / simplify derived expressions
   public class DeriveVisitor : ExpressionVisitor {
     private readonly int dxIdx;
     private readonly ParameterExpression param;
@@ -22,7 +23,6 @@ namespace HEAL.Expressions {
     }
     
     protected override Expression VisitBinary(BinaryExpression node) {
-      Console.WriteLine(node);
       switch (node.NodeType) {
         case ExpressionType.Add: {
           return Expression.Add(Visit(node.Left), Visit(node.Right));
@@ -31,10 +31,26 @@ namespace HEAL.Expressions {
           return Expression.Subtract(Visit(node.Left), Visit( node.Right));
         }
         case ExpressionType.Multiply: {
+          // f g' + g f'
           return Expression.Add(
             Expression.Multiply(node.Left, Visit(node.Right)),
             Expression.Multiply(node.Right, Visit(node.Left)));
         }
+        case ExpressionType.Divide: {
+          // (g f' - f g') / g²
+          var f = node.Left;
+          var g = node.Right;
+          var df = Visit(node.Left);
+          var dg = Visit(node.Right);
+          return Expression.Divide(
+            Expression.Subtract(
+              Expression.Multiply(g, df),
+              Expression.Multiply(f, dg)
+              ),
+            Expression.Call(pow, g, Expression.Constant(2.0))
+            );
+        }
+          
         case ExpressionType.ArrayIndex: {
           if (node.Left == param) {
             var firstIndex = node.Right;
@@ -43,7 +59,9 @@ namespace HEAL.Expressions {
               if (idx == dxIdx) return Expression.Constant(1.0);
               else return Expression.Constant(0.0);
             } else throw new NotSupportedException("only constant indices for parameter are allowed");
-          } else return base.VisitBinary(node); // array index for other variables or parameters ok
+          } else {
+            return Expression.Constant(0.0); // return base.VisitBinary(node); // array index for other variables or parameters ok
+          }
         }
         default: throw new NotSupportedException(node.ToString());
       }
@@ -51,21 +69,45 @@ namespace HEAL.Expressions {
       return base.VisitBinary(node);
     }
 
-    private MethodInfo sin = typeof(Math).GetMethod("Sin", new[] { typeof(double) });
-    private MethodInfo cos = typeof(Math).GetMethod("Sin", new[] { typeof(double) });
+    private readonly MethodInfo sin = typeof(Math).GetMethod("Sin", new[] { typeof(double) });
+    private readonly MethodInfo cos = typeof(Math).GetMethod("Cos", new[] { typeof(double) });
+    private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
+    private readonly MethodInfo log = typeof(Math).GetMethod("Log", new[] { typeof(double) });
+    private readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
+    private readonly MethodInfo cbrt = typeof(Math).GetMethod("Cbrt", new[] { typeof(double) });
+    private readonly MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
+    //private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
+    //private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
+    //private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
 
+    // TODO: unit tests
     protected override Expression VisitMethodCall(MethodCallExpression node) {
+      var x = node.Arguments.First();
+      var dx = Visit(x);
+      Expression dfx = null;
       if (node.Method == sin) {
-        var x = node.Arguments.First();
-        return Expression.Multiply(Expression.Call(cos, x), Visit(x));
+        dfx = Expression.Call(cos, x);
       } else if (node.Method == cos) {
-        var x = node.Arguments.First();
-        return Expression.Negate(Expression.Multiply(Expression.Call(sin, x), Visit(x)));
-      }
+        dfx =Expression.Negate( Expression.Call(sin, x));
+      } else if (node.Method == exp) {
+        dfx = node;
+      } else if (node.Method == log) {
+        dfx = Expression.Divide(Expression.Constant(1.0), x);
+      } else if (node.Method == sqrt) {
+        dfx = Expression.Multiply(Expression.Constant(0.5), Expression.Divide(Expression.Constant(1.0), node));
+      } else if (node.Method == cbrt) {
+        // 1/3 * 1/cbrt(...)^2
+        dfx = Expression.Divide(Expression.Constant(1.0 / 3.0),
+          Expression.Call(pow, node, Expression.Constant(2.0)));
+      } else if (node.Method == pow) {
+        var b = node.Arguments[0];
+        var exponent = node.Arguments[1];
+        if (exponent.NodeType != ExpressionType.Constant) throw new NotSupportedException("only constant exponents are allowed");
+        var expVal = (double)((ConstantExpression)exponent).Value;
+        dfx = Expression.Multiply(exponent, Expression.Call(pow, b, Expression.Constant(expVal - 1)));
+      } else throw new NotSupportedException($"Unsupported method call {node.Method.Name}");
 
-      return base.VisitMethodCall(node);
+      return Expression.Multiply(dfx, dx);
     }
-
-    
   }
 }

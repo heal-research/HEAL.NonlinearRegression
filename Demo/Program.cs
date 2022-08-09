@@ -1,32 +1,40 @@
 ﻿using System;
 using System.Linq;
 using System.Linq.Expressions;
+using HEAL.Expressions;
 
 namespace HEAL.NonlinearRegression {
   public class Program {
     public static void Main(string[] args) {
-      var vSum = Expressions.Expressions.Broadcast((x) => x.Sum());
-      var X = new double[100, 10];
-      for (int i = 0; i < 10; i++) X[0, i] = i;
-      var vector = vSum.Compile()(X);
+      var p = new PagieProblem();
+      var f = new double[p.y.Length];
+      var J = new double[f.Length, p.ThetaStart.Length];
+      p.Func(p.ThetaStart, p.X, f);
+      p.Jacobian(p.ThetaStart, p.X, f, J);
       
-      for(int i=0;i<3;i++)
-        Console.WriteLine(vector[i]);
+      for (int r = 0; r < 5; r++) {
+        Console.Write($"f: {f[r]} res: {f[r] - p.y[r]} J:");
+        for (int i = 0; i < p.ThetaStart.Length; i++)
+          Console.Write($"{J[r, i]} ");
+        Console.WriteLine();
+      }
 
-      var dfx_x0 = Expressions.Expressions.Derive((x) => 2 * x[0] + Math.Sin(x[1]), 0);
-      Console.WriteLine(dfx_x0);
+      Console.WriteLine();
       
+
+      RunDemo(new PagieProblem());
       System.Environment.Exit(0);
+      
       RunDemo(new LinearUnivariateProblem());
       RunDemo(new LinearProblem());
       RunDemo(new ExponentialProblem());
       RunDemo(new PCBProblem());
-      RunDemo(new BODProblem());       // Bates and Watts, page 41
-                                       // expected results:
-                                       // p* = (19.143, 0.5311), s² = 6.498, 
-                                       // cor(p1, p2) = -0.85
-                                       // linear approximation 95% interval p1 = [12.2, 26.1], p2 = [-0.033, 1.095]
-                                       // t-profile 95% interval p1 = [14.05, 37.77], p2 = [0.132, 177]
+      RunDemo(new BODProblem()); // Bates and Watts, page 41
+      // expected results:
+      // p* = (19.143, 0.5311), s² = 6.498, 
+      // cor(p1, p2) = -0.85
+      // linear approximation 95% interval p1 = [12.2, 26.1], p2 = [-0.033, 1.095]
+      // t-profile 95% interval p1 = [14.05, 37.77], p2 = [0.132, 177]
       RunDemo(new PuromycinProblem());
     }
 
@@ -69,6 +77,7 @@ namespace HEAL.NonlinearRegression {
           for (int i = 0; i < Math.Min(linLow.Length, 10); i++) {
             Console.WriteLine($"{nls.Statistics.yPred[i],14:e4} {linLow[i],14:e4} {linHigh[i],14:e4}");
           }
+
           Console.WriteLine();
 
           // produce predictions for the first few data points
@@ -79,6 +88,7 @@ namespace HEAL.NonlinearRegression {
           } else {
             xReduced = x;
           }
+
           TProfile.GetPredictionIntervals(xReduced, nls, out var tLow, out var tHigh);
           Console.WriteLine("Prediction intervals (t-profile);");
           for (int i = 0; i < Math.Min(linLow.Length, 10); i++) {
@@ -94,14 +104,12 @@ namespace HEAL.NonlinearRegression {
         //     Console.WriteLine($"{p1[i]} {p2[i]}");
         //   }
         // }
-
       } else {
         Console.WriteLine("There was a problem while fitting.");
       }
     }
 
     #region helper
-
 
     #endregion
   }
