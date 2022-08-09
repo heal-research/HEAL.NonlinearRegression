@@ -65,8 +65,6 @@ namespace HEAL.Expressions {
         }
         default: throw new NotSupportedException(node.ToString());
       }
-
-      return base.VisitBinary(node);
     }
 
     private readonly MethodInfo sin = typeof(Math).GetMethod("Sin", new[] { typeof(double) });
