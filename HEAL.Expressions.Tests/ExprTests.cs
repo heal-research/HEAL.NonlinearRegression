@@ -75,6 +75,19 @@ namespace HEAL.Expressions.Tests {
         Assert.AreEqual("(p, x) => p[0]", expr.ToString());
         Assert.AreEqual(0.0, newParamValues[0]);
       }
+      {
+        var expr = Expr.RemoveRedundantParameters((p, x) => p[2] * (p[0]*x[0] + p[1]*x[1]), paramValues, out var newParamValues);
+        Assert.AreEqual("(p, x) => ((p[0] * x[0]) + (p[1] * x[1]))", expr.ToString());
+        Assert.AreEqual(3.0, newParamValues[0]);
+        Assert.AreEqual(6.0, newParamValues[0]);
+      }
+      {
+        var expr = Expr.RemoveRedundantParameters((p, x) => 1.0 / (p[1]*x[0] + p[1]*x[1]) * p[2], paramValues, out var newParamValues);
+        Assert.AreEqual("(p, x) => (1.0) / ((p[0] * x[0]) + (p[1] * x[1]))", expr.ToString());
+        Assert.AreEqual(1.0 / 3.0, newParamValues[0]);
+        Assert.AreEqual(2.0 / 3.0, newParamValues[0]);
+      }
+
     }
     
     private void CompileAndRun(Expression<Expr.ParametricFunction> expr) {

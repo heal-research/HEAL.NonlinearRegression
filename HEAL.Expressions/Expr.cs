@@ -64,7 +64,7 @@ namespace HEAL.Expressions {
       var toString = typeof(object).GetMethod("ToString");
 
       var adjExpr = (new ParameterReplacementVisitor()).ReplaceParameter(fx.Body, xVecParam, vVar);
-      Console.WriteLine(adjExpr);
+      // Console.WriteLine(adjExpr);
       
       return Expression.Lambda<ParametricVectorFunction>(
         Expression.Block(
@@ -163,6 +163,7 @@ namespace HEAL.Expressions {
     /// <param name="dxIdx">The parameter index for which to calculate generate the partial derivative</param>
     /// <returns>A new expression that calculates the partial derivative of d expr(x) / d x_i</returns>
     public static Expression<ParametricFunction> Derive(Expression<ParametricFunction> expr, int dxIdx) {
+      if(!CheckExprVisitor.CheckValid(expr)) throw new NotSupportedException(expr.ToString());
       var deriveVisitor = new DeriveVisitor(expr.Parameters.First(), dxIdx);
       return (Expression<ParametricFunction>)Simplify(deriveVisitor.Visit(expr));
     }
@@ -174,17 +175,17 @@ namespace HEAL.Expressions {
       var df_dx = new Expression<ParametricFunction>[numParam];
       for (int i = 0; i < numParam; i++) {
         df_dx[i] = Derive(expr, i);
-        Console.WriteLine(df_dx[i]);
+        // Console.WriteLine(df_dx[i]);
       }
 
       var expressions = new Expression[numParam + 2];
-      Console.WriteLine(expr.Body);
+      // Console.WriteLine(expr.Body);
       
       expressions[0] = Expression.Assign(fVar, expr.Body); // f(x)
-      Console.WriteLine(expressions[0]);
+      // Console.WriteLine(expressions[0]);
       for (int i = 0; i < numParam; i++) {
         expressions[i + 1] = Expression.Assign(Expression.ArrayAccess(gParam, Expression.Constant(i)), df_dx[i].Body);
-        Console.WriteLine(expressions[i + 1]);
+        // Console.WriteLine(expressions[i + 1]);
       }
 
       expressions[expressions.Length - 1] = fVar; // result of the block is the result of the last expression
@@ -198,7 +199,7 @@ namespace HEAL.Expressions {
           ), 
         expr.Parameters.Concat(new  [] {gParam}) // lambda parameters
         );
-      Console.WriteLine(res);
+      // Console.WriteLine(res);
       return res;
     }
 
@@ -223,36 +224,5 @@ namespace HEAL.Expressions {
     
     // TODO: method to take an expression and extract all double constants as parameters
     // ( so that we can directly copy operon models into the code)
-
-    /*
-    public static Expression<ParametricGradientFunction> Gradient(Expression<ParametricFunction> model) {
-      // f(t,x) -> action(t,x,f,g)
-      var thetaParam = model.Parameters[0];
-      var xParam = model.Parameters[1];
-      var gParam = Expression.Parameter(typeof(double[]), "grad");
-      
-      // local variables
-      var kVar = Expression.Variable(typeof(int), "k");
-      var iVar = Expression.Variable(typeof(int), "i");
-
-      var loopEndLabel = Expression.Label("loopEnd");
-      
-      // create subexpressions for each partial derivative using symbolic derivation
-      // Alternative: create statements for forward autodiff
-      return Expression.Lambda<ParametricGradientFunction>(
-          Expression.Block(
-            new [] {kVar, iVar},
-            Expression.Assign(kVar, Expression.ArrayLength(thetaParam)),
-            Expression.Assign(iVar, Expression.Constant(0)),
-            Expression.Loop(
-              Expression.Block(
-              Expression.IfThen(Expression.Equal(iVar, kVar), Expression.Break(loopEndLabel)),
-              Expression.Assign(Expression.ArrayIndex(gParam, iVar), Derive()),
-              Expression.PostIncrementAssign(iVar))
-              , loopEndLabel)
-            ), 
-          thetaParam, xParam, gParam
-        );
-    }*/
   }
 }
