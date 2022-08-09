@@ -1,9 +1,22 @@
 ﻿using System;
 using System.Linq;
+using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression {
   public class Program {
     public static void Main(string[] args) {
+      var vSum = Expressions.Expressions.Broadcast((x) => x.Sum());
+      var X = new double[100, 10];
+      for (int i = 0; i < 10; i++) X[0, i] = i;
+      var vector = vSum.Compile()(X);
+      
+      for(int i=0;i<3;i++)
+        Console.WriteLine(vector[i]);
+
+      var dfx_x0 = Expressions.Expressions.Derive((x) => 2 * x[0] + Math.Sin(x[1]), 0);
+      Console.WriteLine(dfx_x0);
+      
+      System.Environment.Exit(0);
       RunDemo(new LinearUnivariateProblem());
       RunDemo(new LinearProblem());
       RunDemo(new ExponentialProblem());

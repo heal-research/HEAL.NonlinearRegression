@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HEAL.NonlinearRegression", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Demo", "Demo\Demo.csproj", "{B16D656E-EC8C-4156-B497-DC5D8205E70A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HEAL.Expressions", "HEAL.Expressions\HEAL.Expressions.csproj", "{2A8FA08F-1A7E-4C81-AD26-B53A10FA43A5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{B16D656E-EC8C-4156-B497-DC5D8205E70A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B16D656E-EC8C-4156-B497-DC5D8205E70A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B16D656E-EC8C-4156-B497-DC5D8205E70A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A8FA08F-1A7E-4C81-AD26-B53A10FA43A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A8FA08F-1A7E-4C81-AD26-B53A10FA43A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A8FA08F-1A7E-4C81-AD26-B53A10FA43A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A8FA08F-1A7E-4C81-AD26-B53A10FA43A5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

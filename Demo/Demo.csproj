@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\HEAL.Expressions\HEAL.Expressions.csproj" />
     <ProjectReference Include="..\HEAL.NonlinearRegression\HEAL.NonlinearRegression.csproj" />
   </ItemGroup>
 
