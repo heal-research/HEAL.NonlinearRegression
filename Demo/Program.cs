@@ -6,25 +6,7 @@ using HEAL.Expressions;
 namespace HEAL.NonlinearRegression {
   public class Program {
     public static void Main(string[] args) {
-      var p = new PagieProblem();
-      var f = new double[p.y.Length];
-      var J = new double[f.Length, p.ThetaStart.Length];
-      p.Func(p.ThetaStart, p.X, f);
-      p.Jacobian(p.ThetaStart, p.X, f, J);
-      
-      for (int r = 0; r < 5; r++) {
-        Console.Write($"f: {f[r]} res: {f[r] - p.y[r]} J:");
-        for (int i = 0; i < p.ThetaStart.Length; i++)
-          Console.Write($"{J[r, i]} ");
-        Console.WriteLine();
-      }
-
-      Console.WriteLine();
-      
-
       RunDemo(new PagieProblem());
-      System.Environment.Exit(0);
-      
       RunDemo(new LinearUnivariateProblem());
       RunDemo(new LinearProblem());
       RunDemo(new ExponentialProblem());
