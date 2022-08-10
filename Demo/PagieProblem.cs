@@ -71,7 +71,7 @@ namespace HEAL.NonlinearRegression {
     public double[] ThetaStart => thetaStart;
 
     
-    // GrammarEnum result
+    // GrammarEnum result:
     // X * X * 2.02414448e-003 +
     // Y * Y * -1.37255775e-002 +
     // exp(Y * Y * -9.64638596e-001) * -4.56602262e-001 +

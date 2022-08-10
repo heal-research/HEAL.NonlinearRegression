@@ -6,7 +6,11 @@ using HEAL.Expressions;
 namespace HEAL.NonlinearRegression {
   public class Program {
     public static void Main(string[] args) {
-      RunDemo(new PagieProblem());
+      //RunDemo(new PagieProblem());
+      //RunDemo(new KotanchekProblem());
+      RunDemo(new RatPol2DProblem());
+      System.Environment.Exit(0);
+      
       RunDemo(new LinearUnivariateProblem());
       RunDemo(new LinearProblem());
       RunDemo(new ExponentialProblem());
