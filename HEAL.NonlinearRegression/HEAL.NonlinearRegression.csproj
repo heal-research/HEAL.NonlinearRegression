@@ -9,4 +9,8 @@
     <PackageReference Include="alglib.net" Version="3.18.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\HEAL.Expressions\HEAL.Expressions.csproj" />
+  </ItemGroup>
+
 </Project>

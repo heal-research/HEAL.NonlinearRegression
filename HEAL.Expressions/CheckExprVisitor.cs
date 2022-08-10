@@ -10,6 +10,7 @@ namespace HEAL.Expressions {
   /// Checks an expression for a ParametricFunction whether it is supported by static methods in Expr.
   /// </summary>
   // NOTE: All visitors should always be made consistent!
+  // TODO: derive other visitors from this class?
   public class CheckExprVisitor : ExpressionVisitor {
     private readonly ParameterExpression x;
     private readonly ParameterExpression theta;

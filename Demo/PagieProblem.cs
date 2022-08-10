@@ -5,7 +5,6 @@ using HEAL.Expressions;
 namespace HEAL.NonlinearRegression {
   internal class PagieProblem : INLSProblem {
 
-    private static double[] pOpt = new double[] { 1, 2, 3, 4 };
     public PagieProblem() {
       int m = 676;
       var d = 2;

@@ -63,29 +63,54 @@ namespace HEAL.Expressions.Tests {
 
 
     [Test]
-    public void RemoveRedundantParameters() {
-      var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
+    public void FoldParameters() {
       {
-        var expr = Expr.RemoveRedundantParameters((p, x) => (p[0] + p[1]), paramValues, out var newParamValues);
+        var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
+        var expr = Expr.FoldParameters((p, x) => (p[0] + p[1]), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => p[0]", expr.ToString());
         Assert.AreEqual(3.0, newParamValues[0]);
       }
       {
-        var expr = Expr.RemoveRedundantParameters((p, x) => Math.Log(p[0]), paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => p[0]", expr.ToString());
-        Assert.AreEqual(0.0, newParamValues[0]);
+        var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
+        var expr = Expr.FoldParameters((p, x) => (p[0] * (x[0] * p[1])), paramValues, out var newParamValues);
+        Assert.AreEqual("(p, x) => (x[0] * p[0])", expr.ToString());
+        Assert.AreEqual(2.0, newParamValues[0]);
       }
       {
-        var expr = Expr.RemoveRedundantParameters((p, x) => p[2] * (p[0]*x[0] + p[1]*x[1]), paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => ((p[0] * x[0]) + (p[1] * x[1]))", expr.ToString());
+        var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
+        var expr = Expr.FoldParameters((p, x) => (p[0] + (x[0] + p[1])), paramValues, out var newParamValues);
+        Assert.AreEqual("(p, x) => (x[0] + p[0])", expr.ToString());
         Assert.AreEqual(3.0, newParamValues[0]);
-        Assert.AreEqual(6.0, newParamValues[0]);
       }
       {
-        var expr = Expr.RemoveRedundantParameters((p, x) => 1.0 / (p[1]*x[0] + p[1]*x[1]) * p[2], paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => (1.0) / ((p[0] * x[0]) + (p[1] * x[1]))", expr.ToString());
-        Assert.AreEqual(1.0 / 3.0, newParamValues[0]);
-        Assert.AreEqual(2.0 / 3.0, newParamValues[0]);
+        var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
+        var expr = Expr.FoldParameters((p, x) => (p[0] / (x[0]*p[1] + p[2])), paramValues, out var newParamValues);
+        Assert.AreEqual("(p, x) => ((1 / ((x[0] * p[0]) + p[1])) * p[2])", expr.ToString()); // TODO: -> 1/(x0 p0 + 1) * p1
+        Assert.AreEqual(2.0, newParamValues[0]);
+        Assert.AreEqual(3.0, newParamValues[1]);
+        Assert.AreEqual(1.0, newParamValues[2]);
+      }
+      {
+        var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
+        var expr = Expr.FoldParameters((p, x) => Math.Log(p[0]), paramValues, out var newParamValues);
+        Assert.AreEqual("(p, x) => p[0]", expr.ToString());
+        Assert.AreEqual(Math.Log(1), newParamValues[0]);
+      }
+      {
+        var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
+        var expr = Expr.FoldParameters((p, x) => p[2] * (p[0]*x[0] + p[1]*x[1]), paramValues, out var newParamValues);
+        Assert.AreEqual("(p, x) => (((x[0] * p[0]) + (x[1] * p[1])) * p[2])", expr.ToString());  // TODO scaling for linear
+        Assert.AreEqual(1.0, newParamValues[0]);
+        Assert.AreEqual(2.0, newParamValues[1]);
+        Assert.AreEqual(3.0, newParamValues[2]);
+      }
+      {
+        var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
+        var expr = Expr.FoldParameters((p, x) => 1.0 / (p[0]*x[0] + p[1]*x[1]) * p[2], paramValues, out var newParamValues);
+        Assert.AreEqual("(p, x) => ((1 / ((x[0] * p[0]) + (x[1] * p[1]))) * p[2])", expr.ToString()); // TODO fold
+        Assert.AreEqual(1, newParamValues[0]);
+        Assert.AreEqual(2, newParamValues[1]);
+        Assert.AreEqual(3, newParamValues[2]);
       }
     }
 

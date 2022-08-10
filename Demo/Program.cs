@@ -11,8 +11,13 @@ namespace HEAL.NonlinearRegression {
       // RunDemo(new RatPol2DProblem());
       // RunDemo(new PuromycinDSRProblem());
       // RunDemo(new PCBDSRProblem());
-      // System.Environment.Exit(0);
-      
+      var p = new FriedmanProblem();
+      var importance = VariableImportance.Calculate(FriedmanProblem.ModelExpr, p.X, p.y, p.ThetaStart);
+      foreach (var kvp in importance.OrderByDescending(kvp => kvp.Value)) {
+        Console.WriteLine($"x{kvp.Key} {kvp.Value}");
+      }
+      System.Environment.Exit(0);
+
       RunDemo(new LinearUnivariateProblem());
       RunDemo(new LinearProblem());
       RunDemo(new ExponentialProblem());

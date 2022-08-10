@@ -218,12 +218,22 @@ namespace HEAL.Expressions {
       return simplifyVisitor.Visit(expr);
     }
 
-    public static Expression<ParametricFunction> RemoveRedundantParameters(Expression<ParametricFunction> expr, double[] parameterValues, out double[] newParameterValues) {
+    public static Expression<ParametricFunction> FoldParameters(Expression<ParametricFunction> expr, 
+      double[] parameterValues, out double[] newParameterValues) {
       var theta = expr.Parameters[0];
       var x = expr.Parameters[1];
-      var visitor = new RemoveRedundantParametersVisitor(theta, parameterValues);
+      expr = ArrangeParametersRightVisitor.Execute(expr, theta, parameterValues);
+      Console.WriteLine($"Rearranged: {expr}");
+      
+      var visitor = new FoldParametersVisitor(theta, parameterValues);
       var newExpr = visitor.Visit(expr);
       newParameterValues = visitor.GetNewParameterValues;
+      Console.WriteLine($"Folded parameters: {newExpr}");
+
+      var collectVisitor = new CollectParametersVisitor(theta, newParameterValues);
+      newExpr = collectVisitor.Visit(newExpr);
+      newParameterValues = collectVisitor.GetNewParameterValues;
+      Console.WriteLine($"Removed unused parameters: {newExpr}");
       return (Expression<ParametricFunction>)newExpr;
     }
 
@@ -231,8 +241,10 @@ namespace HEAL.Expressions {
       double[] thetaValues, int varIdx, double replVal, out double[] newThetaValues) {
       var theta = expr.Parameters[0];
       var x = expr.Parameters[1];
+      Console.WriteLine($"Original: {expr}:");
       var visitor = new ReplaceVariableWithParameterVisitor(theta, thetaValues,x, varIdx, replVal);
       var newExpr = (Expression<ParametricFunction>)visitor.Visit(expr);
+      Console.WriteLine($"x{varIdx} replaced: {newExpr}:");
       newThetaValues = visitor.NewThetaValues;
       return newExpr;
     }

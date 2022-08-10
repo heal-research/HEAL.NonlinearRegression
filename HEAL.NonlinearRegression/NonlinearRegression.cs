@@ -76,7 +76,13 @@ namespace HEAL.NonlinearRegression {
         Array.Copy(paramEst, p, p.Length);
         var yPred = new double[m];
         func(paramEst, x, yPred);
-        Statistics = new LeastSquaresStatistics(m, n, state.f, yPred, paramEst, jacobian, x);
+        // recalculate SSR because alglib does not if the estimation is already optimal
+        var SSR = 0.0;
+        for (int i = 0; i < y.Length; i++) {
+          var r = y[i] - yPred[i];
+          SSR += r * r;
+        }
+        Statistics = new LeastSquaresStatistics(m, n, SSR, yPred, paramEst, jacobian, x);
 
         OptReport = new OptimizationReport() {
           Success = true,
