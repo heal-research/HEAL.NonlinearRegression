@@ -1,8 +1,8 @@
 ﻿using System;
 
 namespace HEAL.NonlinearRegression {
-  internal class Util {
-    public static double RandNorm(Random rand, int mean, int stdDev) {
+  internal static class Util {
+    public static double RandNorm(Random rand, double mean, double stdDev) {
       double u, v, s;
       do {
         u = rand.NextDouble() * 2 - 1;
