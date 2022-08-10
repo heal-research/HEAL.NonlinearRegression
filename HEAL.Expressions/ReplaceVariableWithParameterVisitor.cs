@@ -11,6 +11,8 @@ namespace HEAL.Expressions {
     private readonly List<double> newTheta;
     private readonly double[] thetaValues;
 
+    public double[] NewThetaValues => newTheta.ToArray();
+
     public ReplaceVariableWithParameterVisitor(ParameterExpression theta, double[] thetaValues, ParameterExpression x, int varIdx, double replVal) {
       this.theta = theta;
       this.thetaValues = thetaValues;

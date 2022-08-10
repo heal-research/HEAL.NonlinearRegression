@@ -94,16 +94,20 @@ namespace HEAL.Expressions.Tests {
       var theta = new double[] { 1.0, 2.0, 3.0 };
       Expression<Expr.ParametricFunction> f = (p, x) => (p[0] * x[0] + Math.Log(x[1] * p[1]) + x[1] * x[2]);
       {
-        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 0, replVal: 3.14);
+        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 0, replVal: 3.14, out var newTheta);
         Assert.AreEqual("(p, x) => (((p[0] * p[1]) + Log((x[1] * p[2]))) + (x[1] * x[2]))", expr.ToString());
+        Assert.AreEqual(3.14, newTheta[1]);
       }
       {
-        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 1, replVal: 3.14);
+        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 1, replVal: 3.14, out var newTheta);
         Assert.AreEqual("(p, x) => (((p[0] * x[0]) + Log((p[1] * p[2]))) + (p[3] * x[2]))", expr.ToString());
+        Assert.AreEqual(3.14, newTheta[1]);
+        Assert.AreEqual(3.14, newTheta[3]);
       }
       {
-        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 2, replVal: 3.14);
+        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 2, replVal: 3.14, out var newTheta);
         Assert.AreEqual("(p, x) => (((p[0] * x[0]) + Log((x[1] * p[1]))) + (x[1] * p[2]))", expr.ToString());
+        Assert.AreEqual(3.14, newTheta[2]);
       }
     }
     

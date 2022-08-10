@@ -228,11 +228,13 @@ namespace HEAL.Expressions {
     }
 
     public static Expression<ParametricFunction> ReplaceVariableWithParameter(Expression<ParametricFunction> expr,
-      double[] thetaValues, int varIdx, double replVal) {
+      double[] thetaValues, int varIdx, double replVal, out double[] newThetaValues) {
       var theta = expr.Parameters[0];
       var x = expr.Parameters[1];
       var visitor = new ReplaceVariableWithParameterVisitor(theta, thetaValues,x, varIdx, replVal);
-      return (Expression<ParametricFunction>)visitor.Visit(expr);
+      var newExpr = (Expression<ParametricFunction>)visitor.Visit(expr);
+      newThetaValues = visitor.NewThetaValues;
+      return newExpr;
     }
     
     // TODO: method to take an expression and extract all double constants as parameters
