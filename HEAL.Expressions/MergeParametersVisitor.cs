@@ -20,41 +20,51 @@ namespace HEAL.Expressions {
     protected override Expression VisitBinary(BinaryExpression node) {
       var left = Visit(node.Left);
       var right = Visit(node.Right);
-      if (IsParam(left, out var leftArrIdxExpr, out var leftIdx) && 
-          IsParam(right, out var rightArrIdxExpr, out var rightIdx)) {
+      var leftIsParam = IsParam(left, out var leftArrIdxExpr, out var leftIdx);
+      var rightIsParam = IsParam(right, out var rightArrIdxExpr, out var rightIdx); 
+      if ( leftIsParam && rightIsParam) {
         // IsParam => left, right are BinaryExpressions (theta[.])
         switch (node.NodeType) {
           case ExpressionType.Add: {
-            return CombineParam(leftArrIdxExpr, rightArrIdxExpr, (a, b) => a + b);
+            return CombineParam(leftIdx, rightIdx, (a, b) => a + b);
           }
           case ExpressionType.Subtract: {
-            return CombineParam(leftArrIdxExpr, rightArrIdxExpr, (a, b) => a + b);
+            return CombineParam(leftIdx, rightIdx, (a, b) => a + b);
           }
           case ExpressionType.Multiply: {
-            return CombineParam(leftArrIdxExpr, rightArrIdxExpr, (a, b) => a * b);
+            return CombineParam(leftIdx, rightIdx, (a, b) => a * b);
           }
           case ExpressionType.Divide: {
-            return CombineParam(leftArrIdxExpr, rightArrIdxExpr, (a, b) => a / b);
+            return CombineParam(leftIdx, rightIdx, (a, b) => a / b);
           }
           default: throw new NotSupportedException(node.ToString());
         }
+      } else if (leftIsParam) {
+        return UpdateParameterIndex(leftArrIdxExpr);
+      } else if (rightIsParam) {
+        return UpdateParameterIndex(rightArrIdxExpr);
       }
 
       return node.Update(left, null, right);
     }
 
+    private Expression UpdateParameterIndex(BinaryExpression arrIdxExpr) {
+      var idx = (int)((ConstantExpression)arrIdxExpr.Right).Value;
+      return NewParameter(thetaValues[idx]);
+    }
+    private Expression NewParameter(double newVal) {
+      newThetaValues.Add(newVal);
+      return Expression.ArrayIndex(thetaParam, Expression.Constant(newThetaValues.Count - 1));
+    }
+
 
     protected override Expression VisitUnary(UnaryExpression node) {
       var operand = Visit(node.Operand);
-      if (IsParam(operand, out var arrIdxExpr, out var idx)) {
+      if (IsParam(operand, out _, out var idx)) {
         switch (node.NodeType) {
           case ExpressionType.Negate: {
             // negate parameter value
-            var newValue = thetaValues != null
-              ? -thetaValues[idx]
-              : 0.0;
-            newThetaValues.Add(newValue);
-            return arrIdxExpr;
+            return NewParameter(thetaValues != null ? -thetaValues[idx] : 0.0);
           } default: throw new NotSupportedException(node.ToString());
         }
       }
@@ -69,7 +79,7 @@ namespace HEAL.Expressions {
       if (!node.Method.IsStatic || node.Method.ReturnType != typeof(double))
         throw new NotSupportedException(node.Method.Name);
       
-      // all values are parameters -> call the method for the parameter values and return as new parameter
+      // all values are parameters -> call the method for the parameter values to fold function and return as new parameter
       if (args.All(arg => IsParam(arg, out _, out _))) {
         double newVal = 0.0;
         if (thetaValues != null) {
@@ -79,24 +89,31 @@ namespace HEAL.Expressions {
           }).ToArray();
           newVal = (double)node.Method.Invoke(node.Object, paramValues);
         }
-        
-        newThetaValues.Add(newVal);
-        return Expression.ArrayIndex(thetaParam, Expression.Constant(newThetaValues.Count - 1));
+
+        return NewParameter(newVal);
+      } else {
+        var newArgs = new Expression[args.Length];
+        for(int argIdx = 0; argIdx < args.Length; argIdx++) {
+          var arg = args[argIdx];
+          if (IsParam(arg, out var arrIdxExpr, out var paramIdx)) {
+            // collect value and update parameter idx
+            newThetaValues.Add(thetaValues[paramIdx]);
+            newArgs[argIdx] = arrIdxExpr.Update(arrIdxExpr.Left, null, Expression.Constant(newThetaValues.Count - 1));
+          } else {
+            newArgs[argIdx] = arg;
+          }
+        }
+
+        return node.Update(node.Object, newArgs);
       }
-      return node.Update(node.Object, args);
     }
     
     
-    private Expression CombineParam(BinaryExpression left, BinaryExpression right, Func<double, double, double> op) {
-      var leftArrayIndex = left.Right as ConstantExpression;
-      var rightArrayIndex = right.Right as ConstantExpression;
+    private Expression CombineParam(int leftIdx, int rightIdx, Func<double, double, double> op) {
       var newValue = thetaValues != null
-        ? op(thetaValues[(int)leftArrayIndex.Value], thetaValues[(int)rightArrayIndex.Value])
+        ? op(thetaValues[leftIdx], thetaValues[rightIdx])
         : 0.0;
-      newThetaValues.Add(newValue);
-
-      left.Update(left.Left, null, Expression.Constant(newThetaValues.Count - 1));
-      return left;
+      return NewParameter(newValue);
     }
 
     private bool IsParam(Expression expr, out BinaryExpression arrayIdxExpr, out int paramIdx) {
