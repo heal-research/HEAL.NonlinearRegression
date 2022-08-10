@@ -87,7 +87,24 @@ namespace HEAL.Expressions.Tests {
         Assert.AreEqual(1.0 / 3.0, newParamValues[0]);
         Assert.AreEqual(2.0 / 3.0, newParamValues[0]);
       }
+    }
 
+    [Test]
+    public void ReplaceVariable() {
+      var theta = new double[] { 1.0, 2.0, 3.0 };
+      Expression<Expr.ParametricFunction> f = (p, x) => (p[0] * x[0] + Math.Log(x[1] * p[1]) + x[1] * x[2]);
+      {
+        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 0, replVal: 3.14);
+        Assert.AreEqual("(p, x) => (((p[0] * p[1]) + Log((x[1] * p[2]))) + (x[1] * x[2]))", expr.ToString());
+      }
+      {
+        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 1, replVal: 3.14);
+        Assert.AreEqual("(p, x) => (((p[0] * x[0]) + Log((p[1] * p[2]))) + (p[3] * x[2]))", expr.ToString());
+      }
+      {
+        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 2, replVal: 3.14);
+        Assert.AreEqual("(p, x) => (((p[0] * x[0]) + Log((x[1] * p[1]))) + (x[1] * p[2]))", expr.ToString());
+      }
     }
     
     private void CompileAndRun(Expression<Expr.ParametricFunction> expr) {

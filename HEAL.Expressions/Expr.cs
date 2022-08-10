@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Xml;
 using Type = System.Type;
 //using ParametricFunction=System.Func<double[], double[], double>;
 //using ParametricExpression=System.Linq.Expressions.Expression<System.Func<double[], double[], double>>;
@@ -224,6 +225,14 @@ namespace HEAL.Expressions {
       var newExpr = visitor.Visit(expr);
       newParameterValues = visitor.GetNewParameterValues;
       return (Expression<ParametricFunction>)newExpr;
+    }
+
+    public static Expression<ParametricFunction> ReplaceVariableWithParameter(Expression<ParametricFunction> expr,
+      double[] thetaValues, int varIdx, double replVal) {
+      var theta = expr.Parameters[0];
+      var x = expr.Parameters[1];
+      var visitor = new ReplaceVariableWithParameterVisitor(theta, thetaValues,x, varIdx, replVal);
+      return (Expression<ParametricFunction>)visitor.Visit(expr);
     }
     
     // TODO: method to take an expression and extract all double constants as parameters

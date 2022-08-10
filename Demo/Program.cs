@@ -8,8 +8,10 @@ namespace HEAL.NonlinearRegression {
     public static void Main(string[] args) {
       //RunDemo(new PagieProblem());
       //RunDemo(new KotanchekProblem());
-      RunDemo(new RatPol2DProblem());
-      System.Environment.Exit(0);
+      // RunDemo(new RatPol2DProblem());
+      // RunDemo(new PuromycinDSRProblem());
+      // RunDemo(new PCBDSRProblem());
+      // System.Environment.Exit(0);
       
       RunDemo(new LinearUnivariateProblem());
       RunDemo(new LinearProblem());
