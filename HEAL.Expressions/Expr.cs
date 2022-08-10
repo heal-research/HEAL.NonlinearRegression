@@ -203,6 +203,10 @@ namespace HEAL.Expressions {
       return res;
     }
 
+    public static Expression<ParametricJacobianFunction> Jacobian(Expression<ParametricFunction> expr, int numParam) {
+      return Broadcast(Gradient(expr, numParam));
+    }
+
     /// <summary>
     /// Takes an expression and folds double constants. 
     /// </summary>
