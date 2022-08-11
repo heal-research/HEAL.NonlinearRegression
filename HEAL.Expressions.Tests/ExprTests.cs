@@ -140,7 +140,7 @@ namespace HEAL.Expressions.Tests {
 
     [Test]
     public void Graphviz() {
-      Expression<Expr.ParametricFunction> expr = (p, x) => x[0] * p[0] + x[1] + Math.Log(x[1]*p[1] + 1.0) + 1/(x[1] * p[2]);
+      Expression<Expr.ParametricFunction> expr = (p, x) => 2.0 * x[0] + x[0] * p[0] + x[1] + Math.Log(x[1]*p[1] + 1.0) + 1/(x[1] * p[2]);
       Console.WriteLine(Expr.ToGraphViz(expr));
       Console.WriteLine(Expr.ToGraphViz(expr, new double[] {0.0, 1.0, 2.0}));
       Console.WriteLine(Expr.ToGraphViz(expr, varNames: new []{"a","b"}));
@@ -148,7 +148,7 @@ namespace HEAL.Expressions.Tests {
       var sat = new Dictionary<Expression, double>();
       var rand = new Random(1234);
       foreach (var node in FlattenExpressionVisitor.Execute(expr)) {
-        if (node.NodeType == ExpressionType.ArrayIndex) {
+        if (node.NodeType == ExpressionType.Multiply) {
           sat.Add(node, rand.NextDouble());
         }
       }

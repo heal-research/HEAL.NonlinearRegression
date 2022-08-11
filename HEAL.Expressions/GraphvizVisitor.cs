@@ -33,23 +33,24 @@ namespace HEAL.Expressions {
 
     public static string Execute(Expression<Expr.ParametricFunction> expression, double[] pValues = null, string[] varNames = null, Dictionary<Expression, double> saturation = null) {
       var sb = new StringBuilder();
-      sb.AppendLine("strict graph");
+      sb.AppendLine("strict graph {");
       var v = new GraphvizVisitor(sb, expression.Parameters[0],  pValues, 
         expression.Parameters[1], varNames, saturation);
       v.Visit(expression.Body);
+      sb.AppendLine("}");
       return sb.ToString();
     }
 
     public override Expression Visit(Expression node) {
       if (node != null) {
         // called for all visited nodes
-        if (saturation != null && saturation.TryGetValue(node, out var brightness)) {
+        if (saturation != null && saturation.TryGetValue(node, out var sat)) {
           // h=0 is red
           // h=0.5 is green
-          brightness = (brightness - minSat)/ (maxSat - minSat);
-          sb.AppendLine($"n{node.GetHashCode()} [label=\"{Label(node)}\", color=\"0,1,{brightness:f2}\"];"); // color=h,s,v hue,saturation,brigthness
+          sat = (sat - minSat)/ (maxSat - minSat);
+          sb.AppendLine($"n{node.GetHashCode()} [label=\"{Label(node)}\", style=\"filled\", color=\"0,{sat:f2},1\"];"); // color=h,s,v hue,saturation,brightness
         } else {
-          sb.AppendLine($"n{node.GetHashCode()} [label=\"{Label(node)}\"];");
+          sb.AppendLine($"n{node.GetHashCode()} [label=\"{Label(node)}\", style=\"filled\", color=\"0,0,1\"];"); // this draws completely white nodes. remove fill and color if necessary.
         }
       }
       return base.Visit(node);
@@ -59,13 +60,20 @@ namespace HEAL.Expressions {
       switch (node.NodeType) {
         case ExpressionType.Add: return "+";
         case ExpressionType.Subtract: return "-";
-        case ExpressionType.Multiply: return "*";
+        case ExpressionType.Multiply: {
+          // special case: combine p[0] * x[0]
+          if (node is BinaryExpression binNode &&
+              (binNode.Left.NodeType == ExpressionType.ArrayIndex || binNode.Left is ConstantExpression constLeftNode) &&
+              (binNode.Right.NodeType == ExpressionType.ArrayIndex || binNode.Right is ConstantExpression constRightNode)) {
+            return $"{Label(binNode.Left)} {Label(binNode.Right)}";
+          }
+          return "*";
+        }
         case ExpressionType.Divide: return "/";
         case ExpressionType.ArrayIndex: {
           var binExpr = node as BinaryExpression;
           var param = binExpr.Left;
           var idx = (int)((ConstantExpression)binExpr.Right).Value;
-
           if (param == pParam) {
             if (pValues != null) return pValues[idx].ToString("e5");
             else return $"p_{idx}";
@@ -83,6 +91,11 @@ namespace HEAL.Expressions {
     protected override Expression VisitBinary(BinaryExpression node) {
       if (node.NodeType == ExpressionType.ArrayIndex) {
         // no separate nodes for arrayIndex
+        return node;
+      } else if (node.NodeType == ExpressionType.Multiply && 
+                 (node.Left.NodeType == ExpressionType.ArrayIndex || node.Left.NodeType == ExpressionType.Constant) && 
+                 (node.Right.NodeType == ExpressionType.ArrayIndex || node.Right.NodeType == ExpressionType.Constant)) {
+        // no separate nodes for "param * var" or "const * var" or similar
         return node;
       } else {
         sb.AppendLine($"n{node.GetHashCode()} -- n{node.Left.GetHashCode()};");

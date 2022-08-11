@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
@@ -49,8 +50,14 @@ namespace HEAL.NonlinearRegression {
 
         Console.WriteLine("Subtree importance (SSR ratio)");
         var subExprImportance = ModelAnalysis.SubtreeImportance(symbProb.ModelExpr, symbProb.X,symbProb.y, symbProb.ThetaStart);
+        var sat = new Dictionary<Expression, double>();
         foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item1)) {
           Console.WriteLine($"{tup.Item1} {tup.Item2,-11:e4}");
+          sat[tup.Item2] = tup.Item1;
+        }
+
+        using (var writer = new System.IO.StreamWriter($"{problem.GetType().Name}.gv")) {
+          writer.WriteLine(Expr.ToGraphViz(symbProb.ModelExpr, saturation: sat));
         }
         Console.WriteLine();
 
