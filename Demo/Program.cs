@@ -49,15 +49,17 @@ namespace HEAL.NonlinearRegression {
         Console.WriteLine();
 
         Console.WriteLine("Subtree importance (SSR ratio)");
-        var subExprImportance = ModelAnalysis.SubtreeImportance(symbProb.ModelExpr, symbProb.X,symbProb.y, symbProb.ThetaStart);
+        var expr = symbProb.ModelExpr;
+        var subExprImportance = ModelAnalysis.SubtreeImportance(expr, symbProb.X,symbProb.y, symbProb.ThetaStart);
         var sat = new Dictionary<Expression, double>();
+        sat[expr] = 0.0; // reference value for the importance
         foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item1)) {
           Console.WriteLine($"{tup.Item1} {tup.Item2,-11:e4}");
-          sat[tup.Item2] = tup.Item1;
+          sat[tup.Item2] = Math.Max(0, Math.Log(tup.Item1)); // use log scale for coloring
         }
 
         using (var writer = new System.IO.StreamWriter($"{problem.GetType().Name}.gv")) {
-          writer.WriteLine(Expr.ToGraphViz(symbProb.ModelExpr, saturation: sat));
+          writer.WriteLine(Expr.ToGraphViz(expr, saturation: sat));
         }
         Console.WriteLine();
 
