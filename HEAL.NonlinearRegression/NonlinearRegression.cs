@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
+using HEAL.Expressions;
 
 namespace HEAL.NonlinearRegression {
   public class NonlinearRegression {
@@ -28,6 +30,33 @@ namespace HEAL.NonlinearRegression {
     public LeastSquaresStatistics Statistics { get; private set; }
 
     public NonlinearRegression() { }
+    
+    /// <summary>
+    /// Least-squares fitting for func with Jacobian to target y using initial values p.
+    /// Uses Levenberg-Marquardt algorithm.
+    /// </summary>
+    /// <param name="p">Initial values and optimized parameters on exit. Initial parameters are overwritten.</param>
+    /// <param name="expr"The expression (p, x) => to fit. Where p is the parameter vector to be optimized.</param> 
+    /// <param name="y">Target values</param>
+    /// <param name="report">Report with fitting results and statistics</param>
+    /// <param name="maxIterations"></param>
+    /// <param name="scale">Optional parameter to set parameter scale. Useful if parameters are given on very different measurement scales.</param>
+    /// <param name="stepMax">Optional parameter to limit the step size in Levenberg-Marquardt. Can be useful on quickly changing functions (e.g. exponentials).</param>
+    /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
+    /// <exception cref="InvalidProgramException"></exception>
+    public void Fit(double[] p, Expression<Expr.ParametricFunction> expr, double[,] x, double[] y,
+      int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
+      Func<double[], double, bool>? callback = null) {
+      
+      var _func = Expr.Broadcast(expr).Compile();
+      void func(double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible 
+      
+      
+      var _jac = Expr.Jacobian(expr, p.Length).Compile();
+      void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac); 
+
+      Fit(p, func, jac, x, y, maxIterations, scale, stepMax, callback);
+    }
 
     /// <summary>
     /// Least-squares fitting for func with Jacobian to target y using initial values p.

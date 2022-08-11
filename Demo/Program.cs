@@ -1,27 +1,19 @@
 ﻿using System;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 using HEAL.Expressions;
 
 namespace HEAL.NonlinearRegression {
   public class Program {
     public static void Main(string[] args) {
-      //RunDemo(new PagieProblem());
-      //RunDemo(new KotanchekProblem());
-      // RunDemo(new RatPol2DProblem());
-      // RunDemo(new PuromycinDSRProblem());
-      // RunDemo(new PCBDSRProblem());
-      var p = new FriedmanProblem();
-      var varImportance = ModelAnalysis.VariableImportance(FriedmanProblem.ModelExpr, p.X, p.y, p.ThetaStart);
-      foreach (var kvp in varImportance.OrderByDescending(kvp => kvp.Value)) {
-        Console.WriteLine($"x{kvp.Key} {kvp.Value}");
-      }
-      var subExprImportance = ModelAnalysis.SubtreeImportance(FriedmanProblem.ModelExpr, p.X, p.y, p.ThetaStart);
-      foreach (var kvp in subExprImportance.OrderByDescending(kvp => kvp.Value)) {
-        Console.WriteLine($"{kvp.Value} {kvp.Key}");
-      }
-      System.Environment.Exit(0);
+      RunDemo(new PagieProblem());
+      RunDemo(new KotanchekProblem());
+      RunDemo(new RatPol2DProblem());
+      RunDemo(new PuromycinDSRProblem());
+      RunDemo(new PCBDSRProblem());
 
+      
       RunDemo(new LinearUnivariateProblem());
       RunDemo(new LinearProblem());
       RunDemo(new ExponentialProblem());
@@ -40,7 +32,36 @@ namespace HEAL.NonlinearRegression {
       Console.WriteLine($"{problem.GetType().Name}");
       Console.WriteLine("-----------------");
 
+      // fitting and prediction intervals
       RunDemo(problem.X, problem.y, problem.Func, problem.Jacobian, problem.ThetaStart);
+
+      // model analysis
+      if (problem is SymbolicProblemBase symbProb) {
+        Console.WriteLine($"Model: {symbProb.ModelExpr}");
+
+        Console.WriteLine("Variable importance (SSR ratio)");
+        var varImportance =
+          ModelAnalysis.VariableImportance(symbProb.ModelExpr, symbProb.X, symbProb.y, symbProb.ThetaStart);
+        foreach (var kvp in varImportance.OrderByDescending(kvp => kvp.Value)) {
+          Console.WriteLine($"x{kvp.Key} {kvp.Value,-11:e4}");
+        }
+        Console.WriteLine();
+
+        Console.WriteLine("Subtree importance (SSR ratio)");
+        var subExprImportance = ModelAnalysis.SubtreeImportance(symbProb.ModelExpr, symbProb.X,symbProb.y, symbProb.ThetaStart);
+        foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item1)) {
+          Console.WriteLine($"{tup.Item1} {tup.Item2,-11:e4}");
+        }
+        Console.WriteLine();
+
+        Console.WriteLine("Nested models (set parameters zero) (SSR ratio)");
+        ModelAnalysis.NestedModelLiklihoodRatios(symbProb.ModelExpr, symbProb.X, symbProb.y, symbProb.ThetaStart);
+        // var nestedModels = ModelAnalysis.NestedModelLiklihoodRatios(symbProb.ModelExpr, symbProb.X, symbProb.y, symbProb.ThetaStart);
+        //foreach (var tup in nestedModels.OrderByDescending(tup => tup.Item1)) {
+        //  Console.WriteLine($"{tup.Item1} {tup.Item2}");
+        //}
+      }
+
 
       Console.WriteLine();
     }

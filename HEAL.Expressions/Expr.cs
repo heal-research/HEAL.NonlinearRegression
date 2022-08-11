@@ -1,17 +1,9 @@
 ﻿using System;
-using System.Drawing;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Xml;
 using Type = System.Type;
-//using ParametricFunction=System.Func<double[], double[], double>;
-//using ParametricExpression=System.Linq.Expressions.Expression<System.Func<double[], double[], double>>;
-//using ParametricVectorFunction = System.Func<double[], double[,], double[]>;
-//using ParametricVectorExpression = System.Linq.Expressions.Expression<System.Func<double[], double[,], double[]>>;
-//using ParametricGradientFunction = System.Func<double[], double[], System.Tuple<double, double[]>>;
-//using ParametricGradientExpression = System.Linq.Expressions.Expression<System.Func<double[], double[], System.Tuple<double, double[]>>>;
-//using ParametricJacobianFunction = System.Func<double[], double[,], System.Tuple<double[], double[,]>>;
-//using ParametricJacobianExpression = System.Linq.Expressions.Expression<System.Func<double[], double[,], System.Tuple<double[], double[,]>>>;
+
+// TODO: refactor visitors (move into folder?)
 
 namespace HEAL.Expressions {
   public static class Expr {
@@ -64,7 +56,7 @@ namespace HEAL.Expressions {
       var writeLn = typeof(Console).GetMethod("WriteLine", new Type[] { typeof(string) });
       var toString = typeof(object).GetMethod("ToString");
 
-      var adjExpr = (new ParameterReplacementVisitor()).ReplaceParameter(fx.Body, xVecParam, vVar);
+      var adjExpr = (new SubstituteParameterVisitor()).ReplaceParameter(fx.Body, xVecParam, vVar);
       // Console.WriteLine(adjExpr);
       
       return Expression.Lambda<ParametricVectorFunction>(
@@ -142,7 +134,7 @@ namespace HEAL.Expressions {
                   Expression.Multiply(dVar, Expression.Constant(sizeof(double)))),
                 // call gradient function (v, g)
                 Expression.Assign(Expression.ArrayAccess(fVar, iVar),
-                  (new ParameterReplacementVisitor()).ReplaceParameters(fx.Body, new [] {xVecParam, gVecParam}, 
+                  (new SubstituteParameterVisitor()).ReplaceParameters(fx.Body, new [] {xVecParam, gVecParam}, 
                     new [] {vVar, gVar})),
                 // copy g to Jac row i
                 Expression.Call(blockCopy, gVar, 
@@ -158,15 +150,15 @@ namespace HEAL.Expressions {
 
     
     /// <summary>
-    /// Takes an expression and generates it's partial derivative.
+    /// Takes an expression and generates its partial derivative.
     /// </summary>
-    /// <param name="expr">An expression that takes a double[] parameter and returns a double. </param>
+    /// <param name="expr">A parametric expression. </param>
     /// <param name="dxIdx">The parameter index for which to calculate generate the partial derivative</param>
     /// <returns>A new expression that calculates the partial derivative of d expr(x) / d x_i</returns>
     public static Expression<ParametricFunction> Derive(Expression<ParametricFunction> expr, int dxIdx) {
       if(!CheckExprVisitor.CheckValid(expr)) throw new NotSupportedException(expr.ToString());
       var deriveVisitor = new DeriveVisitor(expr.Parameters.First(), dxIdx);
-      return (Expression<ParametricFunction>)Simplify(deriveVisitor.Visit(expr));
+      return Simplify((Expression<ParametricFunction>)deriveVisitor.Visit(expr));
     }
 
     // returns function that also returns the gradient 
@@ -213,9 +205,29 @@ namespace HEAL.Expressions {
     /// </summary>
     /// <param name="expr">The expression to simplify</param>
     /// <returns>A new expression with folded double constants.</returns>
-    public static Expression Simplify(Expression expr) {
+    public static Expression<ParametricFunction> Simplify(Expression<ParametricFunction> expr) {
+      var theta = expr.Parameters[0];
       var simplifyVisitor = new SimplifyVisitor();
-      return simplifyVisitor.Visit(expr);
+      return (Expression<ParametricFunction>)simplifyVisitor.Visit(expr);
+    }
+
+    
+    /// <summary>
+    /// As simplify but also reduces the length of the parameter vector to include only the parameters
+    /// that are still referenced in the simplified expression. 
+    /// </summary>
+    /// <param name="expr"></param>
+    /// <param name="thetaValues"></param>
+    /// <param name="newThetaValues"></param>
+    /// <returns></returns>
+    public static Expression<ParametricFunction> SimplifyAndRemoveParameters(Expression<ParametricFunction> expr, double[] thetaValues, out double[] newThetaValues) {
+      var theta = expr.Parameters[0];
+      var simplifyVisitor = new SimplifyVisitor();
+      var simplifiedExpr = (Expression<ParametricFunction>)simplifyVisitor.Visit(expr);
+      var collectParamVisitor = new CollectParametersVisitor(theta, thetaValues);
+      simplifiedExpr = (Expression<ParametricFunction>)collectParamVisitor.Visit(simplifiedExpr);
+      newThetaValues = collectParamVisitor.GetNewParameterValues;
+      return simplifiedExpr;
     }
 
     public static Expression<ParametricFunction> FoldParameters(Expression<ParametricFunction> expr, 
@@ -241,10 +253,10 @@ namespace HEAL.Expressions {
       double[] thetaValues, int varIdx, double replVal, out double[] newThetaValues) {
       var theta = expr.Parameters[0];
       var x = expr.Parameters[1];
-      Console.WriteLine($"Original: {expr}:");
+      // Console.WriteLine($"Original: {expr}:");
       var visitor = new ReplaceVariableWithParameterVisitor(theta, thetaValues,x, varIdx, replVal);
       var newExpr = (Expression<ParametricFunction>)visitor.Visit(expr);
-      Console.WriteLine($"x{varIdx} replaced: {newExpr}:");
+      // Console.WriteLine($"x{varIdx} replaced: {newExpr}:");
       newThetaValues = visitor.NewThetaValues;
       return newExpr;
     }

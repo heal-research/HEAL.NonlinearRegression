@@ -3,7 +3,7 @@ using System.Linq.Expressions;
 using HEAL.Expressions;
 
 namespace HEAL.NonlinearRegression {
-  internal class FriedmanProblem : INLSProblem {
+  internal class FriedmanProblem : SymbolicProblemBase {
 
     public FriedmanProblem() {
       int m = 100;
@@ -25,36 +25,17 @@ namespace HEAL.NonlinearRegression {
 
     }
 
-    public double[,] X { get; private set; }
+    public override double[,] X { get; }
 
-    public double[] y { get; private set; }
+    public override double[] y { get; }
 
     public static double[] thetaStart = new double[] { 10.0, 20.0, -0.5, 10, 5 };
-    public double[] ThetaStart => thetaStart;
+    public override double[] ThetaStart => thetaStart;
 
 
     // generating expression
-    public static Expression<Expr.ParametricFunction> ModelExpr = (p, x) => 
+    public override Expression<Expr.ParametricFunction> ModelExpr => (p, x) => 
         p[0] * Math.Sin(Math.PI * x[0] * x[1]) + p[1] * Math.Pow(x[2] - p[2], 2) + p[3] * x[3] + p[4] * x[4];
-      
-
-    // theta, X, f, ignored_result
-    public static Expression<Expr.ParametricVectorFunction> BroadcastModelExpr = Expr.Broadcast(ModelExpr);
-
-    // theta, X, f, J
-    private static Expr.ParametricVectorFunction ModelFunc = BroadcastModelExpr.Compile();
     
-    private static Expression<Expr.ParametricGradientFunction> GradientExpr = Expr.Gradient(ModelExpr, thetaStart.Length);
-    private static Expression<Expr.ParametricJacobianFunction> BroadcastJacobianExpr = Expr.Broadcast(GradientExpr);
-    private static Expr.ParametricJacobianFunction JacobianFunc = BroadcastJacobianExpr.Compile();
-      
-
-    public void Func(double[] theta, double[,] X, double[] f) {
-      ModelFunc(theta, X, f);
-    }
-
-    public void Jacobian(double[] theta, double[,] X, double[] f, double[,] jac) {
-      JacobianFunc(theta, X, f, jac);
-    }
   }
 }

@@ -13,11 +13,7 @@ namespace HEAL.Expressions {
       this.param = param;
       this.dxIdx = dxIdx;
     }
-
-    public Expression<Func<double[], double>> Visit(Expression<Func<double[], double>> expr) {
-      return Expression.Lambda<Func<double[], double>>(Visit(expr.Body), expr.Parameters);
-    }
-
+    
     protected override Expression VisitConstant(ConstantExpression node) {
       return Expression.Constant(0.0);
     }

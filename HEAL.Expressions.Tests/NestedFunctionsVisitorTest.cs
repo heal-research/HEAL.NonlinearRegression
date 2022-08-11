@@ -54,7 +54,7 @@ namespace HEAL.Expressions.Tests {
         var eval = new double[m];
         subExprForEval(theta, X, eval);
         var replValue = eval.Average();
-        var reducedExpression = RemoveSubexpressionVisitor.Execute(expr, subExpr, theta, replValue, out var newTheta);
+        var reducedExpression = ReplaceSubexpressionWithParameterVisitor.Execute(expr, subExpr, theta, replValue, out var newTheta);
         Console.WriteLine($"{subExpr} {reducedExpression} {string.Join(", ", newTheta.Select(ti => ti.ToString("g4")))}");
       }
 

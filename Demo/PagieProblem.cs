@@ -3,7 +3,7 @@ using System.Linq.Expressions;
 using HEAL.Expressions;
 
 namespace HEAL.NonlinearRegression {
-  internal class PagieProblem : INLSProblem {
+  internal class PagieProblem : SymbolicProblemBase {
 
     public PagieProblem() {
       int m = 676;
@@ -31,9 +31,9 @@ namespace HEAL.NonlinearRegression {
       
     }
 
-    public double[,] X { get; private set; }
+    public override double[,] X { get; }
 
-    public double[] y { get; private set; }
+    public override double[] y { get; }
 
     public static double[] thetaStart = new double[] {
       /*
@@ -67,7 +67,7 @@ namespace HEAL.NonlinearRegression {
       1.61634e0    // 11
       
     };
-    public double[] ThetaStart => thetaStart;
+    public override double[] ThetaStart => thetaStart;
 
     
     // GrammarEnum result:
@@ -78,7 +78,7 @@ namespace HEAL.NonlinearRegression {
     // cbrt(Y * Y * -2.60030338e+001 + 2.59476220e+001) * -7.79373531e-002 +
     // 1.61634069e+000
     
-    public static Expression<Expr.ParametricFunction> ModelExpr = (theta, x) =>
+    public override Expression<Expr.ParametricFunction> ModelExpr => (theta, x) =>
 
         /*
         // original
@@ -106,24 +106,5 @@ namespace HEAL.NonlinearRegression {
     //public static Expression<Expr.ParametricFunction> ModelExpr = (theta, x) =>
     //  theta[0] / (1.0 + Math.Pow(x[0], -4)) + theta[1] / (1.0 + Math.Pow(x[1], -4));
     
-
-    // theta, X, f, ignored_result
-    public static Expression<Expr.ParametricVectorFunction> BroadcastModelExpr = Expr.Broadcast(ModelExpr);
-
-    // theta, X, f, J
-    private static Expr.ParametricVectorFunction ModelFunc = BroadcastModelExpr.Compile();
-    
-    private static Expression<Expr.ParametricGradientFunction> GradientExpr = Expr.Gradient(ModelExpr, thetaStart.Length);
-    private static Expression<Expr.ParametricJacobianFunction> BroadcastJacobianExpr = Expr.Broadcast(GradientExpr);
-    private static Expr.ParametricJacobianFunction JacobianFunc = BroadcastJacobianExpr.Compile();
-      
-
-    public void Func(double[] theta, double[,] X, double[] f) {
-      ModelFunc(theta, X, f);
-    }
-
-    public void Jacobian(double[] theta, double[,] X, double[] f, double[,] jac) {
-      JacobianFunc(theta, X, f, jac);
-    }
   }
 }

@@ -2,6 +2,7 @@
 
 namespace HEAL.NonlinearRegression {
   public class LeastSquaresStatistics {
+    // TODO: Likelihood, AIC, BIC, AICc, DegreeOfFreedom
     public int m { get; internal set; } // number of observations
     public int n { get; internal set; } // number of parameters
     public double[] yPred { get; internal set; }

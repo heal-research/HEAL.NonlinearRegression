@@ -5,7 +5,7 @@ using System.Xml;
 using HEAL.Expressions;
 
 namespace HEAL.NonlinearRegression {
-  internal class RatPol2DProblem : INLSProblem {
+  internal class RatPol2DProblem : SymbolicProblemBase {
 
     public RatPol2DProblem() {
       int m = 50;
@@ -24,17 +24,11 @@ namespace HEAL.NonlinearRegression {
         var x2 = X[i, 1];
         y[i] = (Math.Pow(x1-3, 4) + Math.Pow(x2-3, 3) -(x2-3)) / (Math.Pow(x2-2, 4) + 10);
       }
-      // no noise
-      
-      // check model
-      var yPred = new double[m];
-      ModelFunc(thetaStart, X, yPred);
-      Console.WriteLine($"RatPol2d MSE: {y.Zip(yPred, (yi,yp) => Math.Pow(yi-yp, 2)).Average()}");
     }
 
-    public double[,] X { get; private set; }
+    public override double[,] X { get; }
 
-    public double[] y { get; private set; }
+    public override double[] y { get; }
 
     private static double[] thetaStart => new double[] {
       9.71243692e-002, 6.39720658e-001, 7.89778563e-001,  
@@ -45,7 +39,7 @@ namespace HEAL.NonlinearRegression {
     // optimized
     // p_opt: 1.96002e-006 2.56579e+000 4.64090e-001 5.37162e+000 -1.54712e-001 -1.00020e+000 6.07912e-001 -3.92240e-003 1.73439e-001 3.17599e-001 -2.75960e+000
     
-    public double[] ThetaStart => thetaStart;
+    public override double[] ThetaStart => thetaStart;
 
     // From grammar enumeration
     // exp(X1 * 6.39720658e-001) * 9.71243692e-002 +
@@ -54,7 +48,7 @@ namespace HEAL.NonlinearRegression {
     // X1 * exp(X1 * X2 * 2.69747722e-002) * -5.52213198e-001 +
     // X2 * 3.28722667e-001 +
     // -2.16429221e+000
-    private static Expression<Expr.ParametricFunction> ModelExpr = (p, x) =>
+    public override Expression<Expr.ParametricFunction> ModelExpr => (p, x) =>
       p[0] * Math.Exp(x[0] * p[1]) +
       p[2] * x[0] +
       p[3] * Math.Exp(p[4] * x[1] * x[1]) * Math.Exp(p[5] * x[0]) * Math.Exp(p[6] * x[1]) +
@@ -62,15 +56,5 @@ namespace HEAL.NonlinearRegression {
       p[9] * x[1] +
       p[10];
 
-    private readonly Expr.ParametricVectorFunction ModelFunc = Expr.Broadcast(ModelExpr).Compile();
-    private readonly Expr.ParametricJacobianFunction ModelJacobian = Expr.Jacobian(ModelExpr, thetaStart.Length).Compile(); 
-    
-    public void Func(double[] theta, double[,] X, double[] f) {
-      ModelFunc(theta, X, f);
-    }
-
-    public void Jacobian(double[] theta, double[,] X, double[] f, double[,] jac) {
-      ModelJacobian(theta, X, f, jac);
-    }
   }
 }
