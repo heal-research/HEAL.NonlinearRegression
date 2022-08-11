@@ -4,7 +4,7 @@ using HEAL.Expressions;
 using NUnit.Framework;
 
 namespace HEAL.Expressions.Tests {
-  public class Tests {
+  public class ExprTests {
     [SetUp]
     public void Setup() {
     }

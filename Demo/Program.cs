@@ -12,9 +12,13 @@ namespace HEAL.NonlinearRegression {
       // RunDemo(new PuromycinDSRProblem());
       // RunDemo(new PCBDSRProblem());
       var p = new FriedmanProblem();
-      var importance = VariableImportance.Calculate(FriedmanProblem.ModelExpr, p.X, p.y, p.ThetaStart);
-      foreach (var kvp in importance.OrderByDescending(kvp => kvp.Value)) {
+      var varImportance = ModelAnalysis.VariableImportance(FriedmanProblem.ModelExpr, p.X, p.y, p.ThetaStart);
+      foreach (var kvp in varImportance.OrderByDescending(kvp => kvp.Value)) {
         Console.WriteLine($"x{kvp.Key} {kvp.Value}");
+      }
+      var subExprImportance = ModelAnalysis.SubtreeImportance(FriedmanProblem.ModelExpr, p.X, p.y, p.ThetaStart);
+      foreach (var kvp in subExprImportance.OrderByDescending(kvp => kvp.Value)) {
+        Console.WriteLine($"{kvp.Value} {kvp.Key}");
       }
       System.Environment.Exit(0);
 

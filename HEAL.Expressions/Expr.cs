@@ -223,17 +223,17 @@ namespace HEAL.Expressions {
       var theta = expr.Parameters[0];
       var x = expr.Parameters[1];
       expr = ArrangeParametersRightVisitor.Execute(expr, theta, parameterValues);
-      Console.WriteLine($"Rearranged: {expr}");
+      //Console.WriteLine($"Rearranged: {expr}");
       
       var visitor = new FoldParametersVisitor(theta, parameterValues);
       var newExpr = visitor.Visit(expr);
       newParameterValues = visitor.GetNewParameterValues;
-      Console.WriteLine($"Folded parameters: {newExpr}");
+      //Console.WriteLine($"Folded parameters: {newExpr}");
 
       var collectVisitor = new CollectParametersVisitor(theta, newParameterValues);
       newExpr = collectVisitor.Visit(newExpr);
       newParameterValues = collectVisitor.GetNewParameterValues;
-      Console.WriteLine($"Removed unused parameters: {newExpr}");
+      //Console.WriteLine($"Removed unused parameters: {newExpr}");
       return (Expression<ParametricFunction>)newExpr;
     }
 
