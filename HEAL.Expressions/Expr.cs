@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Text;
 using Type = System.Type;
 
 // TODO: refactor visitors (move into folder?)
@@ -259,6 +261,11 @@ namespace HEAL.Expressions {
       // Console.WriteLine($"x{varIdx} replaced: {newExpr}:");
       newThetaValues = visitor.NewThetaValues;
       return newExpr;
+    }
+
+    public static string ToGraphViz(Expression<ParametricFunction> expr, 
+      double[] pValues = null, string[] varNames = null, Dictionary<Expression, double> saturation=null) {
+      return GraphvizVisitor.Execute(expr, pValues, varNames, saturation);
     }
     
     // TODO: method to take an expression and extract all double constants as parameters

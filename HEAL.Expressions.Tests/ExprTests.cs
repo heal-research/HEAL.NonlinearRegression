@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using HEAL.Expressions;
 using NUnit.Framework;
@@ -135,7 +136,25 @@ namespace HEAL.Expressions.Tests {
         Assert.AreEqual(3.14, newTheta[2]);
       }
     }
-    
+
+
+    [Test]
+    public void Graphviz() {
+      Expression<Expr.ParametricFunction> expr = (p, x) => x[0] * p[0] + x[1] + Math.Log(x[1]*p[1] + 1.0) + 1/(x[1] * p[2]);
+      Console.WriteLine(Expr.ToGraphViz(expr));
+      Console.WriteLine(Expr.ToGraphViz(expr, new double[] {0.0, 1.0, 2.0}));
+      Console.WriteLine(Expr.ToGraphViz(expr, varNames: new []{"a","b"}));
+
+      var sat = new Dictionary<Expression, double>();
+      var rand = new Random(1234);
+      foreach (var node in FlattenExpressionVisitor.Execute(expr)) {
+        if (node.NodeType == ExpressionType.ArrayIndex) {
+          sat.Add(node, rand.NextDouble());
+        }
+      }
+      Console.WriteLine(Expr.ToGraphViz(expr, saturation: sat));
+    }
+
     private void CompileAndRun(Expression<Expr.ParametricFunction> expr) {
       int N = 10;
       var X = new double[N,3];
