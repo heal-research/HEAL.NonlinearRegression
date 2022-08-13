@@ -8,6 +8,7 @@ using HEAL.Expressions;
 namespace HEAL.NonlinearRegression {
   public class Program {
     public static void Main(string[] args) {
+      RunDemo(new FriedmanProblem());
       RunDemo(new PagieProblem());
       RunDemo(new KotanchekProblem());
       RunDemo(new RatPol2DProblem());
@@ -116,11 +117,16 @@ namespace HEAL.NonlinearRegression {
             xReduced = x;
           }
 
-          TProfile.GetPredictionIntervals(xReduced, nls, out var tLow, out var tHigh);
-          Console.WriteLine("Prediction intervals (t-profile);");
-          for (int i = 0; i < Math.Min(linLow.Length, 10); i++) {
-            Console.WriteLine($"{nls.Statistics.yPred[i],14:e4} {tLow[i],14:e4} {tHigh[i],14:e4}");
-          }
+          try {
+
+            TProfile.GetPredictionIntervals(xReduced, nls, out var tLow, out var tHigh);
+            Console.WriteLine("Prediction intervals (t-profile);");
+            for (int i = 0; i < Math.Min(linLow.Length, 10); i++) {
+              Console.WriteLine($"{nls.Statistics.yPred[i],14:e4} {tLow[i],14:e4} {tHigh[i],14:e4}");
+            }
+	  } catch(Exception e) {
+	    Console.WriteLine(e.Message);
+	  }
         }
 
         // // TODO: extend this to produce some relevant output for all parameters instead of only a pairwise contour

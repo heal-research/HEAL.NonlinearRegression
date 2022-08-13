@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 namespace HEAL.NonlinearRegression {
   internal static class Util {
     public static ResidualFunction CreateResidualFunction(Function func, double[,] x, double[] y) {
@@ -83,6 +84,16 @@ namespace HEAL.NonlinearRegression {
           jac[i, offsetParamIdx] = 1; // derivative of extra parameter
         }
       };
+    }
+
+    public static double Variance(double[] x) {
+      var xm = x.Average();
+      var SSR = 0.0;
+      for(int i=0;i<x.Length;i++) {
+        var r = x[i] - xm;
+	SSR += r*r;
+      }
+      return SSR/x.Length;
     }
   }
 }

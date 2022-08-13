@@ -20,7 +20,7 @@ namespace HEAL.NonlinearRegression {
 
         y[i] = 10 * Math.Sin(Math.PI * X[i, 0] * X[i, 1]) + 20 * Math.Pow(X[i, 2] - 0.5, 2) + 10 * X[i, 3] +
                5 * X[i, 4];
-        y[i] += Util.RandNorm(rand, 0, 1.0 / 4.8);
+        y[i] += 1.0 / 4.8 * Util.RandNorm(rand, 0, 1);
       }
 
     }

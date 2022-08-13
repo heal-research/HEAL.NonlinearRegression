@@ -34,15 +34,18 @@ namespace HEAL.NonlinearRegression {
         var newExpr = Expr.ReplaceVariableWithParameter(expr, (double[])stats0.paramEst.Clone(),
           varIdx, mean[varIdx], out var newThetaValues);
         newExpr = Expr.FoldParameters(newExpr, newThetaValues, out newThetaValues);
-        
+
+        nlr = new NonlinearRegression();
         nlr.Fit(newThetaValues, newExpr, X, y);
         var newStats = nlr.Statistics;
-        relSSR[varIdx] = newStats.SSR / stats0.SSR;
+	Console.WriteLine($"{newStats.SSR} {Util.Variance(y) * y.Length}");
+	// increase in variance for the reduced feature = variance explained by the feature
+        relSSR[varIdx] = (newStats.SSR - stats0.SSR) / (y.Length*Util.Variance(y)); // newStats.SSR / stats0.SSR;
       }
 
       return relSSR;
     }
-    
+
     
     /// <summary>
     /// Replaces each sub-tree in the model by a parameter and re-fits the model. The factor SSR_reduced / SSR_full is returned as impact.
