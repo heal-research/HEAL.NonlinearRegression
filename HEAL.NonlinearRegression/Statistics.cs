@@ -2,8 +2,8 @@
 
 namespace HEAL.NonlinearRegression {
   public class LeastSquaresStatistics {
-    public int m { get; internal set; } // number of observations
-    public int n { get; internal set; } // number of parameters
+    public int m { get; internal set; } // number of observations for training points
+    public int n { get; internal set; } // number of parameters for training points
     public double[] yPred { get; internal set; }
     public double SSR { get; internal set; } // sum of squared residuals, S(θ) in Bates and Watts
     public double s => Math.Sqrt(SSR / (m - n)); // s²: residual mean square or variance estimate based on m-n degrees of freedom 
@@ -14,13 +14,23 @@ namespace HEAL.NonlinearRegression {
     public double[] resStdError { get; internal set; } // standard error for residuals
 
 
-    public LeastSquaresStatistics(int m, int n, double SSR, double[] yPred, double[] paramEst, Jacobian jacobian, double[,] x) {
+    public LeastSquaresStatistics(int m, int n, double SSR, double[] paramEst, Jacobian jacobian, double[,] x) {
       this.m = m;
       this.n = n;
       this.SSR = SSR;
-      this.yPred = (double[])yPred.Clone();
+      this.yPred = CalculatePrediction(x, paramEst);
       this.paramEst = (double[])paramEst.Clone();
       CalcParameterStatistics(jacobian, x);
+    }
+
+    private double[] CalculatePrediction(double[,] x, double[] paramEst) {
+      var yPred = new double[x.GetLength(0)];
+      for (int i = 0; i < yPred.Length; i++) {
+        for (int j = 0; j < paramEst.Length; j++) {
+          yPred[i] += x[i, j] * paramEst[j];
+        }
+      }
+      return yPred;
     }
 
     // TODO
@@ -34,6 +44,7 @@ namespace HEAL.NonlinearRegression {
     // Exact for linear models. Good approximation for nonlinear models when parameters are close to linear.
     // Check t profiles and pairwise profile plots for deviation from linearity.
     private void CalcParameterStatistics(Jacobian jacobian, double[,] x) {
+      int m = x.GetLength(0);
       var pOpt = paramEst;
 
       var yPred = new double[m];
@@ -111,8 +122,8 @@ namespace HEAL.NonlinearRegression {
       var t = alglib.invstudenttdistribution(m - n, 1 - alpha / 2);
 
       for (int i = 0; i < m; i++) {
-        low[i] = yPred[i] - resStdError[i] * Math.Sqrt(n * t) -(includeNoise ? t*s : 0.0);
-        high[i] = yPred[i] + resStdError[i] * Math.Sqrt(n * t) + (includeNoise ? t*s : 0.0);
+        low[i] = yPred[i] - resStdError[i] * Math.Sqrt(n * t) - (includeNoise ? t * s : 0.0);
+        high[i] = yPred[i] + resStdError[i] * Math.Sqrt(n * t) + (includeNoise ? t * s : 0.0);
       }
     }
   }
