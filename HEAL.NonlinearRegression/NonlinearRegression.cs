@@ -74,7 +74,15 @@ namespace HEAL.NonlinearRegression {
 
       if (rep.terminationtype >= 0) {
         Array.Copy(paramEst, p, p.Length);
-        Statistics = new LeastSquaresStatistics(m, n, state.f, paramEst, jacobian, x);
+        // evaluate ypred and SSR
+        var yPred = new double[m];
+        var SSR = 0.0;
+        func(paramEst, x, yPred);
+        for (int i = 0; i < yPred.Length; i++) {
+          var r = y[i] - yPred[i];
+          SSR += r * r;
+        }
+        Statistics = new LeastSquaresStatistics(m, n, SSR, yPred, paramEst, jacobian, x);
 
         OptReport = new OptimizationReport() {
           Success = true,

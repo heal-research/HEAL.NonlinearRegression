@@ -14,23 +14,13 @@ namespace HEAL.NonlinearRegression {
     public double[] resStdError { get; internal set; } // standard error for residuals
 
 
-    public LeastSquaresStatistics(int m, int n, double SSR, double[] paramEst, Jacobian jacobian, double[,] x) {
+    public LeastSquaresStatistics(int m, int n, double SSR, double[] yPred, double[] paramEst, Jacobian jacobian, double[,] x) {
       this.m = m;
       this.n = n;
       this.SSR = SSR;
-      this.yPred = CalculatePrediction(x, paramEst);
+      this.yPred = yPred;
       this.paramEst = (double[])paramEst.Clone();
       CalcParameterStatistics(jacobian, x);
-    }
-
-    private double[] CalculatePrediction(double[,] x, double[] paramEst) {
-      var yPred = new double[x.GetLength(0)];
-      for (int i = 0; i < yPred.Length; i++) {
-        for (int j = 0; j < paramEst.Length; j++) {
-          yPred[i] += x[i, j] * paramEst[j];
-        }
-      }
-      return yPred;
     }
 
     // TODO
