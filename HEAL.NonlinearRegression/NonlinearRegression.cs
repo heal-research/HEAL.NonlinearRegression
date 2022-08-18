@@ -111,7 +111,7 @@ namespace HEAL.NonlinearRegression {
           var r = y[i] - yPred[i];
           SSR += r * r;
         }
-        Statistics = new LeastSquaresStatistics(m, n, SSR, yPred, paramEst, jacobian, x);
+        Statistics = new LeastSquaresStatistics(m, n, SSR, paramEst, jacobian, x);
 
         OptReport = new OptimizationReport() {
           Success = true,

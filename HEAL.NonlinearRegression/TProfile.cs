@@ -225,7 +225,7 @@ namespace HEAL.NonlinearRegression {
         var jacExt = Util.ReparameterizeJacobian(nls.jacobian, xi, offsetIdx);
 
         paramEstExt[offsetIdx] = yPred[i]; // offset parameter is prediction at point xi
-        var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, nls.Statistics.yPred, paramEstExt, jacExt, nls.x); // slow, can we simplify this ?
+        var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, paramEstExt, jacExt, nls.x); // slow, can we simplify this ?
 
         var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, offsetIdx); // only for extra parameter
 
