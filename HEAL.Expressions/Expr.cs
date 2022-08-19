@@ -83,12 +83,13 @@ namespace HEAL.Expressions {
           }), thetaParam, xMatrixParam, fVar);
     }
 
-    public static Expression<ParametricFunction> ReplaceParameterWithValues(LambdaExpression expr,
+
+    public static Expression<T> ReplaceParameterWithValues<T>(LambdaExpression expr,
       ParameterExpression constantsParameter,
       double[] constants) {
       var v = new ReplaceParameterWithNumberVisitor(constantsParameter, constants);
       var newExpr = v.Visit(expr.Body);
-      return Expression.Lambda<ParametricFunction>(newExpr, expr.Parameters.Except(new[] { constantsParameter }));
+      return Expression.Lambda<T>(newExpr, expr.Parameters.Except(new[] { constantsParameter }));
     }
 
     /// <summary>
