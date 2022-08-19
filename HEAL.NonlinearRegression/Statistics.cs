@@ -12,8 +12,6 @@ namespace HEAL.NonlinearRegression {
     public double[] paramStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
     public double[,] correlation { get; internal set; }// correlation matrix for parameters
 
-    public double[] resStdError { get; internal set; } // standard error for residuals
-
 
     public LeastSquaresStatistics(int m, int n, double SSR, double[] yPred, double[] paramEst, Jacobian jacobian, double[,] x) {
       this.m = m;
@@ -76,20 +74,6 @@ namespace HEAL.NonlinearRegression {
       correlation = C;
       paramStdError = se;
 
-      // 1-alpha approximate inference interval for the expected response
-      // (1.37), page 23
-      var JR = new double[m, n];
-      alglib.rmatrixgemm(m, n, n, 1.0, J, 0, 0, 0, R, 0, 0, 0, 0.0, ref JR, 0, 0);
-      resStdError = new double[m];
-
-      for (int i = 0; i < m; i++) {
-        resStdError[i] = 0.0;
-        for (int j = 0; j < n; j++) {
-          resStdError[i] += JR[i, j] * JR[i, j];
-        }
-        resStdError[i] = Math.Sqrt(resStdError[i]); // length of row vector in JR
-        resStdError[i] *= s; // standard error for residuals 
-      }
     }
 
     public void GetParameterIntervals(double alpha, out double[] low, out double[] high) {
@@ -105,10 +89,41 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    public void GetPredictionIntervals(double alpha, out double[] low, out double[] high, bool includeNoise = false) {
+    
+
+    public void GetPredictionIntervals(Jacobian jacobian, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high, bool includeNoise = false) {
+      int m = x.GetLength(0);
       low = new double[m];
       high = new double[m];
+      resStdError = new double[m];
 
+      var yPred = new double[m];
+      var J = new double[m, n];
+      jacobian(paramEst, x, yPred, J);
+      // clone J for the QR decomposition
+      var QR = (double[,])J.Clone();
+      alglib.rmatrixqr(ref QR, m, n, out _);
+      alglib.rmatrixqrunpackr(QR, n, n, out var R);
+
+      // inverse of R
+      alglib.rmatrixtrinverse(ref R, isupper: true, out var info, out var invReport);
+      if (info < 0) throw new InvalidOperationException("Cannot invert R");
+
+      // 1-alpha approximate inference interval for the expected response
+      // (1.37), page 23
+      var JR = new double[m, n];
+      alglib.rmatrixgemm(m, n, n, 1.0, J, 0, 0, 0, R, 0, 0, 0, 0.0, ref JR, 0, 0);
+
+      for (int i = 0; i < m; i++) {
+        resStdError[i] = 0.0;
+        for (int j = 0; j < n; j++) {
+          resStdError[i] += JR[i, j] * JR[i, j];
+        }
+        resStdError[i] = Math.Sqrt(resStdError[i]); // length of row vector in JR
+        resStdError[i] *= s; // standard error for residuals 
+      }
+
+      // TODO check: https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
       // var f = alglib.invfdistribution(n, m - n, alpha);
       var t = alglib.invstudenttdistribution(m - n, 1 - alpha / 2);
 

@@ -235,7 +235,7 @@ namespace HEAL.NonlinearRegression {
           theta[k] = profile.Item2[offsetIdx][k]; // profile of extra parameter
         }
         alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
-        var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
+        var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);  // TODO: check https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
         low[i] = alglib.spline1dcalc(tau2theta, -t);
         high[i] = alglib.spline1dcalc(tau2theta, t);
       }

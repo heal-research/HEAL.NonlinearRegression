@@ -150,12 +150,13 @@ namespace HEAL.NonlinearRegression {
           }
         case IntervalEnum.LinearApproximation: {
             var yPred = Predict(x);
-            var y = new double[m, 3];
-            Statistics.GetPredictionIntervals(alpha, out var low, out var high, includeNoise);
+            var y = new double[m, 4];
+            Statistics.GetPredictionIntervals(jacobian, x, alpha, out var resStdErr, out var low, out var high, includeNoise);
             for (int i = 0; i < m; i++) {
               y[i, 0] = yPred[i];
-              y[i, 1] = low[i];
-              y[i, 2] = high[i];
+              y[i, 1] = resStdErr[i];
+              y[i, 2] = low[i];
+              y[i, 3] = high[i];
             }
             return y;
           }
