@@ -128,7 +128,7 @@ namespace HEAL.NonlinearRegression.Console {
       var expr = CSharpScript.EvaluateAsync<Expression<Func<double[], double[], double>>>(modelExpression, options).Result;
       var newExpr = Expr.ReplaceNumbersWithParameter(expr, out p);
       var constantsParameter = expr.Parameters.First(p => p.Name == "constants");
-      return Expr.ReplaceParameterWithValues(newExpr, constantsParameter, constants);
+      return Expr.ReplaceParameterWithValues<Expr.ParametricFunction>(newExpr, constantsParameter, constants);
     }
 
     private static string PreprocessModelString(string model, string[] varNames, out double[] constants) {
@@ -142,22 +142,22 @@ namespace HEAL.NonlinearRegression.Console {
 
     private static string TranslateFunctionCalls(string model) {
       return TranslatePower(model)
-        .Replace("log(", "Math.Log(")
-        .Replace("exp(", "Math.Exp(")
-        .Replace("sin(", "Math.Sin(")
-        .Replace("cos(", "Math.Cos(")
-        .Replace("tan(", "Math.Tan(")
-        .Replace("sqrt(", "Math.Sqrt(")
-        .Replace("tanh(", "Math.Tanh(")
-        .Replace("sinh(", "Math.Sinh(")
-        .Replace("cosh(", "Math.Cosh(")
-        .Replace("asin(", "Math.Asin(")
-        .Replace("acos(", "Math.Acos(")
-        .Replace("atan(", "Math.Atan(")
-        .Replace("asinh(", "Math.Asinh(")
-        .Replace("acosh(", "Math.Acosh(")
-        .Replace("atanh(", "Math.Atanh(")
-        .Replace("cbrt(", "Math.Cbrt(")
+        .Replace("log(", "Math.Log(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("exp(", "Math.Exp(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("sin(", "Math.Sin(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("cos(", "Math.Cos(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("tan(", "Math.Tan(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("sqrt(", "Math.Sqrt(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("tanh(", "Math.Tanh(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("sinh(", "Math.Sinh(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("cosh(", "Math.Cosh(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("asin(", "Math.Asin(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("acos(", "Math.Acos(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("atan(", "Math.Atan(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("asinh(", "Math.Asinh(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("acosh(", "Math.Acosh(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("atanh(", "Math.Atanh(", StringComparison.InvariantCultureIgnoreCase)
+        .Replace("cbrt(", "Math.Cbrt(", StringComparison.InvariantCultureIgnoreCase)
         ;
     }
 
