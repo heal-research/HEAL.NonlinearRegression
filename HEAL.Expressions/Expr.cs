@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Text;
 using Type = System.Type;
 
 // TODO: refactor visitors (move into folder?)
@@ -16,8 +15,8 @@ namespace HEAL.Expressions {
     public delegate double ParametricGradientFunction(double[] theta, double[] x, double[] grad);
 
     public delegate void ParametricJacobianFunction(double[] theta, double[,] X, double[] f, double[,] Jac);
-    
-    
+
+
     // TODO method to check validity of model expression
     // - can only contain variables theta and x
     // - theta and x are always indexed and always indexed with constants. The model cannot determine x.length or
@@ -35,9 +34,9 @@ namespace HEAL.Expressions {
       // original parameters
       var thetaParam = fx.Parameters[0];
       var xVecParam = fx.Parameters[1];
-      
+
       var endLoop = Expression.Label("endloop");
-      
+
       // local variables
       var iVar = Expression.Variable(typeof(int), "i"); // loop counter
       var nVar = Expression.Variable(typeof(int), "n");
@@ -47,7 +46,7 @@ namespace HEAL.Expressions {
       // new parameters
       var fVar = Expression.Parameter(typeof(double[]), "f");
       var xMatrixParam = Expression.Parameter(typeof(double[,]), "x");
-      
+
       // necessary methods
       var getLength = typeof(double[,]).GetMethod("GetLength",
         new Type[] { typeof(int) });
@@ -55,12 +54,12 @@ namespace HEAL.Expressions {
         new Type[] { typeof(Array), typeof(int), typeof(Array), typeof(int), typeof(int) });
 
       // for debugging
-      var writeLn = typeof(Console).GetMethod("WriteLine", new Type[] { typeof(string) });
-      var toString = typeof(object).GetMethod("ToString");
+      // var writeLn = typeof(Console).GetMethod("WriteLine", new Type[] { typeof(string) });
+      // var toString = typeof(object).GetMethod("ToString");
 
       var adjExpr = (new SubstituteParameterVisitor()).ReplaceParameter(fx.Body, xVecParam, vVar);
       // Console.WriteLine(adjExpr);
-      
+
       return Expression.Lambda<ParametricVectorFunction>(
         Expression.Block(
           new[] { nVar, iVar, dVar, vVar },
@@ -84,14 +83,37 @@ namespace HEAL.Expressions {
           }), thetaParam, xMatrixParam, fVar);
     }
 
+    public static Expression<ParametricFunction> ReplaceParameterWithValues(LambdaExpression expr,
+      ParameterExpression constantsParameter,
+      double[] constants) {
+      var v = new ReplaceParameterWithNumberVisitor(constantsParameter, constants);
+      var newExpr = v.Visit(expr.Body);
+      return Expression.Lambda<ParametricFunction>(newExpr, expr.Parameters.Except(new[] { constantsParameter }));
+    }
+
+    /// <summary>
+    /// Returns a new expression where all double values are replaced by a reference to a new double[] parameter theta[.]. 
+    /// The values in expr are collected into thetaValues.
+    /// </summary>
+    /// <param name="expr">The expr which contains double constants.</param>
+    /// <param name="thetaValues">Array of parameter values occuring in expr</param>
+    /// <returns></returns>
+    public static LambdaExpression ReplaceNumbersWithParameter(LambdaExpression expr, out double[] thetaValues) {
+      var theta = Expression.Parameter(typeof(double[]), "theta");
+      var v = new ReplaceNumberWithParameterVisitor(theta);
+      var newExpr = v.Visit(expr.Body);
+      thetaValues = v.ParameterValues;
+      return Expression.Lambda(newExpr, new[] { theta }.Concat(expr.Parameters));
+    }
+
     public static Expression<ParametricJacobianFunction> Broadcast(Expression<ParametricGradientFunction> fx) {
       // original parameters
       var thetaParam = fx.Parameters[0];
       var xVecParam = fx.Parameters[1];
       var gVecParam = fx.Parameters[2];
-      
+
       var endLoop = Expression.Label("endloop");
-      
+
       // local variables
       var iVar = Expression.Variable(typeof(int), "i"); // loop counter
       var nVar = Expression.Variable(typeof(int), "n"); // nrows(X)
@@ -104,7 +126,7 @@ namespace HEAL.Expressions {
       var fVar = Expression.Parameter(typeof(double[]), "f");
       var xMatrixParam = Expression.Parameter(typeof(double[,]), "x");
       var jacParam = Expression.Parameter(typeof(double[,]), "Jac");
-      
+
       // necessary methods
       var getLength = typeof(double[,]).GetMethod("GetLength",
         new Type[] { typeof(int) });
@@ -136,11 +158,11 @@ namespace HEAL.Expressions {
                   Expression.Multiply(dVar, Expression.Constant(sizeof(double)))),
                 // call gradient function (v, g)
                 Expression.Assign(Expression.ArrayAccess(fVar, iVar),
-                  (new SubstituteParameterVisitor()).ReplaceParameters(fx.Body, new [] {xVecParam, gVecParam}, 
+                  (new SubstituteParameterVisitor()).ReplaceParameters(fx.Body, new [] {xVecParam, gVecParam},
                     new [] {vVar, gVar})),
                 // copy g to Jac row i
-                Expression.Call(blockCopy, gVar, 
-                  Expression.Constant(0), 
+                Expression.Call(blockCopy, gVar,
+                  Expression.Constant(0),
                   jacParam, Expression.Multiply(iVar, Expression.Multiply(kVar, Expression.Constant(sizeof(double)))),
                   Expression.Multiply(kVar, Expression.Constant(sizeof(double)))
                   ),
@@ -150,7 +172,7 @@ namespace HEAL.Expressions {
           }), thetaParam, xMatrixParam, fVar, jacParam);
     }
 
-    
+
     /// <summary>
     /// Takes an expression and generates its partial derivative.
     /// </summary>
@@ -158,7 +180,7 @@ namespace HEAL.Expressions {
     /// <param name="dxIdx">The parameter index for which to calculate generate the partial derivative</param>
     /// <returns>A new expression that calculates the partial derivative of d expr(x) / d x_i</returns>
     public static Expression<ParametricFunction> Derive(Expression<ParametricFunction> expr, int dxIdx) {
-      if(!CheckExprVisitor.CheckValid(expr)) throw new NotSupportedException(expr.ToString());
+      if (!CheckExprVisitor.CheckValid(expr)) throw new NotSupportedException(expr.ToString());
       var deriveVisitor = new DeriveVisitor(expr.Parameters.First(), dxIdx);
       return Simplify((Expression<ParametricFunction>)deriveVisitor.Visit(expr));
     }
@@ -175,7 +197,7 @@ namespace HEAL.Expressions {
 
       var expressions = new Expression[numParam + 2];
       // Console.WriteLine(expr.Body);
-      
+
       expressions[0] = Expression.Assign(fVar, expr.Body); // f(x)
       // Console.WriteLine(expressions[0]);
       for (int i = 0; i < numParam; i++) {
@@ -184,15 +206,15 @@ namespace HEAL.Expressions {
       }
 
       expressions[expressions.Length - 1] = fVar; // result of the block is the result of the last expression
-      
-      
+
+
 
       var res = Expression.Lambda<ParametricGradientFunction>(
         Expression.Block(
-            new [] {fVar}, // block local variables
+            new[] { fVar }, // block local variables
             expressions
-          ), 
-        expr.Parameters.Concat(new  [] {gParam}) // lambda parameters
+          ),
+        expr.Parameters.Concat(new[] { gParam }) // lambda parameters
         );
       // Console.WriteLine(res);
       return res;
@@ -213,7 +235,7 @@ namespace HEAL.Expressions {
       return (Expression<ParametricFunction>)simplifyVisitor.Visit(expr);
     }
 
-    
+
     /// <summary>
     /// As simplify but also reduces the length of the parameter vector to include only the parameters
     /// that are still referenced in the simplified expression. 
@@ -232,13 +254,13 @@ namespace HEAL.Expressions {
       return simplifiedExpr;
     }
 
-    public static Expression<ParametricFunction> FoldParameters(Expression<ParametricFunction> expr, 
+    public static Expression<ParametricFunction> FoldParameters(Expression<ParametricFunction> expr,
       double[] parameterValues, out double[] newParameterValues) {
       var theta = expr.Parameters[0];
       var x = expr.Parameters[1];
       expr = ArrangeParametersRightVisitor.Execute(expr, theta, parameterValues);
       //Console.WriteLine($"Rearranged: {expr}");
-      
+
       var visitor = new FoldParametersVisitor(theta, parameterValues);
       var newExpr = visitor.Visit(expr);
       newParameterValues = visitor.GetNewParameterValues;
@@ -256,18 +278,18 @@ namespace HEAL.Expressions {
       var theta = expr.Parameters[0];
       var x = expr.Parameters[1];
       // Console.WriteLine($"Original: {expr}:");
-      var visitor = new ReplaceVariableWithParameterVisitor(theta, thetaValues,x, varIdx, replVal);
+      var visitor = new ReplaceVariableWithParameterVisitor(theta, thetaValues, x, varIdx, replVal);
       var newExpr = (Expression<ParametricFunction>)visitor.Visit(expr);
       // Console.WriteLine($"x{varIdx} replaced: {newExpr}:");
       newThetaValues = visitor.NewThetaValues;
       return newExpr;
     }
 
-    public static string ToGraphViz(Expression<ParametricFunction> expr, 
-      double[] pValues = null, string[] varNames = null, Dictionary<Expression, double> saturation=null) {
+    public static string ToGraphViz(Expression<ParametricFunction> expr,
+      double[] pValues = null, string[] varNames = null, Dictionary<Expression, double> saturation = null) {
       return GraphvizVisitor.Execute(expr, pValues, varNames, saturation);
     }
-    
+
     // TODO: method to take an expression and extract all double constants as parameters
     // ( so that we can directly copy operon models into the code)
   }
