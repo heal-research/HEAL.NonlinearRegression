@@ -2,7 +2,7 @@
   "profiles": {
     "HEAL.NonlinearRegression.Console": {
       "commandName": "Project",
-      "commandLineArgs": "--dataset C:\\reps\\SymRegBook\\Manuscript\\material\\chapter5\\Friedman\\friedman.csv --target y --model \"10*sin(3.1415926535 * x1 * x2) + 20 * (x3 - 0.5)^2f + 10 * x4 + 5 * x5 + 0.0\""
+      "commandLineArgs": "--dataset C:\\reps\\SymRegBook\\Manuscript\\material\\chapter5\\Friedman\\friedman.csv --target y --model \"10*sin(3.1415926535 * x1 * x2) + 20 * (x3 - 0.5)^2f + 10 * x4 + 5 * x5 + 0.0\"" 
     }
   }
 }

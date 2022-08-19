@@ -25,12 +25,16 @@ namespace HEAL.NonlinearRegression.Console {
         { "--test", "test" },
         { "--shuffle", "shuffle" },
         { "--seed", "seed" },
+        { "--no-optimization", "no-opt" }
       };
+
+      // configurationbuilder is rather limited
+
+      // TODO use https://github.com/commandlineparser/commandline instead
 
       var config = new ConfigurationBuilder()
         .AddCommandLine(args, switchMappings)
         .Build();
-
 
       ReadData(config["dataset"], config["target"], out var varNames, out var x, out var y);
 
@@ -56,7 +60,7 @@ namespace HEAL.NonlinearRegression.Console {
         randSeed = int.Parse(config["seed"]);
       }
 
-      if (config["shuffle"]!=null) {
+      if (args.Any(argv => argv == "--shuffle")) {
         var rand = new System.Random(randSeed);
         Shuffle(x, y, rand);
       }
@@ -70,7 +74,11 @@ namespace HEAL.NonlinearRegression.Console {
       // System.Console.WriteLine(parametricExpr);
 
       var nlr = new NonlinearRegression();
-      nlr.Fit(p, parametricExpr, trainX, trainY);
+      if (!args.Any(argv => argv == "--no-optimization")) {
+        nlr.Fit(p, parametricExpr, trainX, trainY);
+      } else {
+        nlr.SetModel(p, parametricExpr, trainX, trainY);
+      }
 
       var predictProfile = nlr.PredictWithIntervals(x, IntervalEnum.TProfile);
       var predictApprox = nlr.PredictWithIntervals(x, IntervalEnum.LinearApproximation);
@@ -82,7 +90,7 @@ namespace HEAL.NonlinearRegression.Console {
           System.Console.Write($"{x[i, j]},");
         }
         System.Console.Write($"{y[i]},");
-        System.Console.Write($"{y[i] - predictApprox[i, 0]},"); 
+        System.Console.Write($"{y[i] - predictApprox[i, 0]},");
         System.Console.Write($"{predictApprox[i, 0]},{predictApprox[i, 1]},{predictApprox[i, 2]},{predictApprox[i, 3]},");
         System.Console.Write($"{predictProfile[i, 1]},{predictProfile[i, 2]},"); // mean prediction for approx and profile is the same
         System.Console.Write($"{((i >= trainStart && i <= trainEnd) ? 1 : 0)},"); // isTrain
@@ -92,10 +100,10 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
     // start and end are inclusive
-    private static void Split(double[,] x, double[] y, int trainStart, int trainEnd, int testStart, int testEnd, 
-      out double[,] trainX, out double[] trainY, 
+    private static void Split(double[,] x, double[] y, int trainStart, int trainEnd, int testStart, int testEnd,
+      out double[,] trainX, out double[] trainY,
       out double[,] testX, out double[] testY) {
-      
+
       var dim = x.GetLength(1);
       var trainRows = trainEnd - trainStart + 1;
       var testRows = testEnd - testStart + 1;

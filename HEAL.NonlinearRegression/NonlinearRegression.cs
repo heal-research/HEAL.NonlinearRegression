@@ -58,6 +58,7 @@ namespace HEAL.NonlinearRegression {
       Fit(p, func, jac, x, y, maxIterations, scale, stepMax, callback);
     }
 
+
     /// <summary>
     /// Least-squares fitting for func with Jacobian to target y using initial values p.
     /// Uses Levenberg-Marquardt algorithm.
@@ -129,6 +130,38 @@ namespace HEAL.NonlinearRegression {
           NumJacEvals = rep.njac
         };
       }
+    }
+
+
+    /// <summary>
+    /// Use an existing (fitted) model to initialize NLR without fitting.
+    /// </summary>
+    /// <param name="p"></param>
+    /// <param name="parametricExpr"></param>
+    /// <param name="trainX"></param>
+    /// <param name="trainY"></param>
+    public void SetModel(double[] p, Expression<Expr.ParametricFunction> expr, double[,] x, double[] y) {
+      var m = y.Length;
+      int n = p.Length;
+
+
+      var _func = Expr.Broadcast(expr).Compile();
+      var _jac = Expr.Jacobian(expr, p.Length).Compile();
+      this.func = (double[] p, double[,] X, double[] f) => _func(p, X, f);
+      this.jacobian = (double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
+      this.paramEst = (double[])p.Clone();
+      this.x = (double[,])x.Clone();
+      this.y = (double[])y.Clone();
+
+      // evaluate ypred and SSR
+      var yPred = new double[m];
+      var SSR = 0.0;
+      func(paramEst, x, yPred);
+      for (int i = 0; i < yPred.Length; i++) {
+        var r = y[i] - yPred[i];
+        SSR += r * r;
+      }
+      Statistics = new LeastSquaresStatistics(m, n, SSR, yPred, paramEst, jacobian, x);
     }
 
     public double[] Predict(double[,] x) {
