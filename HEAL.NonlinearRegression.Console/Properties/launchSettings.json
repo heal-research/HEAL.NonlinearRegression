@@ -2,7 +2,7 @@
   "profiles": {
     "HEAL.NonlinearRegression.Console": {
       "commandName": "Project",
-      "commandLineArgs": "--dataset C:\\reps\\SymRegBook\\Manuscript\\material\\chapter5\\Friedman\\friedman.csv --target y --model \"10*sin(3.1415926535 * x1 * x2) + 20 * (x3 - 0.5)^2f + 10 * x4 + 5 * x5 + 0.0\"" 
+      "commandLineArgs": "--dataset C:\\reps\\SymRegBook\\Manuscript\\material\\chapter6\\prediction-intervals\\PagieProblem.csv --target y --model \"(((((((x[0] * x[0]) * 0.0020241) + ((x[1] * x[1]) * -0.013725)) + (Exp(((x[1] * x[1]) * -0.96464)) * -0.4566)) + (1 / ((Exp(((x[0] * x[0]) * 1.417)) * -0.03386) + -0.6685))) + Cbrt((((x[1] * x[1]) * 0.01231) + -0.01228))) + 1.61634)\" --train 0:675 --test 676:1675" 
     }
   }
 }
