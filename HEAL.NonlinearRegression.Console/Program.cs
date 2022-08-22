@@ -80,8 +80,8 @@ namespace HEAL.NonlinearRegression.Console {
         nlr.SetModel(p, parametricExpr, trainX, trainY);
       }
 
-      var predictProfile = nlr.PredictWithIntervals(x, IntervalEnum.TProfile);
-      var predictApprox = nlr.PredictWithIntervals(x, IntervalEnum.LinearApproximation);
+      var predictProfile = nlr.PredictWithIntervals(x, IntervalEnum.TProfile, includeNoise: true);
+      var predictApprox = nlr.PredictWithIntervals(x, IntervalEnum.LinearApproximation, includeNoise: true);
 
       // generate output for full dataset
       System.Console.WriteLine($"{string.Join(",", varNames)},y,residual,yPred,resStdErrorLinear,yPredLowLinear,yPredHighLinear,yPredLowProfile,yPredHighProfile,isTrain,isTest"); // header
@@ -126,7 +126,9 @@ namespace HEAL.NonlinearRegression.Console {
     private static Expression<Expr.ParametricFunction> GenerateExpression(string modelExpression, double[] constants, out double[] p) {
       var options = ScriptOptions.Default
         .AddReferences(typeof(Expression).Assembly)
-        .AddImports("System");
+        .AddImports("System")
+        .WithEmitDebugInformation(false)
+        .WithOptimizationLevel(Microsoft.CodeAnalysis.OptimizationLevel.Release);
 
       // use Microsoft.CodeAnalysis.CSharp.Scripting to compile the model string
       var expr = CSharpScript.EvaluateAsync<Expression<Func<double[], double[], double>>>(modelExpression, options).Result;
