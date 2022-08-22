@@ -51,7 +51,7 @@ namespace HEAL.NonlinearRegression {
         func(p, _x0, f);
         var f_x0 = f[0];
 
-        func(p, x, f); // func ignores the last parameter
+        func(p, x, f);
         var m = x.GetLength(0);
         for (int i = 0; i < m; i++) {
           f[i] = f[i] - f_x0 + p[offsetParamIdx];
