@@ -68,10 +68,10 @@ namespace HEAL.NonlinearRegression.Console {
       Split(x, y, trainStart, trainEnd, testStart, testEnd, out var trainX, out var trainY, out var testX, out var testY);
 
       var modelExpression = PreprocessModelString(config["model"], varNames, out var constants);
-      // System.Console.WriteLine(modelExpression);
+      //System.Console.WriteLine(modelExpression);
 
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
-      // System.Console.WriteLine(parametricExpr);
+      //System.Console.WriteLine(parametricExpr);
 
       var nlr = new NonlinearRegression();
       if (!args.Any(argv => argv == "--no-optimization")) {
@@ -103,6 +103,10 @@ namespace HEAL.NonlinearRegression.Console {
     private static void Split(double[,] x, double[] y, int trainStart, int trainEnd, int testStart, int testEnd,
       out double[,] trainX, out double[] trainY,
       out double[,] testX, out double[] testY) {
+      if (trainStart < 0) throw new ArgumentException("Negative index for training start");
+      if (trainEnd >= y.Length) throw new ArgumentException($"End of training range: {trainEnd} but dataset has only {x.GetLength(0)} rows. Training range is inclusive.");
+      if (testStart < 0) throw new ArgumentException("Negative index for training start");
+      if (testEnd >= y.Length) throw new ArgumentException($"End of testing range: {testEnd} but dataset has only {x.GetLength(0)} rows. Testing range is inclusive.");
 
       var dim = x.GetLength(1);
       var trainRows = trainEnd - trainStart + 1;
