@@ -194,7 +194,6 @@ namespace HEAL.NonlinearRegression {
             return y;
           }
         case IntervalEnum.TProfile: {
-            if (includeNoise) throw new NotImplementedException("Prediction intervals based on tProfiles with noise not yet supported.");
             var yPred = Predict(x);
             var y = new double[m, 3];
             TProfile.GetPredictionIntervals(x, this, out var low, out var high, alpha, includeNoise);

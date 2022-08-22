@@ -225,7 +225,7 @@ namespace HEAL.NonlinearRegression {
         var jacExt = Util.ReparameterizeJacobian(nls.jacobian, xi, offsetIdx);
 
         paramEstExt[offsetIdx] = yPred[i]; // offset parameter is prediction at point xi
-        var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, yPred, paramEstExt, jacExt, nls.x); // slow, can we simplify this ?
+        var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, yPred, paramEstExt, jacExt, nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
 
         var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, offsetIdx); // only for extra parameter
 
@@ -236,8 +236,9 @@ namespace HEAL.NonlinearRegression {
         }
         alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
         var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);  // TODO: check https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
-        low[i] = alglib.spline1dcalc(tau2theta, -t);
-        high[i] = alglib.spline1dcalc(tau2theta, t);
+        var s = nls.Statistics.s;
+        low[i] = alglib.spline1dcalc(tau2theta, -t) + (includeNoise ? t * s : 0.0);
+        high[i] = alglib.spline1dcalc(tau2theta, t) - (includeNoise ? t * s : 0.0);
       }
     }
 
