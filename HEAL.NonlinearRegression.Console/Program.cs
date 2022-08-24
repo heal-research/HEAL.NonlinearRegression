@@ -8,6 +8,19 @@ using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using Microsoft.Extensions.Configuration;
 
+// TODO:
+//  'verbs' for different usages shown in Demo project (already implemented):
+//   - prediction with linear-approximation and profile-based intervals (current functionality)
+//   - fitting and parameter statistics
+//   - subtree importance and graphviz output
+//   - variable impacts
+//   - nested model analysis and likelihood ratios
+// 
+//  more ideas (not yet implemented)
+//   - iterative pruning based on subtree impacts or likelihood ratios for nested models
+//   - variable impacts for combinations of variables (tuples, triples). Contributions to individual variables via Shapely values?
+//   - nested model analysis for combinations of parameters (for the case where a parameter can only be set to zero if another parameter is also set to zero)
+
 namespace HEAL.NonlinearRegression.Console {
   // Takes a dataset, target variable, and a model from the command line and runs NLR and calculates all statistics.
   // Range for training set can be specified optionally.
@@ -29,7 +42,6 @@ namespace HEAL.NonlinearRegression.Console {
       };
 
       // configurationbuilder is rather limited
-
       // TODO use https://github.com/commandlineparser/commandline instead
 
       var config = new ConfigurationBuilder()
