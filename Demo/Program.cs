@@ -100,7 +100,7 @@ namespace HEAL.NonlinearRegression {
           var tProfile = new TProfile(y, x, nls.Statistics, f, jac);
 
 
-          nls.Statistics.GetPredictionIntervals(jac, x, 0.05, out var linLow, out var linHigh);
+          nls.Statistics.GetPredictionIntervals(jac, x, 0.05, out var resStdError, out var linLow, out var linHigh);
           Console.WriteLine("Prediction intervals (linear approximation);");
           for (int i = 0; i < Math.Min(linLow.Length, 10); i++) {
             Console.WriteLine($"{nls.Statistics.yPred[i],14:e4} {linLow[i],14:e4} {linHigh[i],14:e4}");
