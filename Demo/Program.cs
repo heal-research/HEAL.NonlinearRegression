@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Runtime.CompilerServices;
 using HEAL.Expressions;
 
 namespace HEAL.NonlinearRegression {
@@ -66,10 +65,6 @@ namespace HEAL.NonlinearRegression {
 
         Console.WriteLine("Nested models (set parameters zero) (SSR ratio)");
         ModelAnalysis.NestedModelLiklihoodRatios(symbProb.ModelExpr, symbProb.X, symbProb.y, symbProb.ThetaStart);
-        // var nestedModels = ModelAnalysis.NestedModelLiklihoodRatios(symbProb.ModelExpr, symbProb.X, symbProb.y, symbProb.ThetaStart);
-        //foreach (var tup in nestedModels.OrderByDescending(tup => tup.Item1)) {
-        //  Console.WriteLine($"{tup.Item1} {tup.Item2}");
-        //}
       }
 
 
