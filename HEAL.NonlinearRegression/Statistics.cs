@@ -12,6 +12,7 @@ namespace HEAL.NonlinearRegression {
     public double[] paramStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
     public double[,] correlation { get; internal set; }// correlation matrix for parameters
 
+    private double[,] invR;
 
     public LeastSquaresStatistics(int m, int n, double SSR, double[] yPred, double[] paramEst, Jacobian jacobian, double[,] x) {
       this.m = m;
@@ -42,10 +43,10 @@ namespace HEAL.NonlinearRegression {
       // clone J for the QR decomposition
       var QR = (double[,])J.Clone();
       alglib.rmatrixqr(ref QR, m, n, out _);
-      alglib.rmatrixqrunpackr(QR, n, n, out var R);
+      alglib.rmatrixqrunpackr(QR, n, n, out invR); // get R which is inverted in-place in the next statement
 
       // inverse of R
-      alglib.rmatrixtrinverse(ref R, isupper: true, out var info, out var invReport);
+      alglib.rmatrixtrinverse(ref invR, isupper: true, out var info, out var invReport);
       if (info < 0) throw new InvalidOperationException("Cannot invert R");
 
       // extract R^-1 into diag(|r1|,|r2|, ...|rp|) L where L has unit length rows
@@ -54,13 +55,13 @@ namespace HEAL.NonlinearRegression {
       for (int i = 0; i < n; i++) {
         se[i] = 0;
         for (int j = i; j < n; j++) {
-          se[i] += R[i, j] * R[i, j];
+          se[i] += invR[i, j] * invR[i, j];
         }
         se[i] = Math.Sqrt(se[i]); // length of row
 
         // divide each row by its length to produce L
         for (int j = i; j < n; j++) {
-          L[i, j] = R[i, j] / se[i];
+          L[i, j] = invR[i, j] / se[i];
         }
       }
 
@@ -89,7 +90,7 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    
+
 
     public void GetPredictionIntervals(Jacobian jacobian, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high, bool includeNoise = false) {
       int m = x.GetLength(0);
@@ -99,37 +100,39 @@ namespace HEAL.NonlinearRegression {
 
       var yPred = new double[m];
       var J = new double[m, n];
-      jacobian(paramEst, x, yPred, J);
-      // clone J for the QR decomposition
-      var QR = (double[,])J.Clone();
-      alglib.rmatrixqr(ref QR, m, n, out _);
-      alglib.rmatrixqrunpackr(QR, n, n, out var R);
-
-      // inverse of R
-      alglib.rmatrixtrinverse(ref R, isupper: true, out var info, out var invReport);
-      if (info < 0) throw new InvalidOperationException("Cannot invert R");
+      jacobian(paramEst, x, yPred, J); // jacobian for x
 
       // 1-alpha approximate inference interval for the expected response
       // (1.37), page 23
-      var JR = new double[m, n];
-      alglib.rmatrixgemm(m, n, n, 1.0, J, 0, 0, 0, R, 0, 0, 0, 0.0, ref JR, 0, 0);
+      var J_invR = new double[m, n];
+      alglib.rmatrixgemm(m, n, n, 1.0, J, 0, 0, 0, invR, 0, 0, 0, 0.0, ref J_invR, 0, 0); // Use invR from trainX because it captures the correlation
+                                                                                          // and uncertainty of parameters based on the training set.
 
+      // s * || J_invR ||
       for (int i = 0; i < m; i++) {
         resStdError[i] = 0.0;
         for (int j = 0; j < n; j++) {
-          resStdError[i] += JR[i, j] * JR[i, j];
+          resStdError[i] += J_invR[i, j] * J_invR[i, j];
         }
         resStdError[i] = Math.Sqrt(resStdError[i]); // length of row vector in JR
-        resStdError[i] *= s; // standard error for residuals 
+        resStdError[i] *= s; // standard error for residuals  (determined on training set)
       }
 
-      // TODO check: https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
-      // var f = alglib.invfdistribution(n, m - n, alpha);
+      // https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
+      var f = alglib.invfdistribution(n, m - n, alpha);
       var t = alglib.invstudenttdistribution(m - n, 1 - alpha / 2);
 
-      for (int i = 0; i < m; i++) {
-        low[i] = yPred[i] - resStdError[i] * Math.Sqrt(n * t) - (includeNoise ? t * s : 0.0);
-        high[i] = yPred[i] + resStdError[i] * Math.Sqrt(n * t) + (includeNoise ? t * s : 0.0);
+      var noiseStdDev = includeNoise ? s : 0.0;
+      if (m == 1) {
+        // point-wise interval
+        low[0] = yPred[0] - (resStdError[0] + noiseStdDev) * t;
+        high[0] = yPred[0] + (resStdError[0] + noiseStdDev) * t;
+      } else {
+        // simultaneous interval (band)
+        for (int i = 0; i < m; i++) {
+          low[i] = yPred[i] - resStdError[i] * Math.Sqrt(n * f) - t * noiseStdDev; // not sure if t or f should be used for the noise part
+          high[i] = yPred[i] + resStdError[i] * Math.Sqrt(n * f) + t * noiseStdDev;
+        }
       }
     }
   }
