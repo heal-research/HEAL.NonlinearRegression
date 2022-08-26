@@ -14,7 +14,7 @@ namespace HEAL.NonlinearRegression {
       RunDemo(new PuromycinDSRProblem());
       RunDemo(new PCBDSRProblem());
 
-      
+
       RunDemo(new LinearUnivariateProblem());
       RunDemo(new LinearProblem());
       RunDemo(new ExponentialProblem());
@@ -50,7 +50,7 @@ namespace HEAL.NonlinearRegression {
 
         Console.WriteLine("Subtree importance (SSR ratio)");
         var expr = symbProb.ModelExpr;
-        var subExprImportance = ModelAnalysis.SubtreeImportance(expr, symbProb.X,symbProb.y, symbProb.ThetaStart);
+        var subExprImportance = ModelAnalysis.SubtreeImportance(expr, symbProb.X, symbProb.y, symbProb.ThetaStart);
         var sat = new Dictionary<Expression, double>();
         sat[expr] = 0.0; // reference value for the importance
         foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item1)) {
@@ -119,9 +119,10 @@ namespace HEAL.NonlinearRegression {
             for (int i = 0; i < Math.Min(linLow.Length, 10); i++) {
               Console.WriteLine($"{nls.Statistics.yPred[i],14:e4} {tLow[i],14:e4} {tHigh[i],14:e4}");
             }
-	  } catch(Exception e) {
-	    Console.WriteLine(e.Message);
-	  }
+          }
+          catch (Exception e) {
+            Console.WriteLine(e.Message);
+          }
         }
 
         // // TODO: extend this to produce some relevant output for all parameters instead of only a pairwise contour
