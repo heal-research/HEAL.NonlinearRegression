@@ -31,8 +31,10 @@ namespace HEAL.NonlinearRegression.Console {
   // Use the suffix 'f' to mark real literals in the model as fixed instead of a parameter.
   // e.g. 10 * x^2f ,  2 is a fixed constant, 10 is a parameter of the model
   public class Program {
+    // TODO general options for multiple verbs
 
-    public class Options {
+
+    public abstract class OptionsBase {
       [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
       public string Dataset { get; set; }
 
@@ -53,49 +55,49 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("seed", Required = false, HelpText = "Random seed for shuffling.")]
       public int? Seed { get; set; }
+    }
 
+    [Verb("predict", HelpText = "Calculate predictions and intervals for a model and a dataset (includes prior fitting).")]
+    public class PredictOptions : OptionsBase {
       [Option("no-optimization", Required = false, Default=false, HelpText = "Switch to skip nonlinear least squares fitting.")]
       public bool NoOptimization { get; set; }
     }
 
+    [Verb("fit", HelpText = "Fit a model using a dataset.")]
+    public class FitOptions : OptionsBase {
+    }
+
+
+
     public static void Main(string[] args) {
+      var parserResult = Parser.Default.ParseArguments<PredictOptions,FitOptions>(args)
+        .WithParsed<PredictOptions>(options => Predict(options))
+        .WithParsed<FitOptions>(options => Fit(options));
+    }
 
+    private static void Fit(FitOptions options) {
+      PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
 
-      var parserResult = Parser.Default.ParseArguments<Options>(args);
-      var options = parserResult.Value;
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      //System.Console.WriteLine(modelExpression);
 
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
+      // System.Console.WriteLine(parametricExpr);
 
+      var nls = new NonlinearRegression();
+      nls.Fit(p, parametricExpr, trainX, trainY);
 
-      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
-
-      // default split is 66/34%
-      var m = x.GetLength(0);
-      var trainStart = 0;
-      var trainEnd = (int)Math.Round(m * 2 / 3.0);
-      var testStart = (int)Math.Round(m * 2 / 3.0) + 1;
-      var testEnd = m - 1;
-      if (options.TrainingRange != null) {
-        var toks = options.TrainingRange.Split(":");
-        trainStart = int.Parse(toks[0]);
-        trainEnd = int.Parse(toks[1]);
+      if (nls.OptReport.Success) {
+        System.Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
+        System.Console.WriteLine($"{nls.OptReport}");
+        nls.WriteStatistics();
+      } else {
+        System.Console.WriteLine("There was a problem while fitting.");
       }
-      if (options.TestingRange != null) {
-        var toks = options.TestingRange.Split(":");
-        testStart = int.Parse(toks[0]);
-        testEnd = int.Parse(toks[1]);
-      }
+    }
 
-      var randSeed = new System.Random().Next();
-      if (options.Seed != null) {
-        randSeed = options.Seed.Value;
-      }
-
-      if (options.Shuffle) {
-        var rand = new System.Random(randSeed);
-        Shuffle(x, y, rand);
-      }
-
-      Split(x, y, trainStart, trainEnd, testStart, testEnd, out var trainX, out var trainY, out var testX, out var testY);
+    private static void Predict(PredictOptions options) {
+      PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
 
       var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
       //System.Console.WriteLine(modelExpression);
@@ -105,7 +107,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       var nlr = new NonlinearRegression();
       if (options.NoOptimization) {
-        nlr.SetModel(p, parametricExpr, trainX, trainY); 
+        nlr.SetModel(p, parametricExpr, trainX, trainY);
       } else {
         nlr.Fit(p, parametricExpr, trainX, trainY);
       }
@@ -127,6 +129,39 @@ namespace HEAL.NonlinearRegression.Console {
         System.Console.Write($"{((i >= testStart && i <= testEnd) ? 1 : 0)}"); // isTest
         System.Console.WriteLine();
       }
+    }
+
+    private static void PrepareData(OptionsBase options, out string[] varNames, out double[,] x, out double[] y, out int trainStart, out int trainEnd, out int testStart, out int testEnd, out double[,] trainX, out double[] trainY) {
+      ReadData(options.Dataset, options.Target, out varNames, out x, out y);
+
+      // default split is 66/34%
+      var m = x.GetLength(0);
+      trainStart = 0;
+      trainEnd = (int)Math.Round(m * 2 / 3.0);
+      testStart = (int)Math.Round(m * 2 / 3.0) + 1;
+      testEnd = m - 1;
+      if (options.TrainingRange != null) {
+        var toks = options.TrainingRange.Split(":");
+        trainStart = int.Parse(toks[0]);
+        trainEnd = int.Parse(toks[1]);
+      }
+      if (options.TestingRange != null) {
+        var toks = options.TestingRange.Split(":");
+        testStart = int.Parse(toks[0]);
+        testEnd = int.Parse(toks[1]);
+      }
+
+      var randSeed = new System.Random().Next();
+      if (options.Seed != null) {
+        randSeed = options.Seed.Value;
+      }
+
+      if (options.Shuffle) {
+        var rand = new System.Random(randSeed);
+        Shuffle(x, y, rand);
+      }
+
+      Split(x, y, trainStart, trainEnd, testStart, testEnd, out trainX, out trainY, out var testX, out var testY);
     }
 
     // start and end are inclusive
