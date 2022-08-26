@@ -2,7 +2,6 @@
 
 namespace HEAL.NonlinearRegression {
   public class LeastSquaresStatistics {
-    // TODO: Likelihood, AIC, BIC, AICc, DegreeOfFreedom
     public int m { get; internal set; } // number of observations
     public int n { get; internal set; } // number of parameters
     public double[] yPred { get; internal set; }
@@ -11,6 +10,20 @@ namespace HEAL.NonlinearRegression {
     public double[] paramEst { get; internal set; } // estimated values for parameters θ
     public double[] paramStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
     public double[,] correlation { get; internal set; }// correlation matrix for parameters
+
+    public double LogLikelihood
+    {
+      get
+      {
+        var v = SSR / n;
+        return -m / 2.0 * Math.Log(2 * Math.PI) - m / 2.0 * Math.Log(v) - SSR / (2.0 * v);
+      }
+    }
+
+    public double AIC => 2 * (n + 1) - 2 * LogLikelihood; // also count noise sigma as a parameter
+    public double AICc => AIC + 2 * (n + 1) * (n + 2) / (m - (n + 1) - 1); // sigma is counted as a parameter
+
+    public double BIC => (n + 1) * Math.Log(m) - 2 * LogLikelihood;
 
     private double[,] invR;
 
