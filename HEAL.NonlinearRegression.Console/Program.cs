@@ -7,6 +7,7 @@ using CommandLine;
 using HEAL.Expressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Scripting;
 
 // TODO:
@@ -31,15 +32,16 @@ namespace HEAL.NonlinearRegression.Console {
   // e.g. 10 * x^2f ,  2 is a fixed constant, 10 is a parameter of the model
   public class Program {
 
-  
+
     public static void Main(string[] args) {
-      var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveOptions, NestedModelsOptions, SubtreeImportanceOptions>(args)
+      var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveOptions, NestedModelsOptions, SubtreeImportanceOptions, CrossValidationOptions>(args)
         .MapResult(
           (PredictOptions options) => Predict(options),
           (FitOptions options) => Fit(options),
           (RemoveOptions options) => RemoveRedundantParameters(options),
           (NestedModelsOptions options) => AnalyseNestedModels(options),
           (SubtreeImportanceOptions options) => SubtreeImportance(options),
+          (CrossValidationOptions options) => CrossValidate(options),
           errs => 1
         )
         ;
@@ -108,6 +110,57 @@ namespace HEAL.NonlinearRegression.Console {
 
     }
 
+
+    private static object CrossValidate(CrossValidationOptions options) {
+      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
+
+      // default is full dataset
+      var trainStart = 0;
+      var trainEnd = y.Length - 1;
+      if (options.TrainingRange != null) {
+        var toks = options.TrainingRange.Split(":");
+        trainStart = int.Parse(toks[0]);
+        trainEnd = int.Parse(toks[1]);
+      }
+
+      Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
+
+      Random rand;
+      if (options.Seed.HasValue) {
+        rand = new Random(options.Seed.Value);
+      } else {
+        rand = new Random();
+      }
+
+      if (options.Shuffle) {
+        Shuffle(trainX, trainY, rand);
+      }
+
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      //System.Console.WriteLine(modelExpression);
+
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
+      // System.Console.WriteLine(parametricExpr);
+
+
+      var foldSize = (int)Math.Truncate((trainEnd - trainStart + 1) / (double)options.Folds);
+      var mse = new List<double>();
+      for (int i = 0; i < options.Folds; i++) {
+        var foldStart = trainStart + i * foldSize;
+        var foldEnd = trainStart + (i + 1) * foldSize - 1;
+
+        DeletePartition(trainX, trainY, foldStart, foldEnd, out var cvX, out var cvY);
+
+        var nls = new NonlinearRegression();
+        nls.Fit(p, parametricExpr, cvX, cvY);
+        mse.Add(nls.Statistics.SSR / cvY.Length);
+      }
+      System.Console.WriteLine($"CV MSE mean: {mse.Average():e4} stddev: {Math.Sqrt(Util.Variance(mse.ToArray())):e4}");
+
+      return 1;
+    }
+
+
     private static int RemoveRedundantParameters(RemoveOptions options) {
       var varNames = options.Variables.Split(',').Select(vn => vn.Trim()).ToArray();
 
@@ -122,10 +175,10 @@ namespace HEAL.NonlinearRegression.Console {
       var parameterizedExpression = Expr.ReplaceParameterWithValues<Func<double[], double>>(simplifiedExpr, simplifiedExpr.Parameters[0], newP);
 
       var exprBody = parameterizedExpression.Body.ToString();
-      for(int i=0;i<varNames.Length;i++) {
+      for (int i = 0; i < varNames.Length; i++) {
         exprBody = exprBody.Replace($"x[{i}]", varNames[i]);
       }
-      
+
       System.Console.WriteLine(exprBody);
 
       return 0;
@@ -151,10 +204,8 @@ namespace HEAL.NonlinearRegression.Console {
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
       // System.Console.WriteLine(parametricExpr);
 
-      // TODO AIC,AICc,BIC output
+      ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, p);
 
-      ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, p); 
-      
       return 0;
 
     }
@@ -185,11 +236,11 @@ namespace HEAL.NonlinearRegression.Console {
 
       // var sat = new Dictionary<Expression, double>();
       // sat[parametricExpr] = 0.0; // reference value for the importance
-      
-      // TODO AIC,AICc,BIC output
-      System.Console.WriteLine($"{"Subtree"} {"SSR_factor",-11}");
-      foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item1)) {
-        System.Console.WriteLine($"{tup.Item1} {tup.Item2,-11:e4}");
+
+
+      System.Console.WriteLine($"{"SSR_factor",-11} {"deltaAIC",-11} {"deltaBIC",-11} {"Subtree"}");
+      foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item2)) { // TODO better interface
+        System.Console.WriteLine($"{tup.Item2,-11:e4} {tup.Item3,-11:f1} {tup.Item4,-11:f1} {tup.Item1}");
         // sat[tup.Item2] = Math.Max(0, Math.Log(tup.Item1)); // use log scale for coloring
       }
 
@@ -264,7 +315,7 @@ namespace HEAL.NonlinearRegression.Console {
       public string TrainingRange { get; set; }
     }
 
-    [Verb("subtrees", HelpText ="Subtree importance")]
+    [Verb("subtrees", HelpText = "Subtree importance")]
     public class SubtreeImportanceOptions {
       // TODO combine verbs nested and subtrees
       [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
@@ -278,6 +329,31 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("train", Required = false, HelpText = "The training range <firstRow>:<lastRow> in the dataset (inclusive).")]
       public string TrainingRange { get; set; }
+    }
+
+    [Verb("crossvalidate", HelpText = "Cross-validation")]
+    public class CrossValidationOptions {
+      [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
+      public string Dataset { get; set; }
+
+      [Option('t', "target", Required = true, HelpText = "Target variable name.")]
+      public string Target { get; set; }
+
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
+
+      [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for cross-validation.")]
+      public string TrainingRange { get; set; }
+
+      [Option("folds", Required = false, Default = 10, HelpText = "The number of folds")]
+      public int Folds { get; set; }
+
+      [Option("shuffle", Required = false, Default = false, HelpText = "Switch to shuffle the dataset before fitting.")]
+      public bool Shuffle { get; set; }
+
+      [Option("seed", Required = false, HelpText = "Random seed for shuffling.")]
+      public int? Seed { get; set; }
+
     }
     #endregion
 
@@ -338,6 +414,20 @@ namespace HEAL.NonlinearRegression.Console {
       Array.Copy(y, trainStart, trainY, 0, trainRows);
       Buffer.BlockCopy(x, testStart * dim * sizeof(double), testX, 0, testRows * dim * sizeof(double));
       Array.Copy(y, testStart, testY, 0, testRows);
+    }
+
+
+    private static void DeletePartition(double[,] X, double[] y, int start, int end, out double[,] reducedX, out double[] reducedY) {
+      var removedRows = (end - start + 1);
+      var d = X.GetLength(1);
+      reducedX = new double[X.GetLength(0) - removedRows, d];
+      Buffer.BlockCopy(X, 0, reducedX, 0, start * d * sizeof(double));
+      Buffer.BlockCopy(X, end * d * sizeof(double), reducedX, start*d*sizeof(double), (reducedX.Length - start * d) * sizeof(double));
+
+
+      reducedY = new double[y.Length - removedRows];
+      Array.Copy(y, 0, reducedY, 0, start);
+      Array.Copy(y, end + 1, reducedY, start, reducedY.Length - start);
     }
 
     private static void Shuffle(double[,] x, double[] y, Random rand) {

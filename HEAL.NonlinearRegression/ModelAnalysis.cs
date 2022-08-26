@@ -57,7 +57,7 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target variable values</param>
     /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
-    public static IEnumerable<Tuple<double, Expression>> SubtreeImportance(Expression<Expr.ParametricFunction> expr, double[,] X, double[] y, double[] p) {
+    public static IEnumerable<Tuple<Expression, double, double, double>> SubtreeImportance(Expression<Expr.ParametricFunction> expr, double[,] X, double[] y, double[] p) {
       var m = X.GetLength(0);
       var pParam = expr.Parameters[0];
       var xParam = expr.Parameters[1];
@@ -72,6 +72,9 @@ namespace HEAL.NonlinearRegression {
       nlr.Fit(p, expr, X, y);
       var stats0 = nlr.Statistics;
       p = stats0.paramEst;
+
+      var fullAICc = nlr.Statistics.AICc;
+      var fullBIC = nlr.Statistics.BIC;
 
       var impacts = new Dictionary<Expression, double>();
 
@@ -90,7 +93,7 @@ namespace HEAL.NonlinearRegression {
 
         var impact = reducedStats.SSR / stats0.SSR;
         
-        yield return Tuple.Create(impact, subExpr);
+        yield return Tuple.Create(subExpr, impact, nlr.Statistics.AICc - fullAICc, nlr.Statistics.BIC - fullBIC);
       }
     }
     
@@ -120,7 +123,10 @@ namespace HEAL.NonlinearRegression {
       p = stats0.paramEst;
       var impacts = new List<Tuple<double, Expression>>();
 
-      Console.WriteLine($"p{"idx",-5} {"SSR_factor",-11} {"deltaDoF",-6} {"fRatio",-11} {"f",11}");
+      var fullAIC = nlr.Statistics.AICc;
+      var fullBIC = nlr.Statistics.BIC;
+      Console.WriteLine($"Full model: {fullAIC,-11:f1} {fullBIC,-11}:f1");
+      Console.WriteLine($"p{"idx",-5} {"SSR_factor",-11} {"deltaDoF",-6} {"fRatio",-11} {"f",11} {"deltaAICc"} {"deltaBIC"}");
 
       for (int paramIdx = 0;paramIdx < p.Length;paramIdx++) {
         var v = new ReplaceParameterWithZeroVisitor(pParam, paramIdx);
@@ -146,10 +152,10 @@ namespace HEAL.NonlinearRegression {
           var deltaSSR = reducedStats.SSR - stats0.SSR;
           var s2Extra = deltaSSR / deltaDoF; // increase in SSR per parameter
           var fRatio = s2Extra / Math.Pow(stats0.s, 2);
-          // TODO check alglib nuget license
+          
           var f = alglib.invfdistribution(deltaDoF, fullDoF, 0.05); // "accept the partial value if the calculated ratio is lower than the table value
 
-          Console.WriteLine($"p{paramIdx,-5} {impact,-11:e4} {deltaDoF,-6} {fRatio,-11:e4} {f,11:e4} accept: {fRatio < f}");
+          Console.WriteLine($"p{paramIdx,-5} {impact,-11:e2} {deltaDoF,-6} {fRatio,-11:e4} accept: {fRatio < f} {nlr.Statistics.AICc - fullAIC,-11:f1} {nlr.Statistics.BIC - fullBIC,-11:f1}");
 
           impacts.Add(Tuple.Create(impact, (Expression)reducedExpression));
         } catch(Exception e) {
