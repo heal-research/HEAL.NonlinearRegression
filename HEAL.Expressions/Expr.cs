@@ -85,11 +85,11 @@ namespace HEAL.Expressions {
 
 
     public static Expression<T> ReplaceParameterWithValues<T>(LambdaExpression expr,
-      ParameterExpression constantsParameter,
-      double[] constants) {
-      var v = new ReplaceParameterWithNumberVisitor(constantsParameter, constants);
+      ParameterExpression parameter,
+      double[] parameterValues) {
+      var v = new ReplaceParameterWithNumberVisitor(parameter, parameterValues);
       var newExpr = v.Visit(expr.Body);
-      return Expression.Lambda<T>(newExpr, expr.Parameters.Except(new[] { constantsParameter }));
+      return Expression.Lambda<T>(newExpr, expr.Parameters.Except(new[] { parameter }));
     }
 
     /// <summary>

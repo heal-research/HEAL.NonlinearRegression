@@ -6,7 +6,7 @@ using System.Linq.Expressions;
 
 namespace HEAL.Expressions {
   
-  // we assume parameter occur only as right arguments
+  // we assume parameters occur only as right arguments
   // we can also assume that we only add or multiply parameters
   // the ArrangeParameterRightVisitor should be called first
   // TODO always call the arrangeRightVisitor first
@@ -28,7 +28,11 @@ namespace HEAL.Expressions {
       var rightIsParam = IsParam(node.Right, out var paramExpr, out var paramIdx);
       var leftBinary = left as BinaryExpression;
       if (rightIsParam && leftBinary != null) {
+        //   left           node  right
+        // (... (o) ... )  (+/*)    p
+
         if (IsParam(leftBinary.Right, out var innerParamExpr, out var innerParamIdx)) {
+          // (... (o) innerP )  (+/*)    p
           switch (node.NodeType) {
             case ExpressionType.Add: {
               if (leftBinary.NodeType == ExpressionType.Add) {
@@ -43,13 +47,14 @@ namespace HEAL.Expressions {
               }
             }
             case ExpressionType.Multiply: {
-              if (leftBinary.NodeType == ExpressionType.Multiply) {
-                // merge 
-                thetaValues[innerParamIdx] *= thetaValues[paramIdx];
-                return left;
-              } else if (leftBinary.NodeType == ExpressionType.Divide) {
-                throw new NotSupportedException("should be handled in ArrangeParametersRightVisitor");
-              } else throw new NotImplementedException("multiply into add or sub"); // TODO
+                // (... (o) innerP )  *   p
+                if (leftBinary.NodeType == ExpressionType.Multiply) {
+                  // merge 
+                  thetaValues[innerParamIdx] *= thetaValues[paramIdx];
+                  return left;
+                } else if (leftBinary.NodeType == ExpressionType.Divide) {
+                  throw new NotSupportedException("should be handled in ArrangeParametersRightVisitor");
+                } else return node.Update(left, null, right); // return unchanged. we would need to propagate the parameter value down recursively here
             }
             default: throw new NotSupportedException($"{node}");
           }

@@ -120,7 +120,9 @@ namespace HEAL.NonlinearRegression {
       p = stats0.paramEst;
       var impacts = new List<Tuple<double, Expression>>();
 
-      for(int paramIdx = 0;paramIdx < p.Length;paramIdx++) {
+      Console.WriteLine($"p{"idx",-5} {"SSR_factor",-11} {"deltaDoF",-6} {"fRatio",-11} {"f",11}");
+
+      for (int paramIdx = 0;paramIdx < p.Length;paramIdx++) {
         var v = new ReplaceParameterWithZeroVisitor(pParam, paramIdx);
         var reducedExpression = (Expression<Expr.ParametricFunction>)v.Visit(expr);
         //Console.WriteLine($"Reduced: {reducedExpression}");
@@ -128,27 +130,31 @@ namespace HEAL.NonlinearRegression {
         reducedExpression = Expr.SimplifyAndRemoveParameters(reducedExpression, p, out var newP);
         //Console.WriteLine($"Simplified: {reducedExpression}");
         reducedExpression = Expr.FoldParameters(reducedExpression, newP, out newP);
-        //Console.WriteLine($"Folded: {reducedExpression}");
-        
-        
-        // fit reduced model
-        nlr.Fit(newP, reducedExpression, X, y);
-        var reducedStats = nlr.Statistics;
+        // Console.WriteLine($"Folded: {reducedExpression}");
 
-        var impact = reducedStats.SSR / stats0.SSR;
-        
-        // likelihood ratio test
-        var fullDoF = stats0.m - stats0.n;
-        var deltaDoF = stats0.n - reducedStats.n; // number of fewer parameters
-        var deltaSSR = reducedStats.SSR - stats0.SSR;
-        var s2Extra = deltaSSR / deltaDoF; // increase in SSR per parameter
-        var fRatio = s2Extra / Math.Pow(stats0.s, 2); 
-        // TODO check alglib nuget license
-        var f = alglib.invfdistribution(deltaDoF, fullDoF, 0.05); // "accept the partial value if the calculated ratio is lower than the table value
-        
-        Console.WriteLine($"p{paramIdx,-5} {impact,-11:e4} {deltaDoF,-6} {fRatio,-11:e4} {f,11:e4} accept: {fRatio<f}");
-      
-        impacts.Add(Tuple.Create(impact, (Expression)reducedExpression));
+
+        // fit reduced model
+        try {
+          nlr.Fit(newP, reducedExpression, X, y);
+          var reducedStats = nlr.Statistics;
+
+          var impact = reducedStats.SSR / stats0.SSR;
+
+          // likelihood ratio test
+          var fullDoF = stats0.m - stats0.n;
+          var deltaDoF = stats0.n - reducedStats.n; // number of fewer parameters
+          var deltaSSR = reducedStats.SSR - stats0.SSR;
+          var s2Extra = deltaSSR / deltaDoF; // increase in SSR per parameter
+          var fRatio = s2Extra / Math.Pow(stats0.s, 2);
+          // TODO check alglib nuget license
+          var f = alglib.invfdistribution(deltaDoF, fullDoF, 0.05); // "accept the partial value if the calculated ratio is lower than the table value
+
+          Console.WriteLine($"p{paramIdx,-5} {impact,-11:e4} {deltaDoF,-6} {fRatio,-11:e4} {f,11:e4} accept: {fRatio < f}");
+
+          impacts.Add(Tuple.Create(impact, (Expression)reducedExpression));
+        } catch(Exception e) {
+          Console.WriteLine($"Exception {e.Message} for {reducedExpression}");
+        }
         // yield return Tuple.Create(impact, (Expression)reducedExpression);
       }
 

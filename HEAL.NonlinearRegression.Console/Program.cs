@@ -2,24 +2,23 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using CommandLine;
 using HEAL.Expressions;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 
 // TODO:
 //  'verbs' for different usages shown in Demo project (already implemented):
-//   - prediction with linear-approximation and profile-based intervals (current functionality)
-//   - fitting and parameter statistics
 //   - subtree importance and graphviz output
 //   - variable impacts
-//   - nested model analysis and likelihood ratios
 //   - Generate comparison outputs for Puromycin and BOD for linear prediction intervals and compare to book (use Gnuplot)
 //   - Generate comparison outputs for pairwise profile plots and compare to book. (use Gnuplot)
 // 
 //  more ideas (not yet implemented)
+//   - cross-validation for NLR
+//   - alglib is GPL, should switch to .NET numerics (MIT) instead.
 //   - iterative pruning based on subtree impacts or likelihood ratios for nested models
 //   - variable impacts for combinations of variables (tuples, triples). Contributions to individual variables via Shapely values?
 //   - nested model analysis for combinations of parameters (for the case where a parameter can only be set to zero if another parameter is also set to zero)
@@ -31,9 +30,180 @@ namespace HEAL.NonlinearRegression.Console {
   // Use the suffix 'f' to mark real literals in the model as fixed instead of a parameter.
   // e.g. 10 * x^2f ,  2 is a fixed constant, 10 is a parameter of the model
   public class Program {
-    // TODO general options for multiple verbs
+
+  
+    public static void Main(string[] args) {
+      var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveOptions, NestedModelsOptions, SubtreeImportanceOptions>(args)
+        .MapResult(
+          (PredictOptions options) => Predict(options),
+          (FitOptions options) => Fit(options),
+          (RemoveOptions options) => RemoveRedundantParameters(options),
+          (NestedModelsOptions options) => AnalyseNestedModels(options),
+          (SubtreeImportanceOptions options) => SubtreeImportance(options),
+          errs => 1
+        )
+        ;
+    }
+
+    #region verbs
+    private static int Fit(FitOptions options) {
+      PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
+
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      //System.Console.WriteLine(modelExpression);
+
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
+      // System.Console.WriteLine(parametricExpr);
+
+      var nls = new NonlinearRegression();
+      nls.Fit(p, parametricExpr, trainX, trainY);
+
+      if (nls.OptReport.Success) {
+        System.Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
+        System.Console.WriteLine($"{nls.OptReport}");
+        nls.WriteStatistics();
+      } else {
+        System.Console.WriteLine("There was a problem while fitting.");
+      }
+
+      return 0;
+
+    }
+
+    private static int Predict(PredictOptions options) {
+      PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
+
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      //System.Console.WriteLine(modelExpression);
+
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
+      // System.Console.WriteLine(parametricExpr);
+
+      var nlr = new NonlinearRegression();
+      if (options.NoOptimization) {
+        nlr.SetModel(p, parametricExpr, trainX, trainY);
+      } else {
+        nlr.Fit(p, parametricExpr, trainX, trainY);
+      }
+
+      var predict = nlr.PredictWithIntervals(x, options.Interval, includeNoise: true); // TODO includeNoise as CLI option
+
+      // generate output for full dataset
+      System.Console.WriteLine($"{string.Join(",", varNames)},y,residual,yPred,resStdErrorLinear,yPredLow,yPredHigh,isTrain,isTest"); // header
+      for (int i = 0; i < x.GetLength(0); i++) {
+        for (int j = 0; j < x.GetLength(1); j++) {
+          System.Console.Write($"{x[i, j]},");
+        }
+        System.Console.Write($"{y[i]},");
+        System.Console.Write($"{y[i] - predict[i, 0]},");
+        System.Console.Write($"{predict[i, 0]},{predict[i, 1]},");
+        if (predict.GetLength(1) > 2)
+          System.Console.Write($"{predict[i, 2]},{predict[i, 3]},"); // TODO loop
+        System.Console.Write($"{((i >= trainStart && i <= trainEnd) ? 1 : 0)},"); // isTrain
+        System.Console.Write($"{((i >= testStart && i <= testEnd) ? 1 : 0)}"); // isTest
+        System.Console.WriteLine();
+      }
+
+      return 0;
+
+    }
+
+    private static int RemoveRedundantParameters(RemoveOptions options) {
+      var varNames = options.Variables.Split(',').Select(vn => vn.Trim()).ToArray();
+
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
+
+      var simplifiedExpr = Expr.SimplifyAndRemoveParameters(parametricExpr, p, out var newP);
+
+      // System.Console.WriteLine(simplifiedExpr);
+      // System.Console.WriteLine($"theta: {string.Join(",", newP.Select(pi => pi.ToString()))}");
+
+      var parameterizedExpression = Expr.ReplaceParameterWithValues<Func<double[], double>>(simplifiedExpr, simplifiedExpr.Parameters[0], newP);
+
+      var exprBody = parameterizedExpression.Body.ToString();
+      for(int i=0;i<varNames.Length;i++) {
+        exprBody = exprBody.Replace($"x[{i}]", varNames[i]);
+      }
+      
+      System.Console.WriteLine(exprBody);
+
+      return 0;
+    }
+
+    private static int AnalyseNestedModels(NestedModelsOptions options) {
+      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
+
+      // default is full dataset
+      var trainStart = 0;
+      var trainEnd = y.Length - 1;
+      if (options.TrainingRange != null) {
+        var toks = options.TrainingRange.Split(":");
+        trainStart = int.Parse(toks[0]);
+        trainEnd = int.Parse(toks[1]);
+      }
+
+      Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out var testX, out var testY);
+
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      //System.Console.WriteLine(modelExpression);
+
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
+      // System.Console.WriteLine(parametricExpr);
+
+      // TODO AIC,AICc,BIC output
+
+      ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, p); 
+      
+      return 0;
+
+    }
 
 
+    private static object SubtreeImportance(SubtreeImportanceOptions options) {
+      // TODO combine with nested models
+      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
+
+      // default is full dataset
+      var trainStart = 0;
+      var trainEnd = y.Length - 1;
+      if (options.TrainingRange != null) {
+        var toks = options.TrainingRange.Split(":");
+        trainStart = int.Parse(toks[0]);
+        trainEnd = int.Parse(toks[1]);
+      }
+
+      Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out var testX, out var testY);
+
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      //System.Console.WriteLine(modelExpression);
+
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
+      // System.Console.WriteLine(parametricExpr);
+
+      var subExprImportance = ModelAnalysis.SubtreeImportance(parametricExpr, trainX, trainY, p);
+
+      // var sat = new Dictionary<Expression, double>();
+      // sat[parametricExpr] = 0.0; // reference value for the importance
+      
+      // TODO AIC,AICc,BIC output
+      System.Console.WriteLine($"{"Subtree"} {"SSR_factor",-11}");
+      foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item1)) {
+        System.Console.WriteLine($"{tup.Item1} {tup.Item2,-11:e4}");
+        // sat[tup.Item2] = Math.Max(0, Math.Log(tup.Item1)); // use log scale for coloring
+      }
+
+      return 0;
+
+      // TODO provide option for graphviz output
+      // using (var writer = new System.IO.StreamWriter($"{problem.GetType().Name}.gv")) {
+      //   writer.WriteLine(Expr.ToGraphViz(expr, saturation: sat));
+      // }
+    }
+
+    #endregion
+
+    #region  options
     public abstract class OptionsBase {
       [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
       public string Dataset { get; set; }
@@ -59,77 +229,63 @@ namespace HEAL.NonlinearRegression.Console {
 
     [Verb("predict", HelpText = "Calculate predictions and intervals for a model and a dataset (includes prior fitting).")]
     public class PredictOptions : OptionsBase {
-      [Option("no-optimization", Required = false, Default=false, HelpText = "Switch to skip nonlinear least squares fitting.")]
+      [Option("no-optimization", Required = false, Default = false, HelpText = "Switch to skip nonlinear least squares fitting.")]
       public bool NoOptimization { get; set; }
+
+      [Option("interval", Required = false, Default = IntervalEnum.LinearApproximation, HelpText = "Prediction interval type.")]
+      public IntervalEnum Interval { get; set; }
     }
 
     [Verb("fit", HelpText = "Fit a model using a dataset.")]
     public class FitOptions : OptionsBase {
     }
 
+    [Verb("removeRedundant", HelpText = "Remove redundant parameters.")]
+    public class RemoveOptions {
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
 
-
-    public static void Main(string[] args) {
-      var parserResult = Parser.Default.ParseArguments<PredictOptions,FitOptions>(args)
-        .WithParsed<PredictOptions>(options => Predict(options))
-        .WithParsed<FitOptions>(options => Fit(options));
+      [Option('v', "varNames", Required = true, HelpText = "Comma-separated list of variables.")]
+      public string Variables { get; set; }
     }
 
-    private static void Fit(FitOptions options) {
-      PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
+    [Verb("nested", HelpText = "Analyse nested models.")]
+    public class NestedModelsOptions {
+      [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
+      public string Dataset { get; set; }
 
-      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
-      //System.Console.WriteLine(modelExpression);
+      [Option('t', "target", Required = true, HelpText = "Target variable name.")]
+      public string Target { get; set; }
 
-      var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
-      // System.Console.WriteLine(parametricExpr);
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
 
-      var nls = new NonlinearRegression();
-      nls.Fit(p, parametricExpr, trainX, trainY);
-
-      if (nls.OptReport.Success) {
-        System.Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
-        System.Console.WriteLine($"{nls.OptReport}");
-        nls.WriteStatistics();
-      } else {
-        System.Console.WriteLine("There was a problem while fitting.");
-      }
+      [Option("train", Required = false, HelpText = "The training range <firstRow>:<lastRow> in the dataset (inclusive).")]
+      public string TrainingRange { get; set; }
     }
 
-    private static void Predict(PredictOptions options) {
-      PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
+    [Verb("subtrees", HelpText ="Subtree importance")]
+    public class SubtreeImportanceOptions {
+      // TODO combine verbs nested and subtrees
+      [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
+      public string Dataset { get; set; }
 
-      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
-      //System.Console.WriteLine(modelExpression);
+      [Option('t', "target", Required = true, HelpText = "Target variable name.")]
+      public string Target { get; set; }
 
-      var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
-      // System.Console.WriteLine(parametricExpr);
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
 
-      var nlr = new NonlinearRegression();
-      if (options.NoOptimization) {
-        nlr.SetModel(p, parametricExpr, trainX, trainY);
-      } else {
-        nlr.Fit(p, parametricExpr, trainX, trainY);
-      }
-
-      var predictProfile = nlr.PredictWithIntervals(x, IntervalEnum.TProfile, includeNoise: true);
-      var predictApprox = nlr.PredictWithIntervals(x, IntervalEnum.LinearApproximation, includeNoise: true);
-
-      // generate output for full dataset
-      System.Console.WriteLine($"{string.Join(",", varNames)},y,residual,yPred,resStdErrorLinear,yPredLowLinear,yPredHighLinear,yPredLowProfile,yPredHighProfile,isTrain,isTest"); // header
-      for (int i = 0; i < x.GetLength(0); i++) {
-        for (int j = 0; j < x.GetLength(1); j++) {
-          System.Console.Write($"{x[i, j]},");
-        }
-        System.Console.Write($"{y[i]},");
-        System.Console.Write($"{y[i] - predictApprox[i, 0]},");
-        System.Console.Write($"{predictApprox[i, 0]},{predictApprox[i, 1]},{predictApprox[i, 2]},{predictApprox[i, 3]},");
-        System.Console.Write($"{predictProfile[i, 1]},{predictProfile[i, 2]},"); // mean prediction for approx and profile is the same
-        System.Console.Write($"{((i >= trainStart && i <= trainEnd) ? 1 : 0)},"); // isTrain
-        System.Console.Write($"{((i >= testStart && i <= testEnd) ? 1 : 0)}"); // isTest
-        System.Console.WriteLine();
-      }
+      [Option("train", Required = false, HelpText = "The training range <firstRow>:<lastRow> in the dataset (inclusive).")]
+      public string TrainingRange { get; set; }
     }
+    #endregion
+
+
+
+
+    #region helper
+
 
     private static void PrepareData(OptionsBase options, out string[] varNames, out double[,] x, out double[] y, out int trainStart, out int trainEnd, out int testStart, out int testEnd, out double[,] trainX, out double[] trainY) {
       ReadData(options.Dataset, options.Target, out varNames, out x, out y);
@@ -340,5 +496,6 @@ namespace HEAL.NonlinearRegression.Console {
         y = yRows.ToArray();
       }
     }
+    #endregion
   }
 }
