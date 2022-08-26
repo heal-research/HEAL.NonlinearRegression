@@ -2,11 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using CommandLine;
 using HEAL.Expressions;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
-using Microsoft.Extensions.Configuration;
 
 // TODO:
 //  'verbs' for different usages shown in Demo project (already implemented):
@@ -15,6 +16,8 @@ using Microsoft.Extensions.Configuration;
 //   - subtree importance and graphviz output
 //   - variable impacts
 //   - nested model analysis and likelihood ratios
+//   - Generate comparison outputs for Puromycin and BOD for linear prediction intervals and compare to book (use Gnuplot)
+//   - Generate comparison outputs for pairwise profile plots and compare to book. (use Gnuplot)
 // 
 //  more ideas (not yet implemented)
 //   - iterative pruning based on subtree impacts or likelihood ratios for nested models
@@ -28,27 +31,42 @@ namespace HEAL.NonlinearRegression.Console {
   // Use the suffix 'f' to mark real literals in the model as fixed instead of a parameter.
   // e.g. 10 * x^2f ,  2 is a fixed constant, 10 is a parameter of the model
   public class Program {
+
+    public class Options {
+      [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
+      public string Dataset { get; set; }
+
+      [Option('t', "target", Required = true, HelpText = "Target variable name.")]
+      public string Target { get; set; }
+
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
+
+      [Option("train", Required = false, HelpText = "The training range <firstRow>:<lastRow> in the dataset (inclusive).")]
+      public string TrainingRange { get; set; }
+
+      [Option("test", Required = false, HelpText = "The testing range <firstRow>:<lastRow> in the dataset (inclusive).")]
+      public string TestingRange { get; set; }
+
+      [Option("shuffle", Required = false, Default = false, HelpText = "Switch to shuffle the dataset before fitting.")]
+      public bool Shuffle { get; set; }
+
+      [Option("seed", Required = false, HelpText = "Random seed for shuffling.")]
+      public int? Seed { get; set; }
+
+      [Option("no-optimization", Required = false, Default=false, HelpText = "Switch to skip nonlinear least squares fitting.")]
+      public bool NoOptimization { get; set; }
+    }
+
     public static void Main(string[] args) {
 
-      var switchMappings = new Dictionary<string, string>() {
-        { "--dataset", "dataset" },
-        { "--target", "target" },
-        { "--model", "model" },
-        { "--train", "train" },
-        { "--test", "test" },
-        { "--shuffle", "shuffle" },
-        { "--seed", "seed" },
-        { "--no-optimization", "no-opt" }
-      };
 
-      // configurationbuilder is rather limited
-      // TODO use https://github.com/commandlineparser/commandline instead
+      var parserResult = Parser.Default.ParseArguments<Options>(args);
+      var options = parserResult.Value;
 
-      var config = new ConfigurationBuilder()
-        .AddCommandLine(args, switchMappings)
-        .Build();
 
-      ReadData(config["dataset"], config["target"], out var varNames, out var x, out var y);
+
+      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
 
       // default split is 66/34%
       var m = x.GetLength(0);
@@ -56,40 +74,40 @@ namespace HEAL.NonlinearRegression.Console {
       var trainEnd = (int)Math.Round(m * 2 / 3.0);
       var testStart = (int)Math.Round(m * 2 / 3.0) + 1;
       var testEnd = m - 1;
-      if (config["train"] != null) {
-        var toks = config["train"].Split(":");
+      if (options.TrainingRange != null) {
+        var toks = options.TrainingRange.Split(":");
         trainStart = int.Parse(toks[0]);
         trainEnd = int.Parse(toks[1]);
       }
-      if (config["test"] != null) {
-        var toks = config["test"].Split(":");
+      if (options.TestingRange != null) {
+        var toks = options.TestingRange.Split(":");
         testStart = int.Parse(toks[0]);
         testEnd = int.Parse(toks[1]);
       }
 
       var randSeed = new System.Random().Next();
-      if (config["seed"] != null) {
-        randSeed = int.Parse(config["seed"]);
+      if (options.Seed != null) {
+        randSeed = options.Seed.Value;
       }
 
-      if (args.Any(argv => argv == "--shuffle")) {
+      if (options.Shuffle) {
         var rand = new System.Random(randSeed);
         Shuffle(x, y, rand);
       }
 
       Split(x, y, trainStart, trainEnd, testStart, testEnd, out var trainX, out var trainY, out var testX, out var testY);
 
-      var modelExpression = PreprocessModelString(config["model"], varNames, out var constants);
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
       //System.Console.WriteLine(modelExpression);
 
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
-      //System.Console.WriteLine(parametricExpr);
+      // System.Console.WriteLine(parametricExpr);
 
       var nlr = new NonlinearRegression();
-      if (!args.Any(argv => argv == "--no-optimization")) {
-        nlr.Fit(p, parametricExpr, trainX, trainY);
+      if (options.NoOptimization) {
+        nlr.SetModel(p, parametricExpr, trainX, trainY); 
       } else {
-        nlr.SetModel(p, parametricExpr, trainX, trainY);
+        nlr.Fit(p, parametricExpr, trainX, trainY);
       }
 
       var predictProfile = nlr.PredictWithIntervals(x, IntervalEnum.TProfile, includeNoise: true);
@@ -230,7 +248,7 @@ namespace HEAL.NonlinearRegression.Console {
       var constList = new List<double>();
       int startat = 0;
       do {
-        var replacement = $"constants[{idx}]";
+        var replacement = $"constants[{idx++}]";
         model = newModel;
 
         var match = floatLitRegex.Match(model, startat);
