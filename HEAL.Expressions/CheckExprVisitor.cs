@@ -23,6 +23,7 @@ namespace HEAL.Expressions {
       typeof(Math).GetMethod("Cbrt", new[] {typeof(double)}),
       typeof(Math).GetMethod("Sin", new[] {typeof(double)}),
       typeof(Math).GetMethod("Cos", new[] {typeof(double)}),
+      typeof(Math).GetMethod("Tanh", new[] {typeof(double)}),
       typeof(Math).GetMethod("Pow", new[] {typeof(double), typeof(double)}),
     };
 
