@@ -22,7 +22,7 @@ namespace HEAL.NonlinearRegression {
       var stats0 = nlr.Statistics;
       var m = y.Length;
       var d = X.GetLength(1);
-      
+
       var mean = new double[d];
       for (int i = 0; i < d; i++) {
         mean[i] = Enumerable.Range(0, m).Select(r => X[r, i]).Average();
@@ -38,15 +38,15 @@ namespace HEAL.NonlinearRegression {
         nlr = new NonlinearRegression();
         nlr.Fit(newThetaValues, newExpr, X, y);
         var newStats = nlr.Statistics;
-	Console.WriteLine($"{newStats.SSR} {Util.Variance(y) * y.Length}");
-	// increase in variance for the reduced feature = variance explained by the feature
-        relSSR[varIdx] = (newStats.SSR - stats0.SSR) / (y.Length*Util.Variance(y)); // newStats.SSR / stats0.SSR;
+        Console.WriteLine($"{newStats.SSR} {Util.Variance(y) * y.Length}");
+        // increase in variance for the reduced feature = variance explained by the feature
+        relSSR[varIdx] = (newStats.SSR - stats0.SSR) / (y.Length * Util.Variance(y)); // newStats.SSR / stats0.SSR;
       }
 
       return relSSR;
     }
 
-    
+
     /// <summary>
     /// Replaces each sub-tree in the model by a parameter and re-fits the model. The factor SSR_reduced / SSR_full is returned as impact.
     /// The sub-expressions depend on the structure of the model. I.e. a + b + c + d might be represented as
@@ -62,8 +62,8 @@ namespace HEAL.NonlinearRegression {
       var pParam = expr.Parameters[0];
       var xParam = expr.Parameters[1];
       var expressions = FlattenExpressionVisitor.Execute(expr.Body);
-      var subexpressions = expressions.Where(e => !IsParameter(e, pParam) && 
-                                                  !(e is ParameterExpression) && 
+      var subexpressions = expressions.Where(e => !IsParameter(e, pParam) &&
+                                                  !(e is ParameterExpression) &&
                                                   !(e is ConstantExpression));
 
       // fit the full model once for the baseline
@@ -85,18 +85,18 @@ namespace HEAL.NonlinearRegression {
         var replValue = eval.Average();
         var reducedExpression = ReplaceSubexpressionWithParameterVisitor.Execute(expr, subExpr, p, replValue, out var newTheta);
         reducedExpression = Expr.FoldParameters(reducedExpression, newTheta, out newTheta);
-        
-        
+
+
         // fit reduced model
         nlr.Fit(newTheta, reducedExpression, X, y);
         var reducedStats = nlr.Statistics;
 
         var impact = reducedStats.SSR / stats0.SSR;
-        
+
         yield return Tuple.Create(subExpr, impact, nlr.Statistics.AICc - fullAICc, nlr.Statistics.BIC - fullBIC);
       }
     }
-    
+
     /// <summary>
     /// Replaces each parameter in the model by a zero and re-fits the model for a comparison of nested models.
     /// We use a likelihood ratio test for model comparison which is exact for linear models.
@@ -116,7 +116,7 @@ namespace HEAL.NonlinearRegression {
 
       // fit the full model once for the baseline
       // TODO: we could skip this and get the baseline as parameter
-      
+
       var nlr = new NonlinearRegression();
       nlr.Fit(p, expr, X, y);
       var stats0 = nlr.Statistics;
@@ -128,7 +128,7 @@ namespace HEAL.NonlinearRegression {
       Console.WriteLine($"Full model: {fullAIC,-11:f1} {fullBIC,-11}:f1");
       Console.WriteLine($"p{"idx",-5} {"SSR_factor",-11} {"deltaDoF",-6} {"fRatio",-11} {"f",11} {"deltaAICc"} {"deltaBIC"}");
 
-      for (int paramIdx = 0;paramIdx < p.Length;paramIdx++) {
+      for (int paramIdx = 0; paramIdx < p.Length; paramIdx++) {
         var v = new ReplaceParameterWithZeroVisitor(pParam, paramIdx);
         var reducedExpression = (Expression<Expr.ParametricFunction>)v.Visit(expr);
         //Console.WriteLine($"Reduced: {reducedExpression}");
@@ -152,13 +152,14 @@ namespace HEAL.NonlinearRegression {
           var deltaSSR = reducedStats.SSR - stats0.SSR;
           var s2Extra = deltaSSR / deltaDoF; // increase in SSR per parameter
           var fRatio = s2Extra / Math.Pow(stats0.s, 2);
-          
+
           var f = alglib.invfdistribution(deltaDoF, fullDoF, 0.05); // "accept the partial value if the calculated ratio is lower than the table value
 
           Console.WriteLine($"p{paramIdx,-5} {impact,-11:e2} {deltaDoF,-6} {fRatio,-11:e4} accept: {fRatio < f} {nlr.Statistics.AICc - fullAIC,-11:f1} {nlr.Statistics.BIC - fullBIC,-11:f1}");
 
           impacts.Add(Tuple.Create(impact, (Expression)reducedExpression));
-        } catch(Exception e) {
+        }
+        catch (Exception e) {
           Console.WriteLine($"Exception {e.Message} for {reducedExpression}");
         }
         // yield return Tuple.Create(impact, (Expression)reducedExpression);
