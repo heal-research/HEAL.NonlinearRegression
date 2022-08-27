@@ -83,7 +83,7 @@ namespace HEAL.Expressions {
           } else return node.ToString();
         };
         case ExpressionType.Call: return ((MethodCallExpression)node).Method.Name;
-        case ExpressionType.Constant: return node.ToString();
+        case ExpressionType.Constant: return ((double)((ConstantExpression)node).Value).ToString("g3");
         default: return node.NodeType.ToString();
       }
     }

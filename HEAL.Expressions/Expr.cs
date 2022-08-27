@@ -4,7 +4,9 @@ using System.Linq;
 using System.Linq.Expressions;
 using Type = System.Type;
 
-// TODO: refactor visitors (move into folder?)
+// TODO:
+// - refactor visitors (move into folder?)
+// - fold constants visitor
 
 namespace HEAL.Expressions {
   public static class Expr {
@@ -24,6 +26,7 @@ namespace HEAL.Expressions {
     // - Parameters must be used only once in the expression. This is not strictly necessary, but the code assumes
     //   this for now.
     // - Only static methods of double parameters returning double (and one of a small list of supported methods, Log, Exp, Sin, Cos, ...)
+    
 
     /// <summary>
     /// Broadcasts an expression to work on an array. 
@@ -259,16 +262,21 @@ namespace HEAL.Expressions {
       double[] parameterValues, out double[] newParameterValues) {
       var theta = expr.Parameters[0];
       var x = expr.Parameters[1];
+      var rotateVisitor = new RotateBinaryExpressionsVisitor();
+      expr = (Expression<ParametricFunction>)rotateVisitor.Visit(expr);
+      // Console.WriteLine($"Rotated: {expr}");
       expr = ArrangeParametersRightVisitor.Execute(expr, theta, parameterValues);
-      //Console.WriteLine($"Rearranged: {expr}");
+      // Console.WriteLine($"Rearranged: {expr}");
 
       var visitor = new FoldParametersVisitor(theta, parameterValues);
-      var newExpr = visitor.Visit(expr);
+      var newExpr = (Expression<ParametricFunction>)visitor.Visit(expr);
+      // Console.WriteLine($"Folded: {newExpr}");
+
       newParameterValues = visitor.GetNewParameterValues;
       //Console.WriteLine($"Folded parameters: {newExpr}");
 
       var collectVisitor = new CollectParametersVisitor(theta, newParameterValues);
-      newExpr = collectVisitor.Visit(newExpr);
+      newExpr = (Expression<ParametricFunction>)collectVisitor.Visit(newExpr);
       newParameterValues = collectVisitor.GetNewParameterValues;
       //Console.WriteLine($"Removed unused parameters: {newExpr}");
       return (Expression<ParametricFunction>)newExpr;

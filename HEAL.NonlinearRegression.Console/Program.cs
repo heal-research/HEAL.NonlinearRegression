@@ -7,7 +7,6 @@ using CommandLine;
 using HEAL.Expressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Scripting;
 
 // TODO:
@@ -18,7 +17,6 @@ using Microsoft.CodeAnalysis.Scripting;
 //   - Generate comparison outputs for pairwise profile plots and compare to book. (use Gnuplot)
 // 
 //  more ideas (not yet implemented)
-//   - cross-validation for NLR
 //   - alglib is GPL, should switch to .NET numerics (MIT) instead.
 //   - iterative pruning based on subtree impacts or likelihood ratios for nested models
 //   - variable impacts for combinations of variables (tuples, triples). Contributions to individual variables via Shapely values?
@@ -32,18 +30,16 @@ namespace HEAL.NonlinearRegression.Console {
   // e.g. 10 * x^2f ,  2 is a fixed constant, 10 is a parameter of the model
   public class Program {
 
-
     public static void Main(string[] args) {
-      var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveOptions, NestedModelsOptions, SubtreeImportanceOptions, CrossValidationOptions>(args)
-        .MapResult(
-          (PredictOptions options) => Predict(options),
-          (FitOptions options) => Fit(options),
-          (RemoveOptions options) => RemoveRedundantParameters(options),
-          (NestedModelsOptions options) => AnalyseNestedModels(options),
-          (SubtreeImportanceOptions options) => SubtreeImportance(options),
-          (CrossValidationOptions options) => CrossValidate(options),
-          errs => 1
-        )
+      var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveRedundantParameterOptions, NestedModelsOptions, 
+        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions>(args)
+        .WithParsed<PredictOptions>(options => Predict(options))
+        .WithParsed<FitOptions>(options => Fit(options))
+        .WithParsed<RemoveRedundantParameterOptions>(options => RemoveRedundantParameters(options))
+        .WithParsed<NestedModelsOptions>(options => AnalyseNestedModels(options))
+        .WithParsed<SubtreeImportanceOptions>(options => SubtreeImportance(options))
+        .WithParsed<CrossValidationOptions>(options => CrossValidate(options))
+        .WithParsed<VariableImpactOptions>(options => CalculateVariableImpacts(options))
         ;
     }
 
@@ -72,7 +68,7 @@ namespace HEAL.NonlinearRegression.Console {
 
     }
 
-    private static int Predict(PredictOptions options) {
+    private static void Predict(PredictOptions options) {
       PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
 
       var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
@@ -105,13 +101,10 @@ namespace HEAL.NonlinearRegression.Console {
         System.Console.Write($"{((i >= testStart && i <= testEnd) ? 1 : 0)}"); // isTest
         System.Console.WriteLine();
       }
-
-      return 0;
-
     }
 
 
-    private static object CrossValidate(CrossValidationOptions options) {
+    private static void CrossValidate(CrossValidationOptions options) {
       ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
 
       // default is full dataset
@@ -156,12 +149,10 @@ namespace HEAL.NonlinearRegression.Console {
         mse.Add(nls.Statistics.SSR / cvY.Length);
       }
       System.Console.WriteLine($"CV MSE mean: {mse.Average():e4} stddev: {Math.Sqrt(Util.Variance(mse.ToArray())):e4}");
-
-      return 1;
     }
 
 
-    private static int RemoveRedundantParameters(RemoveOptions options) {
+    private static void RemoveRedundantParameters(RemoveRedundantParameterOptions options) {
       var varNames = options.Variables.Split(',').Select(vn => vn.Trim()).ToArray();
 
       var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
@@ -180,11 +171,9 @@ namespace HEAL.NonlinearRegression.Console {
       }
 
       System.Console.WriteLine(exprBody);
-
-      return 0;
     }
 
-    private static int AnalyseNestedModels(NestedModelsOptions options) {
+    private static void AnalyseNestedModels(NestedModelsOptions options) {
       ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
 
       // default is full dataset
@@ -196,7 +185,7 @@ namespace HEAL.NonlinearRegression.Console {
         trainEnd = int.Parse(toks[1]);
       }
 
-      Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out var testX, out var testY);
+      Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
 
       var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
       //System.Console.WriteLine(modelExpression);
@@ -205,13 +194,10 @@ namespace HEAL.NonlinearRegression.Console {
       // System.Console.WriteLine(parametricExpr);
 
       ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, p);
-
-      return 0;
-
     }
 
 
-    private static object SubtreeImportance(SubtreeImportanceOptions options) {
+    private static void SubtreeImportance(SubtreeImportanceOptions options) {
       // TODO combine with nested models
       ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
 
@@ -244,13 +230,56 @@ namespace HEAL.NonlinearRegression.Console {
         // sat[tup.Item2] = Math.Max(0, Math.Log(tup.Item1)); // use log scale for coloring
       }
 
-      return 0;
 
       // TODO provide option for graphviz output
       // using (var writer = new System.IO.StreamWriter($"{problem.GetType().Name}.gv")) {
       //   writer.WriteLine(Expr.ToGraphViz(expr, saturation: sat));
       // }
     }
+
+
+    private static void CalculateVariableImpacts(VariableImpactOptions options) {
+      // TODO combine with subtree impacts
+      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
+
+      // default is full dataset
+      var trainStart = 0;
+      var trainEnd = y.Length - 1;
+      if (options.TrainingRange != null) {
+        var toks = options.TrainingRange.Split(":");
+        trainStart = int.Parse(toks[0]);
+        trainEnd = int.Parse(toks[1]);
+      }
+
+      Random rand;
+      if (options.Seed.HasValue) {
+        rand = new Random(options.Seed.Value);
+      } else {
+        rand = new Random();
+      }
+
+      if (options.Shuffle) {
+        Shuffle(x, y, rand);
+      }
+
+      Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
+
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      //System.Console.WriteLine(modelExpression);
+
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
+      // System.Console.WriteLine(parametricExpr);
+
+      var varImportance = ModelAnalysis.VariableImportance(parametricExpr, trainX, trainY, p);
+
+
+      System.Console.WriteLine($"{"variable",-11} {"VarExpl",-11}");
+      foreach (var tup in varImportance.OrderByDescending(tup => tup.Value)) { // TODO better interface
+        var varName = varNames[tup.Key];
+        System.Console.WriteLine($"{varName,-11} {tup.Value*100,-11:f2}%");
+      }
+    }
+
 
     #endregion
 
@@ -292,7 +321,7 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
     [Verb("removeRedundant", HelpText = "Remove redundant parameters.")]
-    public class RemoveOptions {
+    public class RemoveRedundantParameterOptions {
       [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
       public string Model { get; set; }
 
@@ -347,6 +376,29 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("folds", Required = false, Default = 10, HelpText = "The number of folds")]
       public int Folds { get; set; }
+
+      [Option("shuffle", Required = false, Default = false, HelpText = "Switch to shuffle the dataset before splitting into CV folds.")]
+      public bool Shuffle { get; set; }
+
+      [Option("seed", Required = false, HelpText = "Random seed for shuffling.")]
+      public int? Seed { get; set; }
+
+    }
+
+    [Verb("variableimpact", HelpText = "Calculate variable impacts")]
+    // TODO combine with subtree impacts (and potentially nested models)
+    public class VariableImpactOptions {
+      [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
+      public string Dataset { get; set; }
+
+      [Option('t', "target", Required = true, HelpText = "Target variable name.")]
+      public string Target { get; set; }
+
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
+
+      [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for variable impact calculation.")]
+      public string TrainingRange { get; set; }
 
       [Option("shuffle", Required = false, Default = false, HelpText = "Switch to shuffle the dataset before fitting.")]
       public bool Shuffle { get; set; }

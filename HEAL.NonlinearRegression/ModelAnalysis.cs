@@ -8,8 +8,7 @@ using HEAL.Expressions;
 namespace HEAL.NonlinearRegression {
   public static class ModelAnalysis {
     /// <summary>
-    /// Replaces all references to a variable in the model by a parameter. Re-fits the model and returns the factor
-    /// SSR_reduced / SSR_full as impact.
+    /// Replaces all references to a variable in the model by a parameter. Re-fits the model and returns the increase in R²
     /// </summary>
     /// <param name="expr">The full model expression</param>
     /// <param name="X">Input values</param>
@@ -28,22 +27,26 @@ namespace HEAL.NonlinearRegression {
         mean[i] = Enumerable.Range(0, m).Select(r => X[r, i]).Average();
       }
 
-      var relSSR = new Dictionary<int, double>();
+      var varExpl = new Dictionary<int, double>();
       for (int varIdx = 0; varIdx < d; varIdx++) {
-        // TODO: merge replace and remove parameters
         var newExpr = Expr.ReplaceVariableWithParameter(expr, (double[])stats0.paramEst.Clone(),
           varIdx, mean[varIdx], out var newThetaValues);
+
         newExpr = Expr.FoldParameters(newExpr, newThetaValues, out newThetaValues);
 
         nlr = new NonlinearRegression();
         nlr.Fit(newThetaValues, newExpr, X, y);
-        var newStats = nlr.Statistics;
-        Console.WriteLine($"{newStats.SSR} {Util.Variance(y) * y.Length}");
-        // increase in variance for the reduced feature = variance explained by the feature
-        relSSR[varIdx] = (newStats.SSR - stats0.SSR) / (y.Length * Util.Variance(y)); // newStats.SSR / stats0.SSR;
+        if (nlr.Statistics == null) {
+          Console.WriteLine("Problem while fitting");
+          varExpl[varIdx] = 0.0;
+        } else {
+          var newStats = nlr.Statistics;
+          // increase in variance for the reduced feature = variance explained by the feature
+          varExpl[varIdx] = (newStats.SSR - stats0.SSR) / (y.Length * Util.Variance(y)); 
+        }
       }
 
-      return relSSR;
+      return varExpl;
     }
 
 
