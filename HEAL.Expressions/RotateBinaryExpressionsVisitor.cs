@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 
 namespace HEAL.Expressions {
   /// <summary>
-  /// Transforms binary expressions to correspond to left-associative execution. 
+  /// Transforms add, mul expressions to correspond to left-associative execution. 
   /// a, b, c are reordered by size
   /// a ° (b ° c) -> (a ° b) ° c
   /// (a ° b) ° (c ° d) -> ((a ° b) ° c) ° d
@@ -30,22 +30,34 @@ namespace HEAL.Expressions {
       BinaryExpression leftBinary = left as BinaryExpression;
       BinaryExpression rightBinary = right as BinaryExpression;
 
-      if (rightBinary != null
-        && rightBinary.NodeType == node.NodeType) {
-        /// a ° (b ° c) -> (a ° b) ° c,   recursively for a = (al ° ar)
-        var terms = new List<Expression>() { rightBinary.Left, rightBinary.Right };
-        while (leftBinary != null && leftBinary.NodeType == node.NodeType) {
-          terms.Add(leftBinary.Right);
-          left = leftBinary.Left;
-          leftBinary = left as BinaryExpression;
+      if (node.NodeType == ExpressionType.Add || node.NodeType == ExpressionType.Multiply) {
+        if (rightBinary != null
+          && rightBinary.NodeType == node.NodeType) {
+          /// a ° (b ° c) -> (a ° b) ° c,   recursively for a = (al ° ar)
+          var terms = new List<Expression>() { rightBinary.Left, rightBinary.Right };
+          while (leftBinary != null && leftBinary.NodeType == node.NodeType) {
+            terms.Add(leftBinary.Right);
+            left = leftBinary.Left;
+            leftBinary = left as BinaryExpression;
+          }
+          terms.Add(left);
+          return terms.OrderByDescending(t => len[t]).Aggregate((l, r) => {
+            var newBin = Expression.MakeBinary(node.NodeType, l, r);
+            len[newBin] = 1 + len[l] + len[r];
+            return newBin;
+          });
+        } else if (len[left] < len[right]) {
+          return node.Update(right, null, left);
+        } else {
+          return node.Update(left, null, right);
         }
-        terms.Add(left);
-        return terms.OrderByDescending(t => len[t]).Aggregate((l, r) => Expression.MakeBinary(node.NodeType, l, r));
-      } else if (len[left] < len[right]) {
-        return node.Update(right, null, left);
       } else {
         return node.Update(left, null, right);
       }
+    }
+
+    protected override Expression VisitUnary(UnaryExpression node) {
+      return base.VisitUnary(node);
     }
   }
 }
