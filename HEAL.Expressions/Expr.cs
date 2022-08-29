@@ -299,6 +299,19 @@ namespace HEAL.Expressions {
       return GraphvizVisitor.Execute(expr, pValues, varNames, saturation);
     }
 
+    public static string ToString(Expression<ParametricFunction> expr, string[] varNames, double[] p) {
+      // for the output
+      var parameterizedExpression = Expr.ReplaceParameterWithValues<Func<double[], double>>(expr, expr.Parameters[0], p);
+
+      var exprBody = parameterizedExpression.Body.ToString();
+      for (int i = 0; i < varNames.Length; i++) {
+        exprBody = exprBody.Replace($"x[{i}]", varNames[i]);
+      }
+
+      return exprBody.ToString();
+
+    }
+
     // TODO: method to take an expression and extract all double constants as parameters
     // ( so that we can directly copy operon models into the code)
   }

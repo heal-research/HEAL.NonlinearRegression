@@ -2,12 +2,14 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Net.WebSockets;
 using System.Text.RegularExpressions;
 using CommandLine;
 using HEAL.Expressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
+using static alglib;
 
 // TODO:
 //  'verbs' for different usages shown in Demo project (already implemented):
@@ -21,6 +23,8 @@ using Microsoft.CodeAnalysis.Scripting;
 //   - iterative pruning based on subtree impacts or likelihood ratios for nested models
 //   - variable impacts for combinations of variables (tuples, triples). Contributions to individual variables via Shapely values?
 //   - nested model analysis for combinations of parameters (for the case where a parameter can only be set to zero if another parameter is also set to zero)
+//   - If a range is specified (training, test) then only read the relevant rows of data
+//   - execute verbs for multiple models from file
 
 namespace HEAL.NonlinearRegression.Console {
   // Takes a dataset, target variable, and a model from the command line and runs NLR and calculates all statistics.
@@ -31,10 +35,11 @@ namespace HEAL.NonlinearRegression.Console {
   public class Program {
 
     public static void Main(string[] args) {
-      var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveRedundantParameterOptions, NestedModelsOptions, 
-        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions>(args)
+      var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveRedundantParameterOptions, NestedModelsOptions,
+        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions>(args)
         .WithParsed<PredictOptions>(options => Predict(options))
         .WithParsed<FitOptions>(options => Fit(options))
+        .WithParsed<EvalOptions>(options => Evaluate(options))
         .WithParsed<RemoveRedundantParameterOptions>(options => RemoveRedundantParameters(options))
         .WithParsed<NestedModelsOptions>(options => AnalyseNestedModels(options))
         .WithParsed<SubtreeImportanceOptions>(options => SubtreeImportance(options))
@@ -44,28 +49,59 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
     #region verbs
-    private static int Fit(FitOptions options) {
+    private static void Fit(FitOptions options) {
       PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
 
       var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
-      //System.Console.WriteLine(modelExpression);
+      // System.Console.WriteLine(modelExpression);
 
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
       // System.Console.WriteLine(parametricExpr);
 
       var nls = new NonlinearRegression();
-      nls.Fit(p, parametricExpr, trainX, trainY);
+      nls.Fit(p, parametricExpr, trainX, trainY, maxIterations: 200);
 
       if (nls.OptReport.Success) {
         System.Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
         System.Console.WriteLine($"{nls.OptReport}");
         nls.WriteStatistics();
+        System.Console.WriteLine($"Optimized: {Expr.ToString(parametricExpr, varNames, p)}");
       } else {
         System.Console.WriteLine("There was a problem while fitting.");
       }
+    }
 
-      return 0;
+    private static void Evaluate(EvalOptions options) {
+      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
 
+      // default is full dataset
+      var start = 0;
+      var end = y.Length - 1;
+      if (options.Range != null) {
+        var toks = options.Range.Split(":");
+        start = int.Parse(toks[0]);
+        end = int.Parse(toks[1]);
+      }
+
+      Split(x, y, start, end, start, end, out x, out y, out _, out _);
+
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      // System.Console.WriteLine(modelExpression);
+
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
+      // System.Console.WriteLine(parametricExpr);
+
+      var func = Expr.Broadcast(parametricExpr).Compile();
+      var m = y.Length;
+      var yPred = new double[m];
+      func(p, x, yPred);
+
+      var SSR = 0.0;
+      for (int i = 0; i < m; i++) {
+        var r = y[i] - yPred[i];
+        SSR += r * r;
+      }
+      System.Console.WriteLine($"RMSE: {Math.Sqrt(SSR / m)}");
     }
 
     private static void Predict(PredictOptions options) {
@@ -138,16 +174,29 @@ namespace HEAL.NonlinearRegression.Console {
 
       var foldSize = (int)Math.Truncate((trainEnd - trainStart + 1) / (double)options.Folds);
       var mse = new List<double>();
-      for (int i = 0; i < options.Folds; i++) {
-        var foldStart = trainStart + i * foldSize;
-        var foldEnd = trainStart + (i + 1) * foldSize - 1;
+      for (int f = 0; f < options.Folds; f++) {
+        var foldStart = trainStart + f * foldSize;
+        var foldEnd = trainStart + (f + 1) * foldSize - 1;
+        if (f == options.Folds - 1) {
+          foldEnd = y.Length - 1; // include remaining part in last fold
+        }
 
-        DeletePartition(trainX, trainY, foldStart, foldEnd, out var cvX, out var cvY);
+        DeletePartition(trainX, trainY, foldStart, foldEnd, out var foldTrainX, out var foldTrainY);
+        Split(trainX, trainY, foldStart, foldEnd, foldStart, foldEnd, out var foldTestX, out var foldTestY, out _, out _);
 
         var nls = new NonlinearRegression();
-        nls.Fit(p, parametricExpr, cvX, cvY);
-        mse.Add(nls.Statistics.SSR / cvY.Length);
+        nls.Fit(p, parametricExpr, foldTrainX, foldTrainY, maxIterations: 5000); // TODO make CLI parameter
+
+        var foldPred = nls.Predict(foldTestX);
+        var SSRtest = 0.0;
+        for (int i = 0; i < foldTestY.Length; i++) {
+          var r = foldTestY[i] - foldPred[i];
+          SSRtest += r * r;
+        }
+        mse.Add(SSRtest / foldTestY.Length);
       }
+
+
       System.Console.WriteLine($"CV MSE mean: {mse.Average():e4} stddev: {Math.Sqrt(Util.Variance(mse.ToArray())):e4}");
     }
 
@@ -158,19 +207,13 @@ namespace HEAL.NonlinearRegression.Console {
       var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
 
-      var simplifiedExpr = Expr.SimplifyAndRemoveParameters(parametricExpr, p, out var newP);
+      var simplifiedExpr = Expr.FoldParameters(parametricExpr, p, out var newP);
 
       // System.Console.WriteLine(simplifiedExpr);
       // System.Console.WriteLine($"theta: {string.Join(",", newP.Select(pi => pi.ToString()))}");
 
-      var parameterizedExpression = Expr.ReplaceParameterWithValues<Func<double[], double>>(simplifiedExpr, simplifiedExpr.Parameters[0], newP);
 
-      var exprBody = parameterizedExpression.Body.ToString();
-      for (int i = 0; i < varNames.Length; i++) {
-        exprBody = exprBody.Replace($"x[{i}]", varNames[i]);
-      }
-
-      System.Console.WriteLine(exprBody);
+      System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
     }
 
     private static void AnalyseNestedModels(NestedModelsOptions options) {
@@ -193,7 +236,21 @@ namespace HEAL.NonlinearRegression.Console {
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
       // System.Console.WriteLine(parametricExpr);
 
-      ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, p);
+      var impacts = ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, p);
+
+
+
+      System.Console.WriteLine("Try following reduced expressions:");
+      foreach (var tup in impacts) {
+        var paramIdx = tup.Item1;
+        var ssrFactor = tup.Item2;
+        var deltaAICc = tup.Item3;
+        var reducedExpr = tup.Item4;
+        var reducedParam = tup.Item5;
+        if (deltaAICc < 5.0) {
+          System.Console.WriteLine($"SSR_factor: {ssrFactor:g2} deltaAICc: {deltaAICc:f2} Expr: {Expr.ToString(reducedExpr, varNames, reducedParam)}");
+        }
+      }
     }
 
 
@@ -276,7 +333,7 @@ namespace HEAL.NonlinearRegression.Console {
       System.Console.WriteLine($"{"variable",-11} {"VarExpl",-11}");
       foreach (var tup in varImportance.OrderByDescending(tup => tup.Value)) { // TODO better interface
         var varName = varNames[tup.Key];
-        System.Console.WriteLine($"{varName,-11} {tup.Value*100,-11:f2}%");
+        System.Console.WriteLine($"{varName,-11} {tup.Value * 100,-11:f2}%");
       }
     }
 
@@ -320,7 +377,22 @@ namespace HEAL.NonlinearRegression.Console {
     public class FitOptions : OptionsBase {
     }
 
-    [Verb("removeRedundant", HelpText = "Remove redundant parameters.")]
+    [Verb("evaluate", HelpText = "Evaluate a model on a dataset without fitting.")]
+    public class EvalOptions {
+      [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
+      public string Dataset { get; set; }
+
+      [Option('t', "target", Required = true, HelpText = "Target variable name.")]
+      public string Target { get; set; }
+
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
+
+      [Option("range", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive).")]
+      public string Range { get; set; }
+    }
+
+    [Verb("simplify", HelpText = "Remove redundant parameters.")]
     public class RemoveRedundantParameterOptions {
       [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
       public string Model { get; set; }
@@ -472,14 +544,15 @@ namespace HEAL.NonlinearRegression.Console {
     private static void DeletePartition(double[,] X, double[] y, int start, int end, out double[,] reducedX, out double[] reducedY) {
       var removedRows = (end - start + 1);
       var d = X.GetLength(1);
+      var m = X.GetLength(0);
       reducedX = new double[X.GetLength(0) - removedRows, d];
       Buffer.BlockCopy(X, 0, reducedX, 0, start * d * sizeof(double));
-      Buffer.BlockCopy(X, end * d * sizeof(double), reducedX, start*d*sizeof(double), (reducedX.Length - start * d) * sizeof(double));
+      Buffer.BlockCopy(X, (end + 1) * d * sizeof(double), reducedX, start * d * sizeof(double), (m - end - 1) * d * sizeof(double));
 
 
       reducedY = new double[y.Length - removedRows];
       Array.Copy(y, 0, reducedY, 0, start);
-      Array.Copy(y, end + 1, reducedY, start, reducedY.Length - start);
+      Array.Copy(y, end + 1, reducedY, start, m - end - 1);
     }
 
     private static void Shuffle(double[,] x, double[] y, Random rand) {
@@ -510,7 +583,7 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
     private static string TranslateFunctionCalls(string model) {
-      return TranslatePower(model)
+      return TranslatePower(TranslateSqr(TranslateCube(model)))
         .Replace("log(", "Math.Log(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("exp(", "Math.Exp(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("sin(", "Math.Sin(", StringComparison.InvariantCultureIgnoreCase)
@@ -530,9 +603,32 @@ namespace HEAL.NonlinearRegression.Console {
         ;
     }
 
-    public static string TranslatePower(string model) {
+    private static string TranslatePower(string model) {
       // https://stackoverflow.com/questions/19596502/regex-nested-parentheses
-      return Regex.Replace(model, @"(\((?>\((?<DEPTH>)|\)(?<-DEPTH>)|[^()]+)*\)(?(DEPTH)(?!)))\s*\^\s*([^-+*/) ]+)", "Math.Pow($1, $2)"); // only supports integer powers
+      string oldModel;
+      do {
+        oldModel = model;
+        model = Regex.Replace(model, @"(\w*\((?>\((?<DEPTH>)|\)(?<-DEPTH>)|[^()]+)*\)(?(DEPTH)(?!)))\s*\^\s*([^-+*/) ]+)", "Math.Pow($1, $2)"); // only supports integer powers
+      } while (model != oldModel);
+      return model;
+    }
+    private static string TranslateSqr(string model) {
+      string oldModel;
+      do {
+        oldModel = model;
+        // https://stackoverflow.com/questions/19596502/regex-nested-parentheses
+        model = Regex.Replace(model, @"sqr(\((?>\((?<DEPTH>)|\)(?<-DEPTH>)|[^()]+)*\)(?(DEPTH)(?!)))", "Math.Pow($1, 2f)", RegexOptions.IgnoreCase);
+      } while (model != oldModel);
+      return model;
+    }
+    private static string TranslateCube(string model) {
+      string oldModel;
+      do {
+        oldModel = model;
+        // https://stackoverflow.com/questions/19596502/regex-nested-parentheses
+        model = Regex.Replace(model, @"cube(\((?>\((?<DEPTH>)|\)(?<-DEPTH>)|[^()]+)*\)(?(DEPTH)(?!)))", "Math.Pow($1, 3f)", RegexOptions.IgnoreCase);
+      } while (model != oldModel);
+      return model;
     }
 
 
@@ -559,15 +655,15 @@ namespace HEAL.NonlinearRegression.Console {
             | Decimal_Digit Decimal_Digit* Exponent_Part Real_Type_Suffix?
             | Decimal_Digit Decimal_Digit* Real_Type_Suffix
             ;
-        
+
         fragment Exponent_Part
             : ('e' | 'E') Sign? Decimal_Digit Decimal_Digit*
             ;
-        
+
         fragment Sign
             : '+' | '-'
             ;
-        
+
         fragment Real_Type_Suffix
             : 'F' | 'f' | 'D' | 'd' | 'M' | 'm'
             ;

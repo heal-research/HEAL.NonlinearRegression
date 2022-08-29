@@ -15,7 +15,7 @@ namespace HEAL.NonlinearRegression {
     {
       get
       {
-        var v = SSR / n;
+        var v = SSR / m;
         return -m / 2.0 * Math.Log(2 * Math.PI) - m / 2.0 * Math.Log(v) - SSR / (2.0 * v);
       }
     }

@@ -55,7 +55,7 @@ namespace HEAL.NonlinearRegression {
         sat[expr] = 0.0; // reference value for the importance
         foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item1)) {
           Console.WriteLine($"{tup.Item1} {tup.Item2,-11:e4}");
-          sat[tup.Item2] = Math.Max(0, Math.Log(tup.Item1)); // use log scale for coloring
+          sat[tup.Item1] = Math.Max(0, Math.Log(tup.Item2)); // use log scale for coloring
         }
 
         using (var writer = new System.IO.StreamWriter($"{problem.GetType().Name}.gv")) {

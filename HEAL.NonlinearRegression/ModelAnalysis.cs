@@ -91,7 +91,7 @@ namespace HEAL.NonlinearRegression {
 
 
         // fit reduced model
-        nlr.Fit(newTheta, reducedExpression, X, y);
+        nlr.Fit(newTheta, reducedExpression, X, y, maxIterations: 2000); // TODO make CLI parameter
         var reducedStats = nlr.Statistics;
 
         var impact = reducedStats.SSR / stats0.SSR;
@@ -112,7 +112,7 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target variable values</param>
     /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
-    public static IEnumerable<Tuple<double, Expression>> NestedModelLiklihoodRatios(Expression<Expr.ParametricFunction> expr, double[,] X, double[] y, double[] p) {
+    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(Expression<Expr.ParametricFunction> expr, double[,] X, double[] y, double[] p) {
       var m = X.GetLength(0);
       var pParam = expr.Parameters[0];
       var xParam = expr.Parameters[1];
@@ -124,12 +124,15 @@ namespace HEAL.NonlinearRegression {
       nlr.Fit(p, expr, X, y);
       var stats0 = nlr.Statistics;
       p = stats0.paramEst;
-      var impacts = new List<Tuple<double, Expression>>();
+      var impacts = new List<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>();
 
       var fullAIC = nlr.Statistics.AICc;
       var fullBIC = nlr.Statistics.BIC;
-      Console.WriteLine($"Full model: {fullAIC,-11:f1} {fullBIC,-11}:f1");
-      Console.WriteLine($"p{"idx",-5} {"SSR_factor",-11} {"deltaDoF",-6} {"fRatio",-11} {"f",11} {"deltaAICc"} {"deltaBIC"}");
+      //Console.WriteLine(expr.Body);
+      //Console.WriteLine(string.Join(", ", p.Select(p => p.ToString("e2"))));
+      Console.WriteLine($"Full model AICc: {fullAIC,-11:f1} BIC: {fullBIC,-11:f1}");
+      Console.WriteLine($"p{"idx",-5} {"val",-11} {"SSR_factor",-11} {"deltaDoF",-6} {"fRatio",-11} {"f",11} {"deltaAICc"} {"deltaBIC"}");
+
 
       for (int paramIdx = 0; paramIdx < p.Length; paramIdx++) {
         var v = new ReplaceParameterWithZeroVisitor(pParam, paramIdx);
@@ -144,7 +147,7 @@ namespace HEAL.NonlinearRegression {
 
         // fit reduced model
         try {
-          nlr.Fit(newP, reducedExpression, X, y);
+          nlr.Fit(newP, reducedExpression, X, y, maxIterations: 2000); // TODO make parameter
           var reducedStats = nlr.Statistics;
 
           var impact = reducedStats.SSR / stats0.SSR;
@@ -156,11 +159,12 @@ namespace HEAL.NonlinearRegression {
           var s2Extra = deltaSSR / deltaDoF; // increase in SSR per parameter
           var fRatio = s2Extra / Math.Pow(stats0.s, 2);
 
-          var f = alglib.invfdistribution(deltaDoF, fullDoF, 0.05); // "accept the partial value if the calculated ratio is lower than the table value
+          // "accept the partial value if the calculated ratio is lower than the table value"
+          var f = alglib.invfdistribution(deltaDoF, fullDoF, 0.05);  // TODO make alpha CLI parameter
 
-          Console.WriteLine($"p{paramIdx,-5} {impact,-11:e2} {deltaDoF,-6} {fRatio,-11:e4} accept: {fRatio < f} {nlr.Statistics.AICc - fullAIC,-11:f1} {nlr.Statistics.BIC - fullBIC,-11:f1}");
-
-          impacts.Add(Tuple.Create(impact, (Expression)reducedExpression));
+          Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {impact,-11:e2} {deltaDoF,-6} {fRatio,-11:e4} accept: {fRatio < f,-6} {nlr.Statistics.AICc - fullAIC,-11:f1} {nlr.Statistics.BIC - fullBIC,-11:f1}");
+          
+          impacts.Add(Tuple.Create(paramIdx, impact, nlr.Statistics.AICc - fullAIC, reducedExpression, newP));
         }
         catch (Exception e) {
           Console.WriteLine($"Exception {e.Message} for {reducedExpression}");
@@ -168,7 +172,7 @@ namespace HEAL.NonlinearRegression {
         // yield return Tuple.Create(impact, (Expression)reducedExpression);
       }
 
-      return impacts;
+      return impacts; // TODO improve interface
     }
 
     private static bool IsParameter(Expression expr, ParameterExpression p) {

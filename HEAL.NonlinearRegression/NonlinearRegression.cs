@@ -216,7 +216,7 @@ namespace HEAL.NonlinearRegression {
       var p = ParamEst;
       var se = Statistics.paramStdError;
       Statistics.GetParameterIntervals(0.05, out var seLow, out var seHigh);
-      writer.WriteLine($"SSR {Statistics.SSR:e4} s {Statistics.s:e4}");
+      writer.WriteLine($"SSR: {Statistics.SSR:e4} s: {Statistics.s:e4} AICc: {Statistics.AICc:f1} BIC: {Statistics.BIC:f1}");
       writer.WriteLine($"{"Para"} {"Estimate",14}  {"Std. error",14} {"Lower",14} {"Upper",14} Correlation matrix");
       for (int i = 0; i < Statistics.n; i++) {
         var j = Enumerable.Range(0, i + 1);
