@@ -59,7 +59,7 @@ namespace HEAL.NonlinearRegression {
       var p_cond = (double[])paramEst.Clone();
 
       alglib.minlmcreatevj(m, p_cond, out var state);
-      alglib.minlmsetcond(state, 0.0, maxits: 30);
+      alglib.minlmsetcond(state, 0.0, maxits: 3000);
 
       var resFunc = Util.CreateResidualFunction(func, x, y);
       // adapted jacobian for fixed parameter
@@ -158,7 +158,7 @@ namespace HEAL.NonlinearRegression {
         var a = alglib.spline1dcalc(spline_tau2p[aIdx], tauA * tauScale); // map from tau to a (using t-profile of a)
         var b = alglib.spline1dcalc(spline_p2q[aIdx, bIdx], a); // map from a to b
         var tauB = alglib.spline1dcalc(spline_p2tau[bIdx], b); // map from b to tau (using t-profile of b)
-        return tauB / tauScale;
+        return Math.Max(-1, Math.Min(1, tauB / tauScale));
       }
       anglePairs[0] = (0, Math.Acos(MapTau(1, pIdx, qIdx)));
       anglePairs[1] = (Math.PI, Math.Acos(MapTau(-1, pIdx, qIdx)));
