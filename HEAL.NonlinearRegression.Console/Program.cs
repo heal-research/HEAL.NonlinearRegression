@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.Tracing;
+using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Net.WebSockets;
@@ -36,7 +38,7 @@ namespace HEAL.NonlinearRegression.Console {
 
     public static void Main(string[] args) {
       var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveRedundantParameterOptions, NestedModelsOptions,
-        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions>(args)
+        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, PairwiseOptions>(args)
         .WithParsed<PredictOptions>(options => Predict(options))
         .WithParsed<FitOptions>(options => Fit(options))
         .WithParsed<EvalOptions>(options => Evaluate(options))
@@ -45,8 +47,10 @@ namespace HEAL.NonlinearRegression.Console {
         .WithParsed<SubtreeImportanceOptions>(options => SubtreeImportance(options))
         .WithParsed<CrossValidationOptions>(options => CrossValidate(options))
         .WithParsed<VariableImpactOptions>(options => CalculateVariableImpacts(options))
-        ;
+        .WithParsed<PairwiseOptions>(options => PairwiseProfiles(options));
+      ;
     }
+
 
     #region verbs
     private static void Fit(FitOptions options) {
@@ -337,6 +341,57 @@ namespace HEAL.NonlinearRegression.Console {
       }
     }
 
+    private static void PairwiseProfiles(PairwiseOptions options) {
+      // TODO combine with subtree impacts
+      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
+
+      // default is full dataset
+      var trainStart = 0;
+      var trainEnd = y.Length - 1;
+      if (options.TrainingRange != null) {
+        var toks = options.TrainingRange.Split(":");
+        trainStart = int.Parse(toks[0]);
+        trainEnd = int.Parse(toks[1]);
+      }
+
+      Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
+
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      //System.Console.WriteLine(modelExpression);
+
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var parameters);
+      // System.Console.WriteLine(parametricExpr);
+
+      var nlr = new NonlinearRegression();
+      nlr.Fit(parameters, parametricExpr, trainX, trainY);
+
+      var _func = Expr.Broadcast(parametricExpr).Compile();
+      var _jac = Expr.Jacobian(parametricExpr, parameters.Length).Compile();
+      void func(double[] p, double[,] x, double[] f) => _func(p, x, f);
+      void jac(double[] p, double[,] x, double[] f, double[,] j) => _jac(p, x, f, j);
+
+      var folder = Path.GetDirectoryName(options.Dataset);
+      var filename = Path.GetFileNameWithoutExtension(options.Dataset);
+
+      var tProfile = new TProfile(trainY, trainX, nlr.Statistics, func, jac);
+      var numPairs = (parameters.Length * (parameters.Length - 1) / 2.0);
+      for (int i = 0; i < parameters.Length - 1; i++) {
+        for (int j = i + 1; j < parameters.Length; j++) {
+          System.Console.WriteLine($"{numPairs--}");
+          var outfilename = Path.Combine(folder, filename + $"_{i}_{j}.csv");
+          tProfile.ApproximateProfilePairContour(i, j, alpha: 0.05, out var taup95, out var tauq95, out var p95, out var q95);
+          tProfile.ApproximateProfilePairContour(i, j, alpha: 0.50, out var taup50, out var tauq50, out var p50, out var q50);
+          using (var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create))) {
+            writer.WriteLine("taup95,tauq95,p95,q95,taup50,tauq50,p50,q50");
+            for (int l = 0; l < taup95.Length; l++) {
+              writer.WriteLine($"{taup95[l]},{tauq95[l]},{p95[l]},{q95[l]},{taup50[l]},{tauq50[l]},{p50[l]},{q50[l]}");
+            }
+          }
+        }
+      }
+    }
+
+
 
     #endregion
 
@@ -478,6 +533,22 @@ namespace HEAL.NonlinearRegression.Console {
       [Option("seed", Required = false, HelpText = "Random seed for shuffling.")]
       public int? Seed { get; set; }
 
+    }
+
+    [Verb("pairwise", HelpText = "Produce data for pairwise profile plots")]
+    // TODO combine with subtree impacts (and potentially nested models)
+    public class PairwiseOptions {
+      [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
+      public string Dataset { get; set; }
+
+      [Option('t', "target", Required = true, HelpText = "Target variable name.")]
+      public string Target { get; set; }
+
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
+
+      [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for variable impact calculation.")]
+      public string TrainingRange { get; set; }
     }
     #endregion
 
