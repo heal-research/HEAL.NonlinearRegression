@@ -38,7 +38,7 @@ namespace HEAL.NonlinearRegression.Console {
 
     public static void Main(string[] args) {
       var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveRedundantParameterOptions, NestedModelsOptions,
-        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, PairwiseOptions>(args)
+        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, PairwiseProfileOptions, ProfileOptions>(args)
         .WithParsed<PredictOptions>(options => Predict(options))
         .WithParsed<FitOptions>(options => Fit(options))
         .WithParsed<EvalOptions>(options => Evaluate(options))
@@ -47,7 +47,9 @@ namespace HEAL.NonlinearRegression.Console {
         .WithParsed<SubtreeImportanceOptions>(options => SubtreeImportance(options))
         .WithParsed<CrossValidationOptions>(options => CrossValidate(options))
         .WithParsed<VariableImpactOptions>(options => CalculateVariableImpacts(options))
-        .WithParsed<PairwiseOptions>(options => PairwiseProfiles(options));
+        .WithParsed<PairwiseProfileOptions>(options => PairwiseProfiles(options))
+        .WithParsed<ProfileOptions>(options => Profiles(options))
+        ;
       ;
     }
 
@@ -341,7 +343,7 @@ namespace HEAL.NonlinearRegression.Console {
       }
     }
 
-    private static void PairwiseProfiles(PairwiseOptions options) {
+    private static void PairwiseProfiles(PairwiseProfileOptions options) {
       // TODO combine with subtree impacts
       ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
 
@@ -386,6 +388,52 @@ namespace HEAL.NonlinearRegression.Console {
             for (int l = 0; l < taup95.Length; l++) {
               writer.WriteLine($"{taup95[l]},{tauq95[l]},{p95[l]},{q95[l]},{taup50[l]},{tauq50[l]},{p50[l]},{q50[l]}");
             }
+          }
+        }
+      }
+    }
+
+    private static void Profiles(ProfileOptions options) {
+      // TODO combine with subtree impacts
+      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
+
+      // default is full dataset
+      var trainStart = 0;
+      var trainEnd = y.Length - 1;
+      if (options.TrainingRange != null) {
+        var toks = options.TrainingRange.Split(":");
+        trainStart = int.Parse(toks[0]);
+        trainEnd = int.Parse(toks[1]);
+      }
+
+      Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
+
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      //System.Console.WriteLine(modelExpression);
+
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var parameters);
+      // System.Console.WriteLine(parametricExpr);
+
+      var nlr = new NonlinearRegression();
+      nlr.Fit(parameters, parametricExpr, trainX, trainY);
+
+      var _func = Expr.Broadcast(parametricExpr).Compile();
+      var _jac = Expr.Jacobian(parametricExpr, parameters.Length).Compile();
+      void func(double[] p, double[,] x, double[] f) => _func(p, x, f);
+      void jac(double[] p, double[,] x, double[] f, double[,] j) => _jac(p, x, f, j);
+
+      var folder = Path.GetDirectoryName(options.Dataset);
+      var filename = Path.GetFileNameWithoutExtension(options.Dataset);
+
+      var tProfile = new TProfile(trainY, trainX, nlr.Statistics, func, jac);
+
+      for (int pIdx = 0; pIdx < parameters.Length; pIdx++) {
+        tProfile.GetProfile(pIdx, out var p, out var tau, out var p_stud);
+        var outfilename = Path.Combine(folder, filename + $"_profile_{pIdx}.csv");
+        using (var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create))) {
+          writer.WriteLine("tau,p,p_stud");
+          for(int i=0;i<p.Length;i++) {
+            writer.WriteLine($"{tau[i]},{p[i]},{p_stud[i]}");
           }
         }
       }
@@ -537,7 +585,7 @@ namespace HEAL.NonlinearRegression.Console {
 
     [Verb("pairwise", HelpText = "Produce data for pairwise profile plots")]
     // TODO combine with subtree impacts (and potentially nested models)
-    public class PairwiseOptions {
+    public class PairwiseProfileOptions {
       [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
       public string Dataset { get; set; }
 
@@ -547,7 +595,22 @@ namespace HEAL.NonlinearRegression.Console {
       [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
       public string Model { get; set; }
 
-      [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for variable impact calculation.")]
+      [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for profile calculation.")]
+      public string TrainingRange { get; set; }
+    }
+
+    [Verb("profile", HelpText = "Produce data for profile plots")]
+    public class ProfileOptions {
+      [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
+      public string Dataset { get; set; }
+
+      [Option('t', "target", Required = true, HelpText = "Target variable name.")]
+      public string Target { get; set; }
+
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
+
+      [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for profile calculation.")]
       public string TrainingRange { get; set; }
     }
     #endregion
@@ -704,6 +767,7 @@ namespace HEAL.NonlinearRegression.Console {
 
 
     private static string ReparameterizeModel(string model, string[] varNames) {
+      // TODO handle the case when the variable names are x or x[1] or similar
       for (int i = 0; i < varNames.Length; i++) {
         // We have to be careful to only replace variable names and keep function calls unchanged.
         // A variable must be followed by an operator (+,-,*,/), ' ', or ')' or end-of-string .

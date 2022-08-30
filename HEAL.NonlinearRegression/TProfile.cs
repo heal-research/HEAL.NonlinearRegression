@@ -5,6 +5,8 @@ using System.Linq;
 namespace HEAL.NonlinearRegression {
 
   public class TProfile {
+    private readonly double[] paramEst;
+    private readonly double[] paramStdError;
     private readonly int m;
     private readonly int n;
 
@@ -19,6 +21,8 @@ namespace HEAL.NonlinearRegression {
     public TProfile(double[] y, double[,] x, LeastSquaresStatistics statistics,
       Function func,
       Jacobian jacobian) {
+      this.paramEst = statistics.paramEst;
+      this.paramStdError = statistics.paramStdError;
       this.m = statistics.m;
       this.n = statistics.n;
 
@@ -36,6 +40,19 @@ namespace HEAL.NonlinearRegression {
       PrepareSplinesForProfileSketches();
     }
 
+    // p_stud is studentized parameter value
+    public void GetProfile(int paramIdx, out double[] p, out double[] tau, out double[] p_stud) {
+      var profile = t_profiles[paramIdx];
+      var n = profile.Item1.Length;
+      p = new double[n];
+      tau = new double[n];
+      p_stud = new double[n];
+      for(int i=0;i<n;i++) {
+        tau[i] = profile.Item1[i];
+        p[i] = profile.Item2[paramIdx][i];
+        p_stud[i] = (p[i] - paramEst[paramIdx]) / paramStdError[paramIdx];
+      }
+    }
 
     public static Tuple<double[], double[][]> CalcTProfile(double[] y, double[,] x, LeastSquaresStatistics statistics, Function func, Jacobian jac, int pIdx) {
       var paramEst = statistics.paramEst;
