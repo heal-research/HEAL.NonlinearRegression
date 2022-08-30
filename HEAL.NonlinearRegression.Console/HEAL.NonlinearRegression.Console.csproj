@@ -17,4 +17,10 @@
     <ProjectReference Include="..\HEAL.NonlinearRegression\HEAL.NonlinearRegression.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Puromycin.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
