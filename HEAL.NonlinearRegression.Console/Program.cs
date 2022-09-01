@@ -37,6 +37,7 @@ namespace HEAL.NonlinearRegression.Console {
   public class Program {
 
     public static void Main(string[] args) {
+      System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
       var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveRedundantParameterOptions, NestedModelsOptions,
         SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, PairwiseProfileOptions, ProfileOptions, RankDeterminationOptions>(args)
         .WithParsed<PredictOptions>(options => Predict(options))
@@ -471,22 +472,23 @@ namespace HEAL.NonlinearRegression.Console {
       var _jac = Expr.Jacobian(parametricExpr, parameters.Length).Compile();
 
       var m = trainY.Length;
+      var n = parameters.Length;
       var f = new double[m];
-      var jac = new double[m, parameters.Length];
+      var jac = new double[m, n];
       _jac(parameters, trainX, f, jac); // get Jacobian
-      alglib.rmatrixsvd(jac, m, parameters.Length, 0, 0, 0, out var w, out var u, out var vt);
+      alglib.rmatrixsvd(jac, m, n, 0, 0, 0, out var w, out var u, out var vt);
 
       var eps = 2.2204460492503131E-16; // the difference between 1.0 and the next larger double value
       // var eps = 1.192092896e-7f; for floats
-      var tol = m * eps;
+      var tol = n * eps;
       var rank = 0;
-      for (int i = 0; i < m; i++) {
+      for (int i = 0; i < n; i++) {
         if (w[i] > tol * w[0]) rank++;
       }
       // full condition number largest singular value over smallest singular value
-      var k = w[0] / w[m - 1];
+      var k = w[0] / w[n - 1];
       var k_subset = w[0] / w[rank - 1]; // condition number without the redundant parameters
-      System.Console.WriteLine($"Num param: {parameters.Length} rank: {rank} log10_K(J): {Math.Log10(k)} log10_K(J_rank): {Math.Log10(k_subset)}");
+      System.Console.WriteLine($"Num param: {n} rank: {rank} log10_K(J): {Math.Log10(k)} log10_K(J_rank): {Math.Log10(k_subset)}");
     }
     #endregion
 
