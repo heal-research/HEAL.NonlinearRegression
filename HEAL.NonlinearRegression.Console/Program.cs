@@ -129,16 +129,18 @@ namespace HEAL.NonlinearRegression.Console {
       var predict = nlr.PredictWithIntervals(x, options.Interval, includeNoise: true); // TODO includeNoise as CLI option
 
       // generate output for full dataset
-      System.Console.WriteLine($"{string.Join(",", varNames)},y,residual,yPred,resStdErrorLinear,yPredLow,yPredHigh,isTrain,isTest"); // header
+      System.Console.WriteLine($"{string.Join(",", varNames)},y,residual,yPred,yPredLow,yPredHigh,isTrain,isTest"); // header
       for (int i = 0; i < x.GetLength(0); i++) {
         for (int j = 0; j < x.GetLength(1); j++) {
           System.Console.Write($"{x[i, j]},");
         }
         System.Console.Write($"{y[i]},");
         System.Console.Write($"{y[i] - predict[i, 0]},");
-        System.Console.Write($"{predict[i, 0]},{predict[i, 1]},");
-        if (predict.GetLength(1) > 2)
-          System.Console.Write($"{predict[i, 2]},{predict[i, 3]},"); // TODO loop
+        System.Console.Write($"{predict[i, 0]},");
+        if (options.Interval == IntervalEnum.LinearApproximation)
+          System.Console.Write($"{predict[i, 2]},{predict[i, 3]},"); 
+        else if (options.Interval == IntervalEnum.TProfile)
+          System.Console.Write($"{predict[i, 1]},{predict[i, 2]},"); 
         System.Console.Write($"{((i >= trainStart && i <= trainEnd) ? 1 : 0)},"); // isTrain
         System.Console.Write($"{((i >= testStart && i <= testEnd) ? 1 : 0)}"); // isTest
         System.Console.WriteLine();
@@ -381,10 +383,10 @@ namespace HEAL.NonlinearRegression.Console {
         for (int j = i + 1; j < parameters.Length; j++) {
           System.Console.WriteLine($"{numPairs--}");
           var outfilename = Path.Combine(folder, filename + $"_{i}_{j}.csv");
-          tProfile.ApproximateProfilePairContour(i, j, alpha: 0.05, out var taup95, out var tauq95, out var p95, out var q95);
+          tProfile.ApproximateProfilePairContour(i, j, alpha: 0.20, out var taup95, out var tauq95, out var p95, out var q95);
           tProfile.ApproximateProfilePairContour(i, j, alpha: 0.50, out var taup50, out var tauq50, out var p50, out var q50);
           using (var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create))) {
-            writer.WriteLine("taup95,tauq95,p95,q95,taup50,tauq50,p50,q50");
+            writer.WriteLine("taup80,tauq80,p80,q80,taup50,tauq50,p50,q50");
             for (int l = 0; l < taup95.Length; l++) {
               writer.WriteLine($"{taup95[l]},{tauq95[l]},{p95[l]},{q95[l]},{taup50[l]},{tauq50[l]},{p50[l]},{q50[l]}");
             }
