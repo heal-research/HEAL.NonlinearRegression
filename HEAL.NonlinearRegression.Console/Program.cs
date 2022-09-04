@@ -37,8 +37,9 @@ namespace HEAL.NonlinearRegression.Console {
   public class Program {
 
     public static void Main(string[] args) {
+      System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
       var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveRedundantParameterOptions, NestedModelsOptions,
-        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, PairwiseProfileOptions, ProfileOptions>(args)
+        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, PairwiseProfileOptions, ProfileOptions, RankDeterminationOptions>(args)
         .WithParsed<PredictOptions>(options => Predict(options))
         .WithParsed<FitOptions>(options => Fit(options))
         .WithParsed<EvalOptions>(options => Evaluate(options))
@@ -49,9 +50,11 @@ namespace HEAL.NonlinearRegression.Console {
         .WithParsed<VariableImpactOptions>(options => CalculateVariableImpacts(options))
         .WithParsed<PairwiseProfileOptions>(options => PairwiseProfiles(options))
         .WithParsed<ProfileOptions>(options => Profiles(options))
+        .WithParsed<RankDeterminationOptions>(options => CalculateRank(options))
         ;
       ;
     }
+
 
 
     #region verbs
@@ -443,6 +446,52 @@ namespace HEAL.NonlinearRegression.Console {
 
 
 
+    private static void CalculateRank(RankDeterminationOptions options) {
+      // TODO combine with subtree impacts
+      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
+
+      // default is full dataset
+      var trainStart = 0;
+      var trainEnd = y.Length - 1;
+      if (options.TrainingRange != null) {
+        var toks = options.TrainingRange.Split(":");
+        trainStart = int.Parse(toks[0]);
+        trainEnd = int.Parse(toks[1]);
+      }
+
+      Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
+
+      var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
+      //System.Console.WriteLine(modelExpression);
+
+      var parametricExpr = GenerateExpression(modelExpression, constants, out var parameters);
+      // System.Console.WriteLine(parametricExpr);
+
+      var nlr = new NonlinearRegression();
+      nlr.Fit(parameters, parametricExpr, trainX, trainY);
+
+      var _func = Expr.Broadcast(parametricExpr).Compile();
+      var _jac = Expr.Jacobian(parametricExpr, parameters.Length).Compile();
+
+      var m = trainY.Length;
+      var n = parameters.Length;
+      var f = new double[m];
+      var jac = new double[m, n];
+      _jac(parameters, trainX, f, jac); // get Jacobian
+      alglib.rmatrixsvd(jac, m, n, 0, 0, 0, out var w, out var u, out var vt);
+
+      var eps = 2.2204460492503131E-16; // the difference between 1.0 and the next larger double value
+      // var eps = 1.192092896e-7f; for floats
+      var tol = n * eps;
+      var rank = 0;
+      for (int i = 0; i < n; i++) {
+        if (w[i] > tol * w[0]) rank++;
+      }
+      // full condition number largest singular value over smallest singular value
+      var k = w[0] / w[n - 1];
+      var k_subset = w[0] / w[rank - 1]; // condition number without the redundant parameters
+      System.Console.WriteLine($"Num param: {n} rank: {rank} log10_K(J): {Math.Log10(k)} log10_K(J_rank): {Math.Log10(k_subset)}");
+    }
     #endregion
 
     #region  options
@@ -603,6 +652,21 @@ namespace HEAL.NonlinearRegression.Console {
 
     [Verb("profile", HelpText = "Produce data for profile plots")]
     public class ProfileOptions {
+      [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
+      public string Dataset { get; set; }
+
+      [Option('t', "target", Required = true, HelpText = "Target variable name.")]
+      public string Target { get; set; }
+
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
+
+      [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for profile calculation.")]
+      public string TrainingRange { get; set; }
+    }
+
+    [Verb("rank", HelpText = "Determine numeric rank of Jacobian matrix")]
+    public class RankDeterminationOptions {
       [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
       public string Dataset { get; set; }
 
