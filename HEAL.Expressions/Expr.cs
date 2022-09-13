@@ -295,8 +295,8 @@ namespace HEAL.Expressions {
     }
 
     public static string ToGraphViz(Expression<ParametricFunction> expr,
-      double[] pValues = null, string[] varNames = null, Dictionary<Expression, double> saturation = null) {
-      return GraphvizVisitor.Execute(expr, pValues, varNames, saturation);
+      double[] paramValues = null, string[] varNames = null, Dictionary<Expression, double> saturation = null) {
+      return GraphvizVisitor.Execute(expr, paramValues, varNames, saturation);
     }
 
     public static string ToString(Expression<ParametricFunction> expr, string[] varNames, double[] p) {
