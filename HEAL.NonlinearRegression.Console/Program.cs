@@ -132,7 +132,11 @@ namespace HEAL.NonlinearRegression.Console {
       var predict = nlr.PredictWithIntervals(x, options.Interval, includeNoise: true); // TODO includeNoise as CLI option
 
       // generate output for full dataset
-      System.Console.WriteLine($"{string.Join(",", varNames)},y,residual,yPred,yPredLow,yPredHigh,isTrain,isTest"); // header
+      if (options.Interval == IntervalEnum.None) {
+        System.Console.WriteLine($"{string.Join(",", varNames)},y,residual,yPred,isTrain,isTest"); // header without interval
+      } else {
+        System.Console.WriteLine($"{string.Join(",", varNames)},y,residual,yPred,yPredLow,yPredHigh,isTrain,isTest"); // header
+      }
       for (int i = 0; i < x.GetLength(0); i++) {
         for (int j = 0; j < x.GetLength(1); j++) {
           System.Console.Write($"{x[i, j]},");
