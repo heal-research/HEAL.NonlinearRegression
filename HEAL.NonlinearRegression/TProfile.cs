@@ -252,10 +252,16 @@ namespace HEAL.NonlinearRegression {
           theta[k] = profile.Item2[offsetIdx][k]; // profile of extra parameter
         }
         alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
-        var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);  // TODO: check https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
+        var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
+        var f = alglib.invfdistribution(n, m - n, alpha);
         var s = nls.Statistics.s;
-        low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
-        high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
+        if (m == 1) {
+          low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
+          high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
+        } else {
+          low[i] = alglib.spline1dcalc(tau2theta, -f) - (includeNoise ? t * s : 0.0);
+          high[i] = alglib.spline1dcalc(tau2theta, f) + (includeNoise ? t * s : 0.0);
+        }
       }
     }
 
