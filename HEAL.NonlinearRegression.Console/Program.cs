@@ -39,7 +39,8 @@ namespace HEAL.NonlinearRegression.Console {
     public static void Main(string[] args) {
       System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
       var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveRedundantParameterOptions, NestedModelsOptions,
-        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, PairwiseProfileOptions, ProfileOptions, RankDeterminationOptions>(args)
+        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, PairwiseProfileOptions, ProfileOptions,
+        RankDeterminationOptions>(args)
         .WithParsed<PredictOptions>(options => Predict(options))
         .WithParsed<FitOptions>(options => Fit(options))
         .WithParsed<EvalOptions>(options => Evaluate(options))
@@ -145,9 +146,9 @@ namespace HEAL.NonlinearRegression.Console {
         System.Console.Write($"{y[i] - predict[i, 0]},");
         System.Console.Write($"{predict[i, 0]},");
         if (options.Interval == IntervalEnum.LinearApproximation)
-          System.Console.Write($"{predict[i, 2]},{predict[i, 3]},"); 
+          System.Console.Write($"{predict[i, 2]},{predict[i, 3]},");
         else if (options.Interval == IntervalEnum.TProfile)
-          System.Console.Write($"{predict[i, 1]},{predict[i, 2]},"); 
+          System.Console.Write($"{predict[i, 1]},{predict[i, 2]},");
         System.Console.Write($"{((i >= trainStart && i <= trainEnd) ? 1 : 0)},"); // isTrain
         System.Console.Write($"{((i >= testStart && i <= testEnd) ? 1 : 0)}"); // isTest
         System.Console.WriteLine();
@@ -292,21 +293,29 @@ namespace HEAL.NonlinearRegression.Console {
 
       var subExprImportance = ModelAnalysis.SubtreeImportance(parametricExpr, trainX, trainY, p);
 
-      // var sat = new Dictionary<Expression, double>();
-      // sat[parametricExpr] = 0.0; // reference value for the importance
-
+      Dictionary<Expression, double> saturation = null;
+      if (options.GraphvizFilename != null) {
+        saturation = new Dictionary<Expression, double>();
+        saturation[parametricExpr] = 0.0; // reference value for the importance
+      }
 
       System.Console.WriteLine($"{"SSR_factor",-11} {"deltaAIC",-11} {"deltaBIC",-11} {"Subtree"}");
       foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item2)) { // TODO better interface
         System.Console.WriteLine($"{tup.Item2,-11:e4} {tup.Item3,-11:f1} {tup.Item4,-11:f1} {tup.Item1}");
-        // sat[tup.Item2] = Math.Max(0, Math.Log(tup.Item1)); // use log scale for coloring
+        if (saturation != null) {
+          saturation[tup.Item1] = Math.Max(0, Math.Log(tup.Item2)); // use log scale for coloring
+        }
       }
 
 
-      // TODO provide option for graphviz output
-      // using (var writer = new System.IO.StreamWriter($"{problem.GetType().Name}.gv")) {
-      //   writer.WriteLine(Expr.ToGraphViz(expr, saturation: sat));
-      // }
+      if (options.GraphvizFilename != null) {
+        using (var writer = new System.IO.StreamWriter(options.GraphvizFilename)) {
+            writer.WriteLine(Expr.ToGraphViz(parametricExpr, 
+              paramValues: options.HideParameters?null:p, 
+              varNames: options.HideVariables?null:varNames,
+              saturation));
+        }
+      }
     }
 
 
@@ -441,7 +450,7 @@ namespace HEAL.NonlinearRegression.Console {
         var outfilename = Path.Combine(folder, filename + $"_profile_{pIdx}.csv");
         using (var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create))) {
           writer.WriteLine("tau,p,p_stud");
-          for(int i=0;i<p.Length;i++) {
+          for (int i = 0; i < p.Length; i++) {
             writer.WriteLine($"{tau[i]},{p[i]},{p_stud[i]}");
           }
         }
@@ -588,6 +597,14 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("train", Required = false, HelpText = "The training range <firstRow>:<lastRow> in the dataset (inclusive).")]
       public string TrainingRange { get; set; }
+
+      [Option("graphviz", Required = false, HelpText = "File name for graphviz output.")]
+      public string? GraphvizFilename { get; set; }
+
+      [Option("hideParam", Required = false, Default = false, HelpText = "Switch to hide parameter values in the graphviz output.")]
+      public bool HideParameters { get; set; }
+      [Option("hideVar", Required = false, Default = false, HelpText = "Switch to hide the variable names in the graphviz output.")]
+      public bool HideVariables { get; set; }
     }
 
     [Verb("crossvalidate", HelpText = "Cross-validation")]
@@ -683,6 +700,7 @@ namespace HEAL.NonlinearRegression.Console {
       [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for profile calculation.")]
       public string TrainingRange { get; set; }
     }
+
     #endregion
 
 

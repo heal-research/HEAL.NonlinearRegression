@@ -10,7 +10,7 @@ namespace HEAL.Expressions {
     private readonly ParameterExpression pParam;
     private readonly ParameterExpression xParam;
     private readonly string[] varNames;
-    private readonly double[] pValues;
+    private readonly double[] paramValues;
     private readonly Dictionary<Expression,double> saturation;
     private readonly double minSat;
     private readonly double maxSat;
@@ -22,7 +22,7 @@ namespace HEAL.Expressions {
       this.sb = stringBuilder;
       this.pParam = pParam;
       this.xParam = xParam;
-      this.pValues = pValues;
+      this.paramValues = pValues;
       this.varNames = varNames;
       this.saturation = saturation;
       if (saturation != null) {
@@ -31,10 +31,10 @@ namespace HEAL.Expressions {
       }
     }
 
-    public static string Execute(Expression<Expr.ParametricFunction> expression, double[] pValues = null, string[] varNames = null, Dictionary<Expression, double> saturation = null) {
+    public static string Execute(Expression<Expr.ParametricFunction> expression, double[] paramValues = null, string[] varNames = null, Dictionary<Expression, double> saturation = null) {
       var sb = new StringBuilder();
       sb.AppendLine("strict graph {");
-      var v = new GraphvizVisitor(sb, expression.Parameters[0],  pValues, 
+      var v = new GraphvizVisitor(sb, expression.Parameters[0],  paramValues, 
         expression.Parameters[1], varNames, saturation);
       v.Visit(expression.Body);
       sb.AppendLine("}");
@@ -75,7 +75,7 @@ namespace HEAL.Expressions {
           var param = binExpr.Left;
           var idx = (int)((ConstantExpression)binExpr.Right).Value;
           if (param == pParam) {
-            if (pValues != null) return pValues[idx].ToString("e5");
+            if (paramValues != null) return paramValues[idx].ToString("e5");
             else return $"p_{idx}";
           } else if (param == xParam) {
             if (varNames != null) return varNames[idx];
