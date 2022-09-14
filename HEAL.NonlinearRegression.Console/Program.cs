@@ -194,7 +194,7 @@ namespace HEAL.NonlinearRegression.Console {
         var foldStart = trainStart + f * foldSize;
         var foldEnd = trainStart + (f + 1) * foldSize - 1;
         if (f == options.Folds - 1) {
-          foldEnd = y.Length - 1; // include remaining part in last fold
+          foldEnd = trainEnd - 1; // include remaining part in last fold
         }
 
         DeletePartition(trainX, trainY, foldStart, foldEnd, out var foldTrainX, out var foldTrainY);
