@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using HEAL.Expressions;
 using NUnit.Framework;
@@ -85,7 +86,7 @@ namespace HEAL.Expressions.Tests {
       }
       {
         var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
-        var expr = Expr.FoldParameters((p, x) => (p[0] / (x[0]*p[1] + p[2])), paramValues, out var newParamValues);
+        var expr = Expr.FoldParameters((p, x) => (p[0] / (x[0] * p[1] + p[2])), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => ((1 / ((x[0] * p[0]) + p[1])) * p[2])", expr.ToString()); // TODO: -> 1/(x0 p0 + 1) * p1
         Assert.AreEqual(2.0, newParamValues[0]);
         Assert.AreEqual(3.0, newParamValues[1]);
@@ -99,7 +100,7 @@ namespace HEAL.Expressions.Tests {
       }
       {
         var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
-        var expr = Expr.FoldParameters((p, x) => p[2] * (p[0]*x[0] + p[1]*x[1]), paramValues, out var newParamValues);
+        var expr = Expr.FoldParameters((p, x) => p[2] * (p[0] * x[0] + p[1] * x[1]), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => (((x[0] * p[0]) + (x[1] * p[1])) * p[2])", expr.ToString());  // TODO scaling for linear
         Assert.AreEqual(1.0, newParamValues[0]);
         Assert.AreEqual(2.0, newParamValues[1]);
@@ -107,7 +108,7 @@ namespace HEAL.Expressions.Tests {
       }
       {
         var paramValues = new[] { 1.0, 2.0, 3.0, 4.0 };
-        var expr = Expr.FoldParameters((p, x) => 1.0 / (p[0]*x[0] + p[1]*x[1]) * p[2], paramValues, out var newParamValues);
+        var expr = Expr.FoldParameters((p, x) => 1.0 / (p[0] * x[0] + p[1] * x[1]) * p[2], paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => ((1 / ((x[0] * p[0]) + (x[1] * p[1]))) * p[2])", expr.ToString()); // TODO fold
         Assert.AreEqual(1, newParamValues[0]);
         Assert.AreEqual(2, newParamValues[1]);
@@ -120,18 +121,18 @@ namespace HEAL.Expressions.Tests {
       var theta = new double[] { 1.0, 2.0, 3.0 };
       Expression<Expr.ParametricFunction> f = (p, x) => (p[0] * x[0] + Math.Log(x[1] * p[1]) + x[1] * x[2]);
       {
-        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 0, replVal: 3.14, out var newTheta);
+        var expr = Expr.ReplaceVariableWithParameter(f, theta, varIdx: 0, replVal: 3.14, out var newTheta);
         Assert.AreEqual("(p, x) => (((p[0] * p[1]) + Log((x[1] * p[2]))) + (x[1] * x[2]))", expr.ToString());
         Assert.AreEqual(3.14, newTheta[1]);
       }
       {
-        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 1, replVal: 3.14, out var newTheta);
+        var expr = Expr.ReplaceVariableWithParameter(f, theta, varIdx: 1, replVal: 3.14, out var newTheta);
         Assert.AreEqual("(p, x) => (((p[0] * x[0]) + Log((p[1] * p[2]))) + (p[3] * x[2]))", expr.ToString());
         Assert.AreEqual(3.14, newTheta[1]);
         Assert.AreEqual(3.14, newTheta[3]);
       }
       {
-        var expr = Expr.ReplaceVariableWithParameter(f,  theta, varIdx: 2, replVal: 3.14, out var newTheta);
+        var expr = Expr.ReplaceVariableWithParameter(f, theta, varIdx: 2, replVal: 3.14, out var newTheta);
         Assert.AreEqual("(p, x) => (((p[0] * x[0]) + Log((x[1] * p[1]))) + (x[1] * p[2]))", expr.ToString());
         Assert.AreEqual(3.14, newTheta[2]);
       }
@@ -140,10 +141,10 @@ namespace HEAL.Expressions.Tests {
 
     [Test]
     public void Graphviz() {
-      Expression<Expr.ParametricFunction> expr = (p, x) => 2.0 * x[0] + x[0] * p[0] + x[1] + Math.Log(x[1]*p[1] + 1.0) + 1/(x[1] * p[2]);
+      Expression<Expr.ParametricFunction> expr = (p, x) => 2.0 * x[0] + x[0] * p[0] + x[1] + Math.Log(x[1] * p[1] + 1.0) + 1 / (x[1] * p[2]);
       Console.WriteLine(Expr.ToGraphViz(expr));
-      Console.WriteLine(Expr.ToGraphViz(expr, new double[] {0.0, 1.0, 2.0}));
-      Console.WriteLine(Expr.ToGraphViz(expr, varNames: new []{"a","b"}));
+      Console.WriteLine(Expr.ToGraphViz(expr, new double[] { 0.0, 1.0, 2.0 }));
+      Console.WriteLine(Expr.ToGraphViz(expr, varNames: new[] { "a", "b" }));
 
       var sat = new Dictionary<Expression, double>();
       var rand = new Random(1234);
@@ -155,16 +156,121 @@ namespace HEAL.Expressions.Tests {
       Console.WriteLine(Expr.ToGraphViz(expr, saturation: sat));
     }
 
+    [Test]
+    public void CollectTerms() {
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => p[0] + p[1] + x[0] + x[1] + 3.0;
+        var terms = CollectTermsVisitor.CollectTerms(expr);
+        Assert.AreEqual(5, terms.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => 3.0 + Math.Log(p[0]) + p[0] * x[0];
+        var terms = CollectTermsVisitor.CollectTerms(expr);
+        Assert.AreEqual(3, terms.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => 3.0 + (p[0] + x[0]);
+        var terms = CollectTermsVisitor.CollectTerms(expr);
+        Assert.AreEqual(3, terms.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => (3.0 + p[0]) * x[0];
+        var terms = CollectTermsVisitor.CollectTerms(expr);
+        Assert.AreEqual(1, terms.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => -(3.0 + p[0]) + -(3.0);
+        var terms = CollectTermsVisitor.CollectTerms(expr);
+        Assert.AreEqual(3, terms.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => Math.Log(3.0 + p[0]) + 3.0;
+        var terms = CollectTermsVisitor.CollectTerms(expr);
+        Assert.AreEqual(2, terms.Count());
+      }
+
+    }
+
+    [Test]
+    public void CollectFactors() {
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => p[0] + p[1];
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(1, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => p[0] * p[1] * x[0] * x[1] * 3.0;
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(5, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => 3.0 * Math.Log(p[0]) * (p[0] + x[0]);
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(3, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => 3.0 * (p[0] * x[0]);
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(3, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => (3.0 * p[0]) + x[0];
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(1, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => -(3.0 + p[0]) * -(3.0);
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(2, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => -(3.0 * p[0]) * -(3.0);
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(3, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => Math.Log(3.0 * p[0]) * 3.0;
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(2, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => x[0] / x[1];
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(2, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => x[0] / (x[1] * x[2]);
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(3, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => x[0] / (x[1] / x[2]);
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(3, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => x[0] / (x[1] / x[2] * x[3]);
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(4, factors.Count());
+      }
+      {
+        Expression<Expr.ParametricFunction> expr = (p, x) => (x[0] / x[1]) / (x[1] * x[2] * x[3]);
+        var factors = CollectFactorsVisitor.CollectFactors(expr);
+        Assert.AreEqual(5, factors.Count());
+      }
+
+    }
+
     private void CompileAndRun(Expression<Expr.ParametricFunction> expr) {
       int N = 10;
-      var X = new double[N,3];
+      var X = new double[N, 3];
       var f = new double[N];
       var t = new double[5] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       Expr.Broadcast(expr).Compile()(t, X, f);
     }
     private void CompileAndRun(Expression<Expr.ParametricGradientFunction> expr) {
       int N = 10;
-      var X = new double[N,3];
+      var X = new double[N, 3];
       var f = new double[N];
       var t = new double[5] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       var J = new double[N, 5];
