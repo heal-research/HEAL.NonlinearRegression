@@ -6,7 +6,7 @@ namespace HEAL.Expressions {
   // folds constants and handles x + 0, x * 0, x * 1, x/1 , 0/x...
   // TODO would be interesting to extend this to other numeric types and using zero / identity instead of (0.0 and 1.0)
 
-  public class SimplifyVisitor : ExpressionVisitor {
+  public class FoldConstantsVisitor : ExpressionVisitor {
     protected override Expression VisitBinary(BinaryExpression node) {
       var left = Visit(node.Left);
       var right = Visit(node.Right);

@@ -38,13 +38,13 @@ namespace HEAL.NonlinearRegression.Console {
 
     public static void Main(string[] args) {
       System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
-      var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, RemoveRedundantParameterOptions, NestedModelsOptions,
+      var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, SimplifyOptions, NestedModelsOptions,
         SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, PairwiseProfileOptions, ProfileOptions,
         RankDeterminationOptions>(args)
         .WithParsed<PredictOptions>(options => Predict(options))
         .WithParsed<FitOptions>(options => Fit(options))
         .WithParsed<EvalOptions>(options => Evaluate(options))
-        .WithParsed<RemoveRedundantParameterOptions>(options => RemoveRedundantParameters(options))
+        .WithParsed<SimplifyOptions>(options => Simplify(options))
         .WithParsed<NestedModelsOptions>(options => AnalyseNestedModels(options))
         .WithParsed<SubtreeImportanceOptions>(options => SubtreeImportance(options))
         .WithParsed<CrossValidationOptions>(options => CrossValidate(options))
@@ -66,7 +66,6 @@ namespace HEAL.NonlinearRegression.Console {
       // System.Console.WriteLine(modelExpression);
 
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
-      // System.Console.WriteLine(parametricExpr);
 
       var nls = new NonlinearRegression();
       nls.Fit(p, parametricExpr, trainX, trainY, maxIterations: 200);
@@ -185,7 +184,6 @@ namespace HEAL.NonlinearRegression.Console {
       //System.Console.WriteLine(modelExpression);
 
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
-      // System.Console.WriteLine(parametricExpr);
 
 
       var foldSize = (int)Math.Truncate((trainEnd - trainStart + 1) / (double)options.Folds);
@@ -217,7 +215,7 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
 
-    private static void RemoveRedundantParameters(RemoveRedundantParameterOptions options) {
+    private static void Simplify(SimplifyOptions options) {
       var varNames = options.Variables.Split(',').Select(vn => vn.Trim()).ToArray();
 
       var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
@@ -225,8 +223,8 @@ namespace HEAL.NonlinearRegression.Console {
 
       var simplifiedExpr = Expr.FoldParameters(parametricExpr, p, out var newP);
 
-      // System.Console.WriteLine(simplifiedExpr);
-      // System.Console.WriteLine($"theta: {string.Join(",", newP.Select(pi => pi.ToString()))}");
+      System.Console.WriteLine(simplifiedExpr);
+      System.Console.WriteLine($"theta: {string.Join(",", newP.Select(pi => pi.ToString()))}");
 
 
       System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
@@ -560,7 +558,7 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
     [Verb("simplify", HelpText = "Remove redundant parameters.")]
-    public class RemoveRedundantParameterOptions {
+    public class SimplifyOptions {
       [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
       public string Model { get; set; }
 

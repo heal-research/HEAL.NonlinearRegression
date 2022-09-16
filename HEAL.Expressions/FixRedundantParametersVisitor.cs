@@ -1,22 +1,26 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
+using static HEAL.Expressions.Expr;
 
 namespace HEAL.Expressions {
   /// <summary>
   /// Checks for linearly dependent parameters and converts redundant parameters to constants
   /// </summary>
+  /// 
+  // TODO: a visitor that lifts parameters or constants out of non-linear expressions as far as possible.
   public class FixRedundantParametersVisitor : ExpressionVisitor {
-    private readonly ParameterExpression x;
     private readonly ParameterExpression theta;
     private readonly double[] thetaValues;
 
-    private FixRedundantParametersVisitor(ParameterExpression theta, ParameterExpression x, double[] thetaValues) {
+    private FixRedundantParametersVisitor(ParameterExpression theta, double[] thetaValues) {
       this.theta = theta;
       this.thetaValues = thetaValues;
-      this.x = x;
+    }
+
+    public static Expression<ParametricFunction> FixRedundantParameters(Expression<ParametricFunction> expr, ParameterExpression theta, double[] thetaValues) {
+      var v = new FixRedundantParametersVisitor(theta, thetaValues);
+      return (Expression<ParametricFunction>)v.Visit(expr);
     }
 
     protected override Expression VisitBinary(BinaryExpression node) {
@@ -43,7 +47,7 @@ namespace HEAL.Expressions {
             right = ParameterValue(right);
         }
       } else if (node.NodeType == ExpressionType.Multiply || node.NodeType == ExpressionType.Divide) {
-        if (IsParameter(left) || IsParameter(right)) {
+        if (IsParameter(left) && IsParameter(right)) {
           right = ParameterValue(right); // two parameters -> fix one 
         } else if (IsParameter(left)) {
           var terms = CollectTermsVisitor.CollectTerms(right);

@@ -186,7 +186,7 @@ namespace HEAL.Expressions {
     public static Expression<ParametricFunction> Derive(Expression<ParametricFunction> expr, int dxIdx) {
       if (!CheckExprVisitor.CheckValid(expr)) throw new NotSupportedException(expr.ToString());
       var deriveVisitor = new DeriveVisitor(expr.Parameters.First(), dxIdx);
-      return Simplify((Expression<ParametricFunction>)deriveVisitor.Visit(expr));
+      return FoldConstants((Expression<ParametricFunction>)deriveVisitor.Visit(expr));
     }
 
     // returns function that also returns the gradient 
@@ -233,9 +233,8 @@ namespace HEAL.Expressions {
     /// </summary>
     /// <param name="expr">The expression to simplify</param>
     /// <returns>A new expression with folded double constants.</returns>
-    public static Expression<ParametricFunction> Simplify(Expression<ParametricFunction> expr) {
-      var theta = expr.Parameters[0];
-      var simplifyVisitor = new SimplifyVisitor();
+    public static Expression<ParametricFunction> FoldConstants(Expression<ParametricFunction> expr) {
+      var simplifyVisitor = new FoldConstantsVisitor();
       return (Expression<ParametricFunction>)simplifyVisitor.Visit(expr);
     }
 
@@ -250,7 +249,7 @@ namespace HEAL.Expressions {
     /// <returns></returns>
     public static Expression<ParametricFunction> SimplifyAndRemoveParameters(Expression<ParametricFunction> expr, double[] thetaValues, out double[] newThetaValues) {
       var theta = expr.Parameters[0];
-      var simplifyVisitor = new SimplifyVisitor();
+      var simplifyVisitor = new FoldConstantsVisitor();
       var simplifiedExpr = (Expression<ParametricFunction>)simplifyVisitor.Visit(expr);
       var collectParamVisitor = new CollectParametersVisitor(theta, thetaValues);
       simplifiedExpr = (Expression<ParametricFunction>)collectParamVisitor.Visit(simplifiedExpr);
@@ -261,25 +260,27 @@ namespace HEAL.Expressions {
     public static Expression<ParametricFunction> FoldParameters(Expression<ParametricFunction> expr,
       double[] parameterValues, out double[] newParameterValues) {
       var theta = expr.Parameters[0];
-      var x = expr.Parameters[1];
       var rotateVisitor = new RotateBinaryExpressionsVisitor();
-      expr = (Expression<ParametricFunction>)rotateVisitor.Visit(expr);
+      expr = (global::System.Linq.Expressions.Expression<global::HEAL.Expressions.Expr.ParametricFunction>)rotateVisitor.Visit((global::System.Linq.Expressions.Expression)expr);
       // Console.WriteLine($"Rotated: {expr}");
-      expr = ArrangeParametersRightVisitor.Execute(expr, theta, parameterValues);
+      expr = ArrangeParametersRightVisitor.Execute(expr, (ParameterExpression)theta, parameterValues);
       // Console.WriteLine($"Rearranged: {expr}");
 
+
       var visitor = new FoldParametersVisitor(theta, parameterValues);
-      var newExpr = (Expression<ParametricFunction>)visitor.Visit(expr);
+      expr = (Expression<ParametricFunction>)visitor.Visit(expr);
       // Console.WriteLine($"Folded: {newExpr}");
 
       newParameterValues = visitor.GetNewParameterValues;
       //Console.WriteLine($"Folded parameters: {newExpr}");
 
+      // expr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, parameterValues);
+
       var collectVisitor = new CollectParametersVisitor(theta, newParameterValues);
-      newExpr = (Expression<ParametricFunction>)collectVisitor.Visit(newExpr);
+      expr = (Expression<ParametricFunction>)collectVisitor.Visit(expr);
       newParameterValues = collectVisitor.GetNewParameterValues;
       //Console.WriteLine($"Removed unused parameters: {newExpr}");
-      return (Expression<ParametricFunction>)newExpr;
+      return expr;
     }
 
     public static Expression<ParametricFunction> ReplaceVariableWithParameter(Expression<ParametricFunction> expr,
