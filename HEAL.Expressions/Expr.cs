@@ -263,9 +263,10 @@ namespace HEAL.Expressions {
       var rotateVisitor = new RotateBinaryExpressionsVisitor();
       expr = (global::System.Linq.Expressions.Expression<global::HEAL.Expressions.Expr.ParametricFunction>)rotateVisitor.Visit((global::System.Linq.Expressions.Expression)expr);
       // Console.WriteLine($"Rotated: {expr}");
-      expr = ArrangeParametersRightVisitor.Execute(expr, (ParameterExpression)theta, parameterValues);
+      expr = ArrangeParametersRightVisitor.Execute(expr, theta, parameterValues);
       // Console.WriteLine($"Rearranged: {expr}");
 
+      expr = LiftParametersVisitor.LiftParameters(expr, theta, parameterValues, out parameterValues);
 
       var visitor = new FoldParametersVisitor(theta, parameterValues);
       expr = (Expression<ParametricFunction>)visitor.Visit(expr);

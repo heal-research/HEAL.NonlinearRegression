@@ -149,6 +149,124 @@ namespace HEAL.Expressions.Tests {
       }
     }
 
+    [Test]
+    public void LiftParameters() {
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Log(p[0] * x[0] + p[1] * x[1]);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => (Log(((p[0] * x[0]) + (1 * x[1]))) + p[1])", expr.ToString());
+        Assert.AreEqual(2.0 / 3.0, newTheta[0]);
+        Assert.AreEqual(Math.Log(3.0), newTheta[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Log(p[0] * x[0] + p[1]);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => (Log(((p[0] * x[0]) + 1)) + p[1])", expr.ToString());
+        Assert.AreEqual(2.0 / 3.0, newTheta[0]);
+        Assert.AreEqual(Math.Log(3.0), newTheta[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Log(p[0] * x[0] - p[1]);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => (Log(((p[0] * x[0]) - 1)) + p[1])", expr.ToString());
+        Assert.AreEqual(2.0 / 3.0, newTheta[0]);
+        Assert.AreEqual(Math.Log(3.0), newTheta[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Log(p[0] * x[0] + p[1] + 3);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => Log((((p[0] * x[0]) + p[1]) + 3))", expr.ToString()); // no change
+        Assert.AreEqual(2.0, newTheta[0]);
+        Assert.AreEqual(3.0, newTheta[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Sqrt(p[0] * x[0] + p[1] * x[1]);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => (Sqrt(((p[0] * x[0]) + (1 * x[1]))) * p[1])", expr.ToString());
+        Assert.AreEqual(2.0 / 3.0, newTheta[0]);
+        Assert.AreEqual(Math.Sqrt(3.0), newTheta[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Cbrt(p[0] * x[0] + p[1] * x[1]);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => (Cbrt(((p[0] * x[0]) + (1 * x[1]))) * p[1])", expr.ToString());
+        Assert.AreEqual(2.0 / 3.0, newTheta[0]);
+        Assert.AreEqual(Math.Cbrt(3.0), newTheta[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Pow(p[0] * x[0] + p[1] * x[1], 2);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => (Pow(((p[0] * x[0]) + (1 * x[1])), 2) * p[1])", expr.ToString());
+        Assert.AreEqual(2.0 / 3.0, newTheta[0]);
+        Assert.AreEqual(9.0, newTheta[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Pow(p[0] * x[0] + p[1] * x[1], 3);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => (Pow(((p[0] * x[0]) + (1 * x[1])), 3) * p[1])", expr.ToString());
+        Assert.AreEqual(2.0 / 3.0, newTheta[0]);
+        Assert.AreEqual(27.0, newTheta[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Exp(p[0] * x[0] + p[1]);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => (Exp(((p[0] * x[0]) + 0)) * p[1])", expr.ToString());
+        Assert.AreEqual(2.0, newTheta[0]);
+        Assert.AreEqual(Math.Exp(3.0), newTheta[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => p[0] / (p[1] * x[0] + p[2]);
+        var theta = new double[] { 2.0, 3.0, 4.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => ((p[0] / ((p[1] * x[0]) + 1)) * p[2])", expr.ToString());
+        Assert.AreEqual(2.0, newTheta[0]);
+        Assert.AreEqual(3.0 / 4.0, newTheta[1]);
+        Assert.AreEqual(1.0 / 4.0, newTheta[2]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => p[0] / (p[1] * x[0] + p[2] * x[1]);
+        var theta = new double[] { 2.0, 3.0, 4.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => ((p[0] / ((p[1] * x[0]) + (1 * x[1]))) * p[2])", expr.ToString());
+        Assert.AreEqual(2.0, newTheta[0]);
+        Assert.AreEqual(3.0 / 4.0, newTheta[1]);
+        Assert.AreEqual(1.0 / 4.0, newTheta[2]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Sin(p[0] * x[0] + p[1]);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => Sin(((p[0] * x[0]) + p[1]))", expr.ToString());      // no change
+        Assert.AreEqual(2.0, newTheta[0]);
+        Assert.AreEqual(3.0, newTheta[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Cos(p[0] * x[0] + p[1]);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => Cos(((p[0] * x[0]) + p[1]))", expr.ToString());      // no change
+        Assert.AreEqual(2.0, newTheta[0]);
+        Assert.AreEqual(3.0, newTheta[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => Math.Tanh(p[0] * x[0] + p[1]);
+        var theta = new double[] { 2.0, 3.0 };
+        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        Assert.AreEqual("(p, x) => Tanh(((p[0] * x[0]) + p[1]))", expr.ToString());      // no change
+        Assert.AreEqual(2.0, newTheta[0]);
+        Assert.AreEqual(3.0, newTheta[1]);
+      }
+    }
+
 
     [Test]
     public void Graphviz() {
