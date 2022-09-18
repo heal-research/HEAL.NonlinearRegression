@@ -26,7 +26,7 @@ namespace HEAL.Expressions {
     // - Parameters must be used only once in the expression. This is not strictly necessary, but the code assumes
     //   this for now.
     // - Only static methods of double parameters returning double (and one of a small list of supported methods, Log, Exp, Sin, Cos, ...)
-    
+
 
     /// <summary>
     /// Broadcasts an expression to work on an array. 
@@ -260,12 +260,16 @@ namespace HEAL.Expressions {
     public static Expression<ParametricFunction> FoldParameters(Expression<ParametricFunction> expr,
       double[] parameterValues, out double[] newParameterValues) {
       var theta = expr.Parameters[0];
+
+      expr = (Expression<ParametricFunction>)ConvertSubToAddVisitor.Convert(ConvertDivToMulVisitor.Convert(expr));
       var rotateVisitor = new RotateBinaryExpressionsVisitor();
-      expr = (global::System.Linq.Expressions.Expression<global::HEAL.Expressions.Expr.ParametricFunction>)rotateVisitor.Visit((global::System.Linq.Expressions.Expression)expr);
+      expr = (Expression<ParametricFunction>)rotateVisitor.Visit(expr);
       // Console.WriteLine($"Rotated: {expr}");
       expr = ArrangeParametersRightVisitor.Execute(expr, theta, parameterValues);
       // Console.WriteLine($"Rearranged: {expr}");
 
+      expr = LiftLinearParametersVisitor.LiftParameters(expr, theta, parameterValues, out parameterValues);
+      expr = LowerNegationVisitor.LowerNegation(expr, theta, parameterValues, out parameterValues);
       expr = LiftParametersVisitor.LiftParameters(expr, theta, parameterValues, out parameterValues);
 
       var visitor = new FoldParametersVisitor(theta, parameterValues);
@@ -275,7 +279,7 @@ namespace HEAL.Expressions {
       newParameterValues = visitor.GetNewParameterValues;
       //Console.WriteLine($"Folded parameters: {newExpr}");
 
-      // expr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, parameterValues);
+      expr = FoldConstants(expr);
 
       var collectVisitor = new CollectParametersVisitor(theta, newParameterValues);
       expr = (Expression<ParametricFunction>)collectVisitor.Visit(expr);

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 
 namespace HEAL.Expressions {
@@ -12,18 +14,36 @@ namespace HEAL.Expressions {
     }
 
     protected override Expression VisitBinary(BinaryExpression node) {
-      if(node.NodeType == ExpressionType.Add || node.NodeType == ExpressionType.Subtract) {
+      if (node.NodeType == ExpressionType.Add) {
         Visit(node.Left);
         Visit(node.Right);
         return node;
+      } else if (node.NodeType == ExpressionType.Subtract) {
+        Visit(node.Left);
+        Terms.AddRange(CollectTerms(node.Right).Select(Negate));
+        return node;
       } else {
         Terms.Add(node);
-        return node;  
+        return node;
       }
     }
 
+    private Expression Negate(Expression arg) {
+      if (arg is ConstantExpression constExpr) {
+        return Expression.Constant(-(double)constExpr.Value);
+      } else if (arg is UnaryExpression unaryExpr && unaryExpr.NodeType == ExpressionType.Negate) {
+        return unaryExpr.Operand;
+      } else return Expression.Negate(arg); // handling of parameters useful here?
+    }
+
     protected override Expression VisitUnary(UnaryExpression node) {
-      return Visit(node.Operand);
+      if (node.NodeType == ExpressionType.Negate) {
+        var terms = CollectTerms(node.Operand);
+        Terms.AddRange(terms.Select(t => Negate(t)));
+        return node;
+      } else if (node.NodeType == ExpressionType.UnaryPlus) {
+        return base.Visit(node);
+      } else throw new NotSupportedException();
     }
 
     protected override Expression VisitConstant(ConstantExpression node) {

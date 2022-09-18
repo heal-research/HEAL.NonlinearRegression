@@ -220,8 +220,16 @@ namespace HEAL.NonlinearRegression.Console {
 
       var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
-
       var simplifiedExpr = Expr.FoldParameters(parametricExpr, p, out var newP);
+      var newSimplifiedStr = simplifiedExpr.ToString();
+      string oldSimplifiedStr;
+      // simplify until no change (TODO: this shouldn't be necessary if foldParameters is implemented correctly)
+      do {
+        oldSimplifiedStr = newSimplifiedStr;
+        simplifiedExpr = Expr.FoldParameters(simplifiedExpr, newP, out newP);
+        newSimplifiedStr = simplifiedExpr.ToString();
+      } while (newSimplifiedStr != oldSimplifiedStr);
+
 
       System.Console.WriteLine(simplifiedExpr);
       System.Console.WriteLine($"theta: {string.Join(",", newP.Select(pi => pi.ToString()))}");
@@ -479,7 +487,7 @@ namespace HEAL.NonlinearRegression.Console {
       // System.Console.WriteLine(parametricExpr);
 
       var nlr = new NonlinearRegression();
-      nlr.Fit(parameters, parametricExpr, trainX, trainY);
+      nlr.Fit(parameters, parametricExpr, trainX, trainY, maxIterations: 3000);
 
       var _func = Expr.Broadcast(parametricExpr).Compile();
       var _jac = Expr.Jacobian(parametricExpr, parameters.Length).Compile();

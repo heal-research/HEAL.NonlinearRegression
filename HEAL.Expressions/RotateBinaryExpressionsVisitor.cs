@@ -55,9 +55,5 @@ namespace HEAL.Expressions {
         return node.Update(left, null, right);
       }
     }
-
-    protected override Expression VisitUnary(UnaryExpression node) {
-      return base.VisitUnary(node);
-    }
   }
 }

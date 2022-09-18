@@ -20,7 +20,7 @@ namespace HEAL.Expressions {
     }
 
     public static Expression<ParametricFunction> LiftParameters(Expression<ParametricFunction> expr, ParameterExpression theta, double[] thetaValues, out double[] newThetaValues) {
-      var v = new LiftParametersVisitor(theta, thetaValues);      
+      var v = new LiftParametersVisitor(theta, thetaValues);
       var newExpr = (Expression<ParametricFunction>)v.Visit(expr);
       var updatedThetaValues = v.thetaValues.ToArray();
 
@@ -45,21 +45,51 @@ namespace HEAL.Expressions {
     protected override Expression VisitBinary(BinaryExpression node) {
       var left = Visit(node.Left);
       var right = Visit(node.Right);
-      // lift parameter out of division if possible
-      if(node.NodeType == ExpressionType.Divide) {
-        var terms = CollectTermsVisitor.CollectTerms(right);
-        if(terms.All(HasScalingParameter)) {
+      if (node.NodeType == ExpressionType.Divide) {
+        var numeratorTerms = CollectTermsVisitor.CollectTerms(left);
+        var numeratorFactor = 1.0;
+        if (numeratorTerms.All(HasScalingParameter)) {
+          var paramExpr = FindScalingParameter(numeratorTerms.Last());
+          numeratorFactor = ParameterValue(paramExpr);
+          foreach (var t in numeratorTerms) {
+            thetaValues[ParameterIndex(FindScalingParameter(t))] /= numeratorFactor;
+          }
+        }
+        var denomFactor = 1.0;
+        var denomTerms = CollectTermsVisitor.CollectTerms(right);
+        if (denomTerms.All(HasScalingParameter)) {
+          var paramExpr = FindScalingParameter(denomTerms.Last());
+          denomFactor = ParameterValue(paramExpr);
+          foreach (var t in denomTerms) {
+            thetaValues[ParameterIndex(FindScalingParameter(t))] /= denomFactor;
+          }
+        }
+        if (numeratorFactor != 1.0 || denomFactor != 1.0) {
+          return Expression.Multiply(node.Update(left, null, right), CreateParameter(numeratorFactor / denomFactor));
+        } else {
+          return node.Update(left, null, right);
+        }
+      }
+      return node.Update(left, null, right);
+    }
+
+    protected override Expression VisitUnary(UnaryExpression node) {
+      // lift parameters out of negation if possible
+      var opd = Visit(node.Operand);
+      if (node.NodeType == ExpressionType.UnaryPlus) {
+        return node.Update(opd);
+      } else if (node.NodeType == ExpressionType.Negate) {
+        var terms = CollectTermsVisitor.CollectTerms(opd); // addition or subtraction
+        if (terms.All(HasScalingParameter)) {
           var paramExpr = FindScalingParameter(terms.Last());
           var p0 = ParameterValue(paramExpr);
           foreach (var t in terms) {
             thetaValues[ParameterIndex(FindScalingParameter(t))] /= p0;
           }
-
-          return Expression.Multiply(node.Update(left, null, right), CreateParameter(1.0 / p0));
-
+          return Expression.Multiply(opd, CreateParameter(-p0));
         }
       }
-      return node.Update(left, null, right);
+      return node.Update(opd);
     }
 
     protected override Expression VisitMethodCall(MethodCallExpression node) {
