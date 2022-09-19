@@ -49,7 +49,7 @@ namespace HEAL.Expressions {
         var numeratorTerms = CollectTermsVisitor.CollectTerms(left);
         var numeratorFactor = 1.0;
         if (numeratorTerms.All(HasScalingParameter)) {
-          var paramExpr = FindScalingParameter(numeratorTerms.Last());
+          var paramExpr = FindScalingParameter(numeratorTerms.First());
           numeratorFactor = ParameterValue(paramExpr);
           foreach (var t in numeratorTerms) {
             thetaValues[ParameterIndex(FindScalingParameter(t))] /= numeratorFactor;
@@ -58,7 +58,7 @@ namespace HEAL.Expressions {
         var denomFactor = 1.0;
         var denomTerms = CollectTermsVisitor.CollectTerms(right);
         if (denomTerms.All(HasScalingParameter)) {
-          var paramExpr = FindScalingParameter(denomTerms.Last());
+          var paramExpr = FindScalingParameter(denomTerms.First());
           denomFactor = ParameterValue(paramExpr);
           foreach (var t in denomTerms) {
             thetaValues[ParameterIndex(FindScalingParameter(t))] /= denomFactor;

@@ -89,8 +89,8 @@ namespace HEAL.Expressions.Tests {
         var paramValues = new[] { 2.0, 2.0, 3.0, 4.0 };
         var expr = Expr.FoldParameters((p, x) => (p[0] / (x[0] * p[1] + p[2])), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => ((1 / ((x[0] * p[0]) + 1)) * p[1])", expr.ToString());
-        Assert.AreEqual(2.0/3.0, newParamValues[0]);
-        Assert.AreEqual(2.0/3.0, newParamValues[1]);
+        Assert.AreEqual(2.0 / 3.0, newParamValues[0]);
+        Assert.AreEqual(2.0 / 3.0, newParamValues[1]);
       }
       {
         var paramValues = new[] { 2.0, 2.0, 3.0, 4.0 };
@@ -109,8 +109,8 @@ namespace HEAL.Expressions.Tests {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
         var expr = Expr.FoldParameters((p, x) => 1.0 / (p[0] * x[0] + p[1] * x[1]) * p[2], paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => ((1 / ((x[0] * p[0]) + x[1])) * p[1])", expr.ToString());
-        Assert.AreEqual(2.0/3.0, newParamValues[0]);
-        Assert.AreEqual(4.0/3.0, newParamValues[1]);
+        Assert.AreEqual(2.0 / 3.0, newParamValues[0]);
+        Assert.AreEqual(4.0 / 3.0, newParamValues[1]);
       }
       {
         var paramValues = new[] { 2.0 };
@@ -232,7 +232,7 @@ namespace HEAL.Expressions.Tests {
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Sqrt(Math.Sqrt(p[0] * x[0]) + Math.Sqrt(p[1] * x[1]));
-        var theta = new double[] { 2.0, 3.0};
+        var theta = new double[] { 2.0, 3.0 };
         var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Sqrt(((Sqrt((1 * x[0])) * p[0]) + (Sqrt((1 * x[1])) * 1))) * p[1])", expr.ToString());
         Assert.AreEqual(Math.Sqrt(2.0) / Math.Sqrt(3.0), newTheta[0]);
@@ -283,7 +283,7 @@ namespace HEAL.Expressions.Tests {
         var theta = new double[] { 2.0, 3.0, 4.0 };
         var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
         Assert.AreEqual("(p, x) => ((1 / ((p[0] * x[0]) + (1 * x[1]))) * p[1])", expr.ToString());
-        Assert.AreEqual(3.0/4.0, newTheta[0]);
+        Assert.AreEqual(3.0 / 4.0, newTheta[0]);
         Assert.AreEqual(2.0 / 4.0, newTheta[1]);
       }
       {
@@ -312,12 +312,12 @@ namespace HEAL.Expressions.Tests {
       }
       {
         // lift out of negation
-        Expression<Expr.ParametricFunction> f = (p, x) => p[0] * x[0] + -(p[1] * x[1] + p[2]) ;
+        Expression<Expr.ParametricFunction> f = (p, x) => p[0] * x[0] + -(p[1] * x[1] + p[2]);
         var theta = new double[] { 2.0, 3.0, 4.0 };
         var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
         Assert.AreEqual("(p, x) => ((p[0] * x[0]) + (((p[1] * x[1]) + 1) * p[2]))", expr.ToString());
         Assert.AreEqual(2.0, newTheta[0]);
-        Assert.AreEqual(3.0/4.0, newTheta[1]);
+        Assert.AreEqual(3.0 / 4.0, newTheta[1]);
         Assert.AreEqual(-4.0, newTheta[2]);
       }
       {
@@ -388,6 +388,19 @@ namespace HEAL.Expressions.Tests {
         Assert.AreEqual("(p, x) => ((x[0] * p[0]) + p[1])", simplifiedExpr.ToString());
         Assert.AreEqual(-12.0, newP[0]);
         Assert.AreEqual(-13.0, newP[1]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => 1.0 / x[0] * x[1] * p[0];
+        var theta = new double[] { 2.0, 3.0, 4.0, 5.0 };
+        var simplifiedExpr = Expr.FoldParameters(f, theta, out var newP);
+        Assert.AreEqual("(p, x) => ((x[1] / x[0]) * p[0])", simplifiedExpr.ToString()); // TODO
+        Assert.AreEqual(2.0, newP[0]);
+      }
+      {
+        Expression<Expr.ParametricFunction> f = (p, x) => 1 / (x[0] * p[0] + x[1] * p[1] + p[2]) * (x[2] * p[3] + p[4]) * p[5];
+        var theta = new double[] { 2.0, 3.0, 4.0, 5.0, 6.0, 7.0 };
+        var simplifiedExpr = Expr.FoldParameters(f, theta, out var newP);
+        Assert.AreEqual("(p, x) => (p, x) => (x[2] + p[0]) / (x[0] + x[1] * p[1] + p[2])", simplifiedExpr.ToString()); // TODO
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] + p[1] * Math.Sqrt(p[2] * x[0] + Math.Sqrt(Math.Sqrt(Math.Sqrt(p[3] * x[1] * p[4] * x[1]) * p[5] * x[2] * p[6] * x[1] + p[7] * x[3] * p[8] * x[1])));
