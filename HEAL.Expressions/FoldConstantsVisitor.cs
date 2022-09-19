@@ -29,8 +29,10 @@ namespace HEAL.Expressions {
             if (leftConst != null && rightConst != null) return Expression.Constant((double)leftConst.Value * (double)rightConst.Value);
             else if (leftConst != null && leftConst.Value.Equals(0.0)) return Expression.Constant(0.0);
             else if (leftConst != null && leftConst.Value.Equals(1.0)) return right;
+            else if (leftConst != null && leftConst.Value.Equals(-1.0)) return Expression.Negate(right);
             else if (rightConst != null && rightConst.Value.Equals(0.0)) return Expression.Constant(0.0);
             else if (rightConst != null && rightConst.Value.Equals(1.0)) return left;
+            else if (rightConst != null && rightConst.Value.Equals(-1.0)) return Expression.Negate(left);
             else return node.Update(left, null, right);
           }
         case ExpressionType.Divide: {
@@ -38,6 +40,7 @@ namespace HEAL.Expressions {
             else if (leftConst != null && leftConst.Value.Equals(0.0)) return Expression.Constant(0.0);
             else if (rightConst != null && rightConst.Value.Equals(0.0)) return Expression.Constant(double.NaN);
             else if (rightConst != null && rightConst.Value.Equals(1.0)) return left;
+            else if (rightConst != null && rightConst.Value.Equals(-1.0)) return Expression.Negate(left);
             else return node.Update(left, null, right);
           }
           // extend by time as necessary.

@@ -5,10 +5,6 @@ using System.Linq.Expressions;
 
 namespace HEAL.Expressions {
 
-  // we assume parameters occur only as right arguments
-  // we can also assume that we only add or multiply parameters
-  // the ArrangeParameterRightVisitor should be called first
-  // TODO always call the arrangeRightVisitor first
   public class FoldParametersVisitor : ExpressionVisitor {
     private readonly ParameterExpression thetaParam;
     private readonly double[] thetaValues;
@@ -27,51 +23,6 @@ namespace HEAL.Expressions {
       var rightIsParam = IsParam(node.Right, out var paramExpr, out var paramIdx);
       var leftBinary = left as BinaryExpression;
       if (rightIsParam && leftBinary != null) {
-        //   left           node  right
-        // (... (o) ... )  (+/*)    p
-
-        /*
-        if (IsParam(leftBinary.Right, out var innerParamExpr, out var innerParamIdx)) {
-          // (... (o) innerP )  (+/*)    p
-          switch (node.NodeType) {
-            case ExpressionType.Add: {
-                if (leftBinary.NodeType == ExpressionType.Add) {
-                  // merge 
-                  thetaValues[innerParamIdx] += thetaValues[paramIdx];
-                  return left;
-                } else if (leftBinary.NodeType == ExpressionType.Subtract) {
-                  throw new NotSupportedException("should be handled in ArrangeParametersRightVisitor");
-                } else {
-                  // unchanged
-                  return node.Update(left, null, right);
-                }
-              }
-            case ExpressionType.Multiply: {
-                // (... (o) innerP )  *   p
-                if (leftBinary.NodeType == ExpressionType.Multiply) {
-                  // merge 
-                  thetaValues[innerParamIdx] *= thetaValues[paramIdx];
-                  return left;
-                } else if (leftBinary.NodeType == ExpressionType.Divide) {
-                  throw new NotSupportedException("should be handled in ArrangeParametersRightVisitor");
-                } else {
-                  var terms = CollectTermsVisitor.CollectTerms(node.Left);
-                  if (terms.All(HasScalingParameter)) {
-                    // multiply p (right) into the scaling parameters of all terms and return only left
-                    foreach (var t in terms) {
-                      var scalingParamIndex = FindScalingParameterIndex(t);
-                      thetaValues[scalingParamIndex] *= thetaValues[paramIdx];
-                    }
-                    return leftBinary;
-                  } else {
-                    return node.Update(left, null, right);
-                  }
-                }
-              }
-            default: throw new NotSupportedException($"{node}");
-          }
-        }
-        */
         // no inner parameter
         switch (node.NodeType) {
           case ExpressionType.Add: {
@@ -87,14 +38,16 @@ namespace HEAL.Expressions {
               return node.Update(left, null, right);
             }
           case ExpressionType.Multiply: {
-              var terms = CollectTermsVisitor.CollectTerms(leftBinary);
-              if (terms.All(HasScalingParameter)) {
+              // first extract additive parameters
+              var terms = CollectTermsVisitor.CollectTerms(leftBinary).ToArray();
+              if (terms.All(HasScalingParameter)) { // TODO problematic with constants
                 foreach (var t in terms) {
                   var leftParamIdx = FindScalingParameterIndex(t);
                   thetaValues[leftParamIdx] *= thetaValues[paramIdx];
                 }
                 return left;
               }
+
               // not all terms have a scaling parameter
               return node.Update(left, null, right);
             }
@@ -117,8 +70,10 @@ namespace HEAL.Expressions {
         var opd = Visit(node.Operand);
         if (IsParam(opd, out var _, out var paramIdx)) {
           thetaValues[paramIdx] *= -1;
+          return opd;
+        } else {
+          return node.Update(opd);
         }
-        return opd;
       } else
         return base.Visit(node);
     }
@@ -153,6 +108,15 @@ namespace HEAL.Expressions {
         arrayIdxExpr = null;
       }
       return false;
+    }
+
+    private double ParameterValue(Expression expr) {
+      return thetaValues[ParameterIndex(expr)];
+    }
+    private int ParameterIndex(Expression expr) {
+      if (!IsParam(expr, out _, out _)) throw new InvalidProgramException("internal error");
+      var binExpr = (BinaryExpression)expr;
+      return (int)((ConstantExpression)binExpr.Right).Value;
     }
 
     private bool HasScalingParameter(Expression expr) {
