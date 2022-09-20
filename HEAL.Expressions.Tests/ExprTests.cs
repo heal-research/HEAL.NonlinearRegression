@@ -86,11 +86,11 @@ namespace HEAL.Expressions.Tests {
         Assert.AreEqual(4.0, newParamValues[0]);
       }
       {
-        var paramValues = new[] { 2.0, 2.0, 3.0, 4.0 };
+        var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
         var expr = Expr.FoldParameters((p, x) => (p[0] / (x[0] * p[1] + p[2])), paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => ((1 / ((x[0] * p[0]) + 1)) * p[1])", expr.ToString());
+        Assert.AreEqual("(p, x) => (p[0] / (x[0] + p[1]))", expr.ToString());
         Assert.AreEqual(2.0 / 3.0, newParamValues[0]);
-        Assert.AreEqual(2.0 / 3.0, newParamValues[1]);
+        Assert.AreEqual(4.0 / 3.0, newParamValues[1]);
       }
       {
         var paramValues = new[] { 2.0, 2.0, 3.0, 4.0 };
@@ -99,18 +99,18 @@ namespace HEAL.Expressions.Tests {
         Assert.AreEqual(Math.Log(2), newParamValues[0]);
       }
       {
-        var paramValues = new[] { 2.0, 2.0, 3.0, 4.0 };
+        var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
         var expr = Expr.FoldParameters((p, x) => p[2] * (p[0] * x[0] + p[1] * x[1]), paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => ((x[0] * p[0]) + (x[1] * p[1]))", expr.ToString());
-        Assert.AreEqual(6.0, newParamValues[0]);
-        Assert.AreEqual(6.0, newParamValues[1]);
+        Assert.AreEqual("(p, x) => ((x[0] + (x[1] * p[0])) * p[1])", expr.ToString());
+        Assert.AreEqual(3.0 / 2.0, newParamValues[0]);
+        Assert.AreEqual(8.0, newParamValues[1]);
       }
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
         var expr = Expr.FoldParameters((p, x) => 1.0 / (p[0] * x[0] + p[1] * x[1]) * p[2], paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => ((1 / ((x[0] * p[0]) + x[1])) * p[1])", expr.ToString());
-        Assert.AreEqual(2.0 / 3.0, newParamValues[0]);
-        Assert.AreEqual(4.0 / 3.0, newParamValues[1]);
+        Assert.AreEqual("(p, x) => (p[0] / (x[0] + (x[1] * p[1])))", expr.ToString());
+        Assert.AreEqual(4.0 / 2.0, newParamValues[0]);
+        Assert.AreEqual(3.0 / 2.0, newParamValues[1]);
       }
       {
         var paramValues = new[] { 2.0 };
@@ -127,20 +127,18 @@ namespace HEAL.Expressions.Tests {
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
         var expr = Expr.FoldParameters((p, x) => (p[0] * x[0] + p[1] * x[1]) / (p[2] * x[0] + x[1]) * p[3], paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => ((((x[0] * p[0]) + (x[1] * p[1])) * (1 / ((x[0] * p[2]) + x[1]))) * p[3])", expr.ToString());
-        Assert.AreEqual(2.0, newParamValues[0]);
-        Assert.AreEqual(3.0, newParamValues[1]);
+        Assert.AreEqual("(p, x) => (((x[0] + (x[1] * p[0])) * p[1]) / ((x[0] * p[2]) + x[1]))", expr.ToString());
+        Assert.AreEqual(3.0 / 2.0, newParamValues[0]);
+        Assert.AreEqual(5.0 * 2.0, newParamValues[1]);
         Assert.AreEqual(4.0, newParamValues[2]);
-        Assert.AreEqual(5.0, newParamValues[3]);
       }
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
         var expr = Expr.FoldParameters((p, x) => (p[0] * x[0] + p[1] * x[1]) / (p[2] * x[0] + p[3] * x[1]), paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => (((1 / ((x[0] * p[0]) + x[1])) * p[1]) * ((x[0] * p[2]) + (x[1] * p[3])))", expr.ToString());
-        Assert.AreEqual(4.0 / 5.0, newParamValues[0]);
-        Assert.AreEqual(1.0 / 5.0, newParamValues[1]);
-        Assert.AreEqual(2.0, newParamValues[2]);
-        Assert.AreEqual(3.0, newParamValues[3]);
+        Assert.AreEqual("(p, x) => (((x[0] + (x[1] * p[0])) / (x[0] + (x[1] * p[1]))) * p[2])", expr.ToString());
+        Assert.AreEqual(3.0/2.0, newParamValues[0]);
+        Assert.AreEqual(5.0/4.0, newParamValues[1]);
+        Assert.AreEqual(2.0/4.0, newParamValues[2]);
       }
     }
 
@@ -274,17 +272,17 @@ namespace HEAL.Expressions.Tests {
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] / (p[1] * x[0] + p[2]);
         var theta = new double[] { 2.0, 3.0, 4.0 };
         var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
-        Assert.AreEqual("(p, x) => ((1 / ((p[0] * x[0]) + 1)) * p[1])", expr.ToString());
-        Assert.AreEqual(3.0 / 4.0, newTheta[0]);
-        Assert.AreEqual(2.0 / 4.0, newTheta[1]);
+        Assert.AreEqual("(p, x) => ((1 / ((1 * x[0]) + p[0])) * p[1])", expr.ToString());
+        Assert.AreEqual(4.0 / 3.0, newTheta[0]);
+        Assert.AreEqual(2.0 / 3.0, newTheta[1]);
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] / (p[1] * x[0] + p[2] * x[1]);
         var theta = new double[] { 2.0, 3.0, 4.0 };
         var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
-        Assert.AreEqual("(p, x) => ((1 / ((p[0] * x[0]) + (1 * x[1]))) * p[1])", expr.ToString());
-        Assert.AreEqual(3.0 / 4.0, newTheta[0]);
-        Assert.AreEqual(2.0 / 4.0, newTheta[1]);
+        Assert.AreEqual("(p, x) => ((1 / ((1 * x[0]) + (p[0] * x[1]))) * p[1])", expr.ToString());
+        Assert.AreEqual(4.0 / 3.0, newTheta[0]);
+        Assert.AreEqual(2.0 / 3.0, newTheta[1]);
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Sin(p[0] * x[0] + p[1]);
@@ -400,7 +398,7 @@ namespace HEAL.Expressions.Tests {
         Expression<Expr.ParametricFunction> f = (p, x) => 1 / (x[0] * p[0] + x[1] * p[1] + p[2]) * (x[2] * p[3] + p[4]) * p[5];
         var theta = new double[] { 2.0, 3.0, 4.0, 5.0, 6.0, 7.0 };
         var simplifiedExpr = Expr.FoldParameters(f, theta, out var newP);
-        Assert.AreEqual("(p, x) => (p, x) => (x[2] + p[0]) / (x[0] + x[1] * p[1] + p[2])", simplifiedExpr.ToString()); // TODO
+        Assert.AreEqual("((p[0] / ((x[0] + (x[1] * p[1])) + p[2])) * (x[2] + p[3]))", simplifiedExpr.ToString()); // TODO
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] + p[1] * Math.Sqrt(p[2] * x[0] + Math.Sqrt(Math.Sqrt(Math.Sqrt(p[3] * x[1] * p[4] * x[1]) * p[5] * x[2] * p[6] * x[1] + p[7] * x[3] * p[8] * x[1])));

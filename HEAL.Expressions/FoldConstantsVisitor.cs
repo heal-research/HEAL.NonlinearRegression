@@ -33,7 +33,15 @@ namespace HEAL.Expressions {
             else if (rightConst != null && rightConst.Value.Equals(0.0)) return Expression.Constant(0.0);
             else if (rightConst != null && rightConst.Value.Equals(1.0)) return left;
             else if (rightConst != null && rightConst.Value.Equals(-1.0)) return Expression.Negate(left);
-            else return node.Update(left, null, right);
+            else if (left is BinaryExpression leftDivExpr && leftDivExpr.NodeType == ExpressionType.Divide) {
+              // 1/lr * right --> right / lr
+              if (leftDivExpr.Left is ConstantExpression leftConstExpr && (double)leftConstExpr.Value == 1.0) return leftDivExpr.Update(right, null, leftDivExpr.Right);
+              else return node.Update(left, null, right);
+            } else if (right is BinaryExpression rightDivExpr && rightDivExpr.NodeType == ExpressionType.Divide) {
+              // left * 1/rr -> left / rr
+              if (rightDivExpr.Left is ConstantExpression rightConstExpr && (double)rightConstExpr.Value == 1.0) return rightDivExpr.Update(left, null, rightDivExpr.Right);
+              else return node.Update(left, null, right);
+            } else return node.Update(left, null, right);
           }
         case ExpressionType.Divide: {
             if (leftConst != null && rightConst != null) return Expression.Constant((double)leftConst.Value / (double)rightConst.Value);

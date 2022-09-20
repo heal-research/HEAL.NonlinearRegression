@@ -81,10 +81,65 @@ namespace HEAL.Expressions {
         } else if (node.NodeType == ExpressionType.Divide) {
           throw new NotSupportedException("should be handled by ConvertDivToMulVisitor");
         }
+      } else {
+        // right is no parameter -> try to extract scale and intercept parameter
+        if (node.NodeType == ExpressionType.Add) {
+          var terms = CollectTermsVisitor.CollectTerms(left).Concat(CollectTermsVisitor.CollectTerms(right)).ToArray();
+          ExtractScaleAndIntercept(terms, out var scale, out var intercept);
+          var newNode = node.Update(left, null, right);
+          if (scale != 1.0) {
+            newNode = Expression.Multiply(newNode, CreateParameter(scale));
+          }
+          if (intercept != 0.0) {
+            newNode = Expression.Add(newNode, CreateParameter(scale * intercept));
+          }
+          return newNode;
+        } else if (node.NodeType == ExpressionType.Subtract) throw new NotSupportedException("should by handled by ConvertSubToAddVisitor");
+        else if (node.NodeType == ExpressionType.Multiply) {
+          var leftTerms = CollectTermsVisitor.CollectTerms(left);
+          var rightTerms = CollectTermsVisitor.CollectTerms(right);
+          ExtractScale(leftTerms, out var leftScale);
+          ExtractScale(rightTerms, out var rightScale);
+          var scale = leftScale * rightScale;
+
+          var newNode = node.Update(left, null, right);
+          if (scale != 1.0) newNode = Expression.Multiply(newNode, CreateParameter(scale));
+          return newNode;
+        } else if (node.NodeType == ExpressionType.Divide) {
+          var leftTerms = CollectTermsVisitor.CollectTerms(left);
+          var rightTerms = CollectTermsVisitor.CollectTerms(right);
+          ExtractScale(leftTerms, out var leftScale);
+          ExtractScale(rightTerms, out var rightScale);
+
+          var newNode = node.Update(left, null, right);
+          var scale = leftScale / rightScale;
+          if (scale != 1.0) newNode = Expression.Multiply(newNode, CreateParameter(scale));
+          return newNode;
+        }
       }
       return node.Update(left, null, right);
     }
 
+    private void ExtractScale(IEnumerable<Expression> terms, out double scale) {
+      var termsArr = terms.ToArray();
+      scale = 1.0;
+      if (termsArr.All(HasScalingParameter)) {
+        scale = ParameterValue(FindScalingParameter(termsArr.First()));
+        foreach (var t in termsArr) {
+          thetaValues[ParameterIndex(FindScalingParameter(t))] /= scale;
+        }
+      }
+    }
+    private void ExtractScaleAndIntercept(IEnumerable<Expression> terms, out double scale, out double intercept) {
+      var termsArr = terms.ToArray();
+      var additiveParameters = termsArr.Where(IsParameter).ToArray();
+      intercept = 0.0;
+      foreach (var addParam in additiveParameters) {
+        intercept += ParameterValue(addParam);
+        thetaValues[ParameterIndex(addParam)] = 0.0;
+      }
+      ExtractScale(terms.Except(additiveParameters), out scale);
+    }
 
     private Expression CreateParameter(double value) {
       var pExpr = Expression.ArrayIndex(theta, Expression.Constant(thetaValues.Count));

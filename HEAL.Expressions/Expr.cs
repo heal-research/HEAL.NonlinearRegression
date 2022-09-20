@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Text.RegularExpressions;
 using Type = System.Type;
 
 // TODO:
@@ -307,11 +309,29 @@ namespace HEAL.Expressions {
 
     public static string ToString(Expression<ParametricFunction> expr, string[] varNames, double[] p) {
       // for the output
-      var parameterizedExpression = Expr.ReplaceParameterWithValues<Func<double[], double>>(expr, expr.Parameters[0], p);
+      // var parameterizedExpression = Expr.ReplaceParameterWithValues<Func<double[], double>>(expr, expr.Parameters[0], p);
 
-      var exprBody = parameterizedExpression.Body.ToString();
+      var exprBody = expr.Body.ToString();
+
+      // replace all numbers with number"f" to mark them as "fixed"
+      // but ignore array indexes
+      var expPart = $"(('e'|'E')[-+]?[0-9][0-9]*)";
+      var floatLit = $"[0-9][0-9]*\\.[0-9]*{expPart}?|\\.[0-9][0-9]*{expPart}?|[0-9][0-9]*{expPart}|[^[][0-9][0-9]*[^]]";
+      var floatLitRegex = new Regex(floatLit);
+
+      var match = floatLitRegex.Match(exprBody);
+      while(match.Success) {
+        exprBody.Insert(match.Index + match.Length, "f"); // insert "f" after number
+        match = floatLitRegex.Match(exprBody, match.Index + match.Length); // find next match
+      }
+
       for (int i = 0; i < varNames.Length; i++) {
         exprBody = exprBody.Replace($"x[{i}]", varNames[i]);
+      }
+
+
+      for (int i = 0; i < p.Length; i++) {
+        exprBody = exprBody.Replace($"{expr.Parameters[0].Name}[{i}]", p[i].ToString(CultureInfo.InvariantCulture));
       }
 
       return exprBody.ToString();

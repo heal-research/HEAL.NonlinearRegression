@@ -223,7 +223,7 @@ namespace HEAL.NonlinearRegression.Console {
       var simplifiedExpr = Expr.FoldParameters(parametricExpr, p, out var newP);
       var newSimplifiedStr = simplifiedExpr.ToString();
       string oldSimplifiedStr;
-      // simplify until no change (TODO: this shouldn't be necessary if foldParameters is implemented correctly)
+      // simplify until no change (TODO: this shouldn't be necessary if a visitors are implemented carefully)
       do {
         oldSimplifiedStr = newSimplifiedStr;
         simplifiedExpr = Expr.FoldParameters(simplifiedExpr, newP, out newP);
