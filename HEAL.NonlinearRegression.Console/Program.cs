@@ -187,33 +187,36 @@ namespace HEAL.NonlinearRegression.Console {
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
 
       var foldSize = (int)Math.Truncate((trainEnd - trainStart + 1) / (double)options.Folds);
-      var mse = new List<double>();
-      Parallel.For(0, options.Folds, (f) => {
-        var foldStart = trainStart + f * foldSize;
-        var foldEnd = trainStart + (f + 1) * foldSize - 1;
-        if (f == options.Folds - 1) {
-          foldEnd = trainEnd - 1; // include remaining part in last fold
-        }
+      var rmse = new List<double>();
+      try {
+        Parallel.For(0, options.Folds, (f) => {
+          var foldStart = trainStart + f * foldSize;
+          var foldEnd = trainStart + (f + 1) * foldSize - 1;
+          if (f == options.Folds - 1) {
+            foldEnd = trainEnd - 1; // include remaining part in last fold
+          }
 
-        DeletePartition(trainX, trainY, foldStart, foldEnd, out var foldTrainX, out var foldTrainY);
-        Split(trainX, trainY, foldStart, foldEnd, foldStart, foldEnd, out var foldTestX, out var foldTestY, out _, out _);
+          DeletePartition(trainX, trainY, foldStart, foldEnd, out var foldTrainX, out var foldTrainY);
+          Split(trainX, trainY, foldStart, foldEnd, foldStart, foldEnd, out var foldTestX, out var foldTestY, out _, out _);
 
-        var nls = new NonlinearRegression();
-        nls.Fit(p, parametricExpr, foldTrainX, foldTrainY, maxIterations: 5000); // TODO make CLI parameter
+          var nls = new NonlinearRegression();
+          nls.Fit(p, parametricExpr, foldTrainX, foldTrainY, maxIterations: 5000); // TODO make CLI parameter
 
-        var foldPred = nls.Predict(foldTestX);
-        var SSRtest = 0.0;
-        for (int i = 0; i < foldTestY.Length; i++) {
-          var r = foldTestY[i] - foldPred[i];
-          SSRtest += r * r;
-        }
-        lock (mse) {
-          mse.Add(SSRtest / foldTestY.Length);
-        }
-      });
+          var foldPred = nls.Predict(foldTestX);
+          var SSRtest = 0.0;
+          for (int i = 0; i < foldTestY.Length; i++) {
+            var r = foldTestY[i] - foldPred[i];
+            SSRtest += r * r;
+          }
+          lock (rmse) {
+            rmse.Add(Math.Sqrt(SSRtest / foldTestY.Length));
+          }
+        });
 
-
-      System.Console.WriteLine($"CV MSE mean: {mse.Average():e4} stddev: {Math.Sqrt(Util.Variance(mse.ToArray())):e4}");
+        System.Console.WriteLine($"CV RMSE mean: {rmse.Average():e4} stddev: {Math.Sqrt(Util.Variance(rmse.ToArray())):e4}");
+      } catch(Exception e) {
+        System.Console.WriteLine($"Error in fitting");
+      }
     }
 
 
