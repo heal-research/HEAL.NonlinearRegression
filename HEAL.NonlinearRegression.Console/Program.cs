@@ -6,6 +6,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Net.WebSockets;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using CommandLine;
 using HEAL.Expressions;
 using Microsoft.CodeAnalysis;
@@ -185,10 +186,9 @@ namespace HEAL.NonlinearRegression.Console {
 
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
 
-
       var foldSize = (int)Math.Truncate((trainEnd - trainStart + 1) / (double)options.Folds);
       var mse = new List<double>();
-      for (int f = 0; f < options.Folds; f++) {
+      Parallel.For(0, options.Folds, (f) => {
         var foldStart = trainStart + f * foldSize;
         var foldEnd = trainStart + (f + 1) * foldSize - 1;
         if (f == options.Folds - 1) {
@@ -207,8 +207,10 @@ namespace HEAL.NonlinearRegression.Console {
           var r = foldTestY[i] - foldPred[i];
           SSRtest += r * r;
         }
-        mse.Add(SSRtest / foldTestY.Length);
-      }
+        lock (mse) {
+          mse.Add(SSRtest / foldTestY.Length);
+        }
+      });
 
 
       System.Console.WriteLine($"CV MSE mean: {mse.Average():e4} stddev: {Math.Sqrt(Util.Variance(mse.ToArray())):e4}");

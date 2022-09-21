@@ -104,7 +104,7 @@ namespace HEAL.Expressions {
       if (node.Method.Name == "Sqrt") {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
         if (terms.All(HasScalingParameter)) {
-          var paramExpr = FindScalingParameter(terms.Last());
+          var paramExpr = FindScalingParameter(terms.First());
           var p0 = Math.Abs(ParameterValue(paramExpr));
           foreach (var t in terms) {
             thetaValues[ParameterIndex(FindScalingParameter(t))] /= p0;
@@ -116,7 +116,7 @@ namespace HEAL.Expressions {
       } else if (node.Method.Name == "Cbrt") {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
         if (terms.All(HasScalingParameter)) {
-          var paramExpr = FindScalingParameter(terms.Last());
+          var paramExpr = FindScalingParameter(terms.First());
           var p0 = ParameterValue(paramExpr);
           foreach (var t in terms) {
             thetaValues[ParameterIndex(FindScalingParameter(t))] /= p0;
@@ -130,7 +130,7 @@ namespace HEAL.Expressions {
         var exponent = (double)((ConstantExpression)args[1]).Value; // this has to be a constant (must be integer)
 
         if (terms.All(HasScalingParameter)) {
-          var paramExpr = FindScalingParameter(terms.Last());
+          var paramExpr = FindScalingParameter(terms.First());
           var p0 = ParameterValue(paramExpr);
           foreach (var t in terms) {
             thetaValues[ParameterIndex(FindScalingParameter(t))] /= p0;
@@ -143,7 +143,7 @@ namespace HEAL.Expressions {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
 
         if (terms.All(HasScalingParameter)) {
-          var paramExpr = FindScalingParameter(terms.Last());
+          var paramExpr = FindScalingParameter(terms.First());
           var p0 = Math.Abs(ParameterValue(paramExpr));
           foreach (var t in terms) {
             thetaValues[ParameterIndex(FindScalingParameter(t))] /= p0;

@@ -1,18 +1,27 @@
 using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.Linq;
 using System.Linq.Expressions;
+using static HEAL.Expressions.Expr;
 
 namespace HEAL.Expressions {
 
   public class FoldParametersVisitor : ExpressionVisitor {
     private readonly ParameterExpression thetaParam;
-    private readonly double[] thetaValues;
+    private readonly List<double> thetaValues;
+
+    public static Expression FoldParameters(Expression expr, ParameterExpression theta, double[] thetaValues, out double[] newThetaValues) {
+      var visitor = new FoldParametersVisitor(theta, thetaValues);
+      expr = (Expression<ParametricFunction>)visitor.Visit(expr);
+      newThetaValues = visitor.GetNewParameterValues;
+      return expr;
+    }
 
     // TODO make thetaValues optional
     public FoldParametersVisitor(ParameterExpression theta, double[] thetaValues) {
       this.thetaParam = theta;
-      this.thetaValues = thetaValues;
+      this.thetaValues = thetaValues.ToList();
     }
 
     public double[] GetNewParameterValues => thetaValues.ToArray();

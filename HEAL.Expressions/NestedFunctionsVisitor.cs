@@ -5,7 +5,7 @@ using System.Linq;
 using System.Linq.Expressions;
 
 namespace HEAL.Expressions {
-  // for each non-linear uniary function creates a new expression where this function is replaced by id
+  // for each non-linear unary function creates a new expression where this function is replaced by id
   // To analyse if unary functions can be removed without loss in accuracy.
   // Additionally, for checking nested functions tanh(tanh(tanh())). 
   // bottom up: for each unary function create two expressions one with the function and one with the function removed

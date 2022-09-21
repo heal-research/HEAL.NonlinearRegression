@@ -1,5 +1,6 @@
 using System;
 using System.Linq.Expressions;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace HEAL.Expressions {
   /// <summary>
@@ -16,7 +17,14 @@ namespace HEAL.Expressions {
       var right = Visit(node.Right);
 
       if (node.NodeType == ExpressionType.Divide) {
-        return Expression.Multiply(left, Inverse(right));
+        if (left.NodeType == ExpressionType.Divide) {
+          // (a / b) / c -> a * 1/(b * c)
+          var leftBin = left as BinaryExpression;
+          return Expression.Multiply(leftBin.Left, Inverse(Expression.Multiply(leftBin.Right, right)));
+        } else {
+          // a / b -> a * 1/b
+          return Expression.Multiply(left, Inverse(right));
+        }
       }
       return node.Update(left, null, right);
     }

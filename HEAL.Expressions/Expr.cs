@@ -273,14 +273,13 @@ namespace HEAL.Expressions {
       expr = LowerNegationVisitor.LowerNegation(expr, theta, parameterValues, out parameterValues);
       expr = LiftParametersVisitor.LiftParameters(expr, theta, parameterValues, out parameterValues);
 
-      var visitor = new FoldParametersVisitor(theta, parameterValues);
-      expr = (Expression<ParametricFunction>)visitor.Visit(expr);
-      newParameterValues = visitor.GetNewParameterValues;
+      expr = (Expression<ParametricFunction>)FoldParametersVisitor.FoldParameters(expr, theta, parameterValues, out newParameterValues);
 
       expr = ExpandProductsVisitor.Expand(expr, theta, newParameterValues, out newParameterValues);
       // Console.WriteLine($"Folded parameters: {newExpr}");
 
       expr = FoldConstants(expr);
+      expr = (Expression<ParametricFunction>)SimplifyDivisionVisitor.Simplify(expr);
 
       var collectVisitor = new CollectParametersVisitor(theta, newParameterValues);
       expr = (Expression<ParametricFunction>)collectVisitor.Visit(expr);
@@ -316,13 +315,18 @@ namespace HEAL.Expressions {
       // replace all numbers with number"f" to mark them as "fixed"
       // but ignore array indexes
       var expPart = $"(('e'|'E')[-+]?[0-9][0-9]*)";
-      var floatLit = $"[0-9][0-9]*\\.[0-9]*{expPart}?|\\.[0-9][0-9]*{expPart}?|[0-9][0-9]*{expPart}|[^[][0-9][0-9]*[^]]";
-      var floatLitRegex = new Regex(floatLit);
+      var floatLit = $"(?<num>[0-9][0-9]*\\.[0-9]*{expPart}?)" + // float with digits before and after comma
+        $"|(?<num>\\.[0-9][0-9]*{expPart}?)" + // float with digits only after comma
+        $"|(?<num>[0-9][0-9]*{expPart})" + // float without digits after comma but with exponent
+        $"|[^[](?<num>[0-9][0-9]*)[^].eE0-9]" // integer (but not as array index)
+        ;
+      var floatLitRegex = new Regex(floatLit, RegexOptions.ExplicitCapture);
 
       var match = floatLitRegex.Match(exprBody);
-      while(match.Success) {
-        exprBody.Insert(match.Index + match.Length, "f"); // insert "f" after number
-        match = floatLitRegex.Match(exprBody, match.Index + match.Length); // find next match
+      while (match.Groups["num"].Success) {
+        var numGroup = match.Groups["num"];
+        exprBody = exprBody.Insert(numGroup.Index + numGroup.Length, "f"); // insert "f" after number
+        match = floatLitRegex.Match(exprBody, numGroup.Index + numGroup.Length); // find next match
       }
 
       for (int i = 0; i < varNames.Length; i++) {
