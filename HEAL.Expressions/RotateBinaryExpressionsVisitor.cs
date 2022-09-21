@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -13,6 +14,12 @@ namespace HEAL.Expressions {
   public class RotateBinaryExpressionsVisitor : ExpressionVisitor {
     private Dictionary<Expression, int> len = new Dictionary<Expression, int>();
     int nodeCount = 0;
+
+    public static Expression Rotate(Expression expr) {
+      var v = new RotateBinaryExpressionsVisitor();
+      return v.Visit(expr);
+    }
+
     public override Expression Visit(Expression node) {
       var oldNodeCount = nodeCount;
       var newExpr = base.Visit(node);
@@ -27,8 +34,8 @@ namespace HEAL.Expressions {
       var leftNodeCount = len[left];
       var right = Visit(node.Right);
       var rightNodeCount = len[right];
-      BinaryExpression leftBinary = left as BinaryExpression;
-      BinaryExpression rightBinary = right as BinaryExpression;
+      var leftBinary = left as BinaryExpression;
+      var rightBinary = right as BinaryExpression;
 
       if (node.NodeType == ExpressionType.Add || node.NodeType == ExpressionType.Multiply) {
         if (rightBinary != null

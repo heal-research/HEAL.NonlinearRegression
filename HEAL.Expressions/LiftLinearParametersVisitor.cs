@@ -91,7 +91,7 @@ namespace HEAL.Expressions {
             newNode = Expression.Multiply(newNode, CreateParameter(scale));
           }
           if (intercept != 0.0) {
-            newNode = Expression.Add(newNode, CreateParameter(scale * intercept));
+            newNode = Expression.Add(newNode, CreateParameter(intercept));
           }
           return newNode;
         } else if (node.NodeType == ExpressionType.Subtract) throw new NotSupportedException("should by handled by ConvertSubToAddVisitor");
@@ -138,7 +138,7 @@ namespace HEAL.Expressions {
         intercept += ParameterValue(addParam);
         thetaValues[ParameterIndex(addParam)] = 0.0;
       }
-      ExtractScale(terms.Except(additiveParameters), out scale);
+      ExtractScale(termsArr.Except(additiveParameters), out scale);
     }
 
     private Expression CreateParameter(double value) {

@@ -264,8 +264,7 @@ namespace HEAL.Expressions {
       var theta = expr.Parameters[0];
 
       expr = (Expression<ParametricFunction>)ConvertSubToAddVisitor.Convert(ConvertDivToMulVisitor.Convert(expr));
-      var rotateVisitor = new RotateBinaryExpressionsVisitor();
-      expr = (Expression<ParametricFunction>)rotateVisitor.Visit(expr);
+      expr = (Expression<ParametricFunction>)RotateBinaryExpressionsVisitor.Rotate(expr);
       // Console.WriteLine($"Rotated: {expr}");
       expr = ArrangeParametersRightVisitor.Execute(expr, theta, parameterValues);
       // Console.WriteLine($"Rearranged: {expr}");
@@ -276,17 +275,18 @@ namespace HEAL.Expressions {
 
       var visitor = new FoldParametersVisitor(theta, parameterValues);
       expr = (Expression<ParametricFunction>)visitor.Visit(expr);
-      // Console.WriteLine($"Folded: {newExpr}");
-
       newParameterValues = visitor.GetNewParameterValues;
-      //Console.WriteLine($"Folded parameters: {newExpr}");
+
+      expr = ExpandProductsVisitor.Expand(expr, theta, newParameterValues, out newParameterValues);
+      // Console.WriteLine($"Folded parameters: {newExpr}");
 
       expr = FoldConstants(expr);
 
       var collectVisitor = new CollectParametersVisitor(theta, newParameterValues);
       expr = (Expression<ParametricFunction>)collectVisitor.Visit(expr);
       newParameterValues = collectVisitor.GetNewParameterValues;
-      //Console.WriteLine($"Removed unused parameters: {newExpr}");
+
+      Console.WriteLine($"Simplified: expr");
       return expr;
     }
 

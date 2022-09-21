@@ -222,13 +222,14 @@ namespace HEAL.NonlinearRegression.Console {
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
       var simplifiedExpr = Expr.FoldParameters(parametricExpr, p, out var newP);
       var newSimplifiedStr = simplifiedExpr.ToString();
-      string oldSimplifiedStr;
+      var exprSet = new HashSet<string>();
       // simplify until no change (TODO: this shouldn't be necessary if a visitors are implemented carefully)
       do {
-        oldSimplifiedStr = newSimplifiedStr;
+        exprSet.Add(newSimplifiedStr);
         simplifiedExpr = Expr.FoldParameters(simplifiedExpr, newP, out newP);
+        System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
         newSimplifiedStr = simplifiedExpr.ToString();
-      } while (newSimplifiedStr != oldSimplifiedStr);
+      } while (!exprSet.Contains(newSimplifiedStr));
 
 
       System.Console.WriteLine(simplifiedExpr);
@@ -316,10 +317,10 @@ namespace HEAL.NonlinearRegression.Console {
 
       if (options.GraphvizFilename != null) {
         using (var writer = new System.IO.StreamWriter(options.GraphvizFilename)) {
-            writer.WriteLine(Expr.ToGraphViz(parametricExpr, 
-              paramValues: options.HideParameters?null:p, 
-              varNames: options.HideVariables?null:varNames,
-              saturation));
+          writer.WriteLine(Expr.ToGraphViz(parametricExpr,
+            paramValues: options.HideParameters ? null : p,
+            varNames: options.HideVariables ? null : varNames,
+            saturation));
         }
       }
     }
