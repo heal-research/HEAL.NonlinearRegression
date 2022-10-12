@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading.Tasks;
 using HEAL.Expressions;
 
 namespace HEAL.NonlinearRegression {
@@ -42,7 +43,7 @@ namespace HEAL.NonlinearRegression {
         } else {
           var newStats = nlr.Statistics;
           // increase in variance for the reduced feature = variance explained by the feature
-          varExpl[varIdx] = (newStats.SSR - stats0.SSR) / (y.Length * Util.Variance(y)); 
+          varExpl[varIdx] = (newStats.SSR - stats0.SSR) / (y.Length * Util.Variance(y));
         }
       }
 
@@ -74,7 +75,7 @@ namespace HEAL.NonlinearRegression {
       var nlr = new NonlinearRegression();
       nlr.Fit(p, expr, X, y);
       var stats0 = nlr.Statistics;
-      p = stats0.paramEst;
+      p = (double[])stats0.paramEst.Clone();
 
       var fullAICc = nlr.Statistics.AICc;
       var fullBIC = nlr.Statistics.BIC;
@@ -112,7 +113,7 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target variable values</param>
     /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
-    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(Expression<Expr.ParametricFunction> expr, double[,] X, double[] y, double[] p) {
+    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(Expression<Expr.ParametricFunction> expr, double[,] X, double[] y, double[] p, bool verbose = false) {
       var m = X.GetLength(0);
       var pParam = expr.Parameters[0];
       var xParam = expr.Parameters[1];
@@ -128,29 +129,39 @@ namespace HEAL.NonlinearRegression {
 
       var fullAIC = nlr.Statistics.AICc;
       var fullBIC = nlr.Statistics.BIC;
-      //Console.WriteLine(expr.Body);
-      //Console.WriteLine(string.Join(", ", p.Select(p => p.ToString("e2"))));
-      Console.WriteLine($"Full model AICc: {fullAIC,-11:f1} BIC: {fullBIC,-11:f1}");
-      Console.WriteLine($"p{"idx",-5} {"val",-11} {"SSR_factor",-11} {"deltaDoF",-6} {"fRatio",-11} {"f",11} {"deltaAICc"} {"deltaBIC"}");
+      if (verbose) {
+        Console.WriteLine(expr.Body);
+        Console.WriteLine($"theta: {string.Join(", ", p.Select(p => p.ToString("e2")))}");
+        Console.WriteLine($"Full model SSR: {nlr.Statistics.SSR,-11:e4}, MSE: {nlr.Statistics.SSR / nlr.Statistics.m,-11:e4}, AICc: {fullAIC,-11:f1} BIC: {fullBIC,-11:f1}");
+        Console.WriteLine($"p{"idx",-5} {"val",-11} {"SSR_factor",-11} {"deltaDoF",-6} {"deltaSSR",-11} {"s2Extra":e3} {"fRatio",-11} {"p value",10} {"deltaAICc"} {"deltaBIC"}");
+      }
 
 
-      for (int paramIdx = 0; paramIdx < p.Length; paramIdx++) {
+      Parallel.For(0, p.Length, (paramIdx) => {
         var v = new ReplaceParameterWithZeroVisitor(pParam, paramIdx);
         var reducedExpression = (Expression<Expr.ParametricFunction>)v.Visit(expr);
         //Console.WriteLine($"Reduced: {reducedExpression}");
         // initial values for the reduced expression are the optimal parameters from the full model
         reducedExpression = Expr.SimplifyAndRemoveParameters(reducedExpression, p, out var newP);
+
         //Console.WriteLine($"Simplified: {reducedExpression}");
-        reducedExpression = Expr.FoldParameters(reducedExpression, newP, out newP);
-        // Console.WriteLine($"Folded: {reducedExpression}");
+        var newSimplifiedStr = reducedExpression.ToString();
+        var exprSet = new HashSet<string>();
+        // simplify until no change (TODO: this shouldn't be necessary if a visitors are implemented carefully)
+        do {
+          exprSet.Add(newSimplifiedStr);
+          reducedExpression = Expr.FoldParameters(reducedExpression, newP, out newP);
+          newSimplifiedStr = reducedExpression.ToString();
+        } while (!exprSet.Contains(newSimplifiedStr));
 
 
         // fit reduced model
         try {
+          var nlr = new NonlinearRegression();
           nlr.Fit(newP, reducedExpression, X, y, maxIterations: 2000); // TODO make parameter
           var reducedStats = nlr.Statistics;
 
-          var impact = reducedStats.SSR / stats0.SSR;
+          var ssrFactor = reducedStats.SSR / stats0.SSR;
 
           // likelihood ratio test
           var fullDoF = stats0.m - stats0.n;
@@ -160,17 +171,21 @@ namespace HEAL.NonlinearRegression {
           var fRatio = s2Extra / Math.Pow(stats0.s, 2);
 
           // "accept the partial value if the calculated ratio is lower than the table value"
-          var f = alglib.invfdistribution(deltaDoF, fullDoF, 0.05);  // TODO make alpha CLI parameter
+          // var f = alglib.invfdistribution(deltaDoF, fullDoF, 0.05);  // TODO make alpha CLI parameter
+          var f = alglib.fdistribution(deltaDoF, fullDoF, fRatio);
 
-          Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {impact,-11:e2} {deltaDoF,-6} {fRatio,-11:e4} accept: {fRatio < f,-6} {nlr.Statistics.AICc - fullAIC,-11:f1} {nlr.Statistics.BIC - fullBIC,-11:f1}");
-          
-          impacts.Add(Tuple.Create(paramIdx, impact, nlr.Statistics.AICc - fullAIC, reducedExpression, newP));
+          if(verbose)
+            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1-f,-10:e3}, {nlr.Statistics.AICc - fullAIC,-11:f1} {nlr.Statistics.BIC - fullBIC,-11:f1}");
+
+          lock (impacts) {
+            impacts.Add(Tuple.Create(paramIdx, ssrFactor, nlr.Statistics.AICc - fullAIC, reducedExpression, newP));
+          }
         }
         catch (Exception e) {
-          Console.WriteLine($"Exception {e.Message} for {reducedExpression}");
+          // Console.WriteLine($"Exception {e.Message} for {reducedExpression}");
         }
         // yield return Tuple.Create(impact, (Expression)reducedExpression);
-      }
+      });
 
       return impacts; // TODO improve interface
     }

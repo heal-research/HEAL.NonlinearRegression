@@ -284,8 +284,6 @@ namespace HEAL.Expressions {
       var collectVisitor = new CollectParametersVisitor(theta, newParameterValues);
       expr = (Expression<ParametricFunction>)collectVisitor.Visit(expr);
       newParameterValues = collectVisitor.GetNewParameterValues;
-
-      Console.WriteLine($"Simplified: expr");
       return expr;
     }
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.Tracing;
 using System.IO;
@@ -46,7 +47,7 @@ namespace HEAL.NonlinearRegression.Console {
         .WithParsed<FitOptions>(options => Fit(options))
         .WithParsed<EvalOptions>(options => Evaluate(options))
         .WithParsed<SimplifyOptions>(options => Simplify(options))
-        .WithParsed<NestedModelsOptions>(options => AnalyseNestedModels(options))
+        .WithParsed<NestedModelsOptions>(options => GenerateNestedModels(options))
         .WithParsed<SubtreeImportanceOptions>(options => SubtreeImportance(options))
         .WithParsed<CrossValidationOptions>(options => CrossValidate(options))
         .WithParsed<VariableImpactOptions>(options => CalculateVariableImpacts(options))
@@ -101,17 +102,31 @@ namespace HEAL.NonlinearRegression.Console {
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
       // System.Console.WriteLine(parametricExpr);
 
+      var SSR = EvaluateSSR(parametricExpr, p, x, y, out var yPred);
+      var nmse = SSR / y.Length / Util.Variance(y);
+
+      var _jac = Expr.Jacobian(parametricExpr, p.Length).Compile();
+      void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
+      var stats = new LeastSquaresStatistics(y.Length, p.Length, SSR, yPred, p, jac, x);
+
+      System.Console.WriteLine($"SSR: {SSR} MSE: {SSR/y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1-nmse} LogLik: {stats.LogLikelihood} AICc: {stats.AICc} BIC: {stats.BIC} DoF: {p.Length}");
+    }
+
+    private static double EvaluateSSR(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y, out double[] yPred) {
       var func = Expr.Broadcast(parametricExpr).Compile();
-      var m = y.Length;
-      var yPred = new double[m];
+
+      int m;
+      double SSR;
+      m = y.Length;
+      yPred = new double[m];
       func(p, x, yPred);
 
-      var SSR = 0.0;
+      SSR = 0.0;
       for (int i = 0; i < m; i++) {
         var r = y[i] - yPred[i];
         SSR += r * r;
       }
-      System.Console.WriteLine($"RMSE: {Math.Sqrt(SSR / m)}");
+      return SSR;
     }
 
     private static void Predict(PredictOptions options) {
@@ -170,114 +185,176 @@ namespace HEAL.NonlinearRegression.Console {
 
       Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
 
-      Random rand;
-      if (options.Seed.HasValue) {
-        rand = new Random(options.Seed.Value);
-      } else {
-        rand = new Random();
-      }
-
-      if (options.Shuffle) {
-        Shuffle(trainX, trainY, rand);
-      }
-
       var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
       //System.Console.WriteLine(modelExpression);
 
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
 
-      var foldSize = (int)Math.Truncate((trainEnd - trainStart + 1) / (double)options.Folds);
-      var rmse = new List<double>();
       try {
-        Parallel.For(0, options.Folds, (f) => {
-          var foldStart = trainStart + f * foldSize;
-          var foldEnd = trainStart + (f + 1) * foldSize - 1;
-          if (f == options.Folds - 1) {
-            foldEnd = trainEnd - 1; // include remaining part in last fold
-          }
-
-          DeletePartition(trainX, trainY, foldStart, foldEnd, out var foldTrainX, out var foldTrainY);
-          Split(trainX, trainY, foldStart, foldEnd, foldStart, foldEnd, out var foldTestX, out var foldTestY, out _, out _);
-
-          var nls = new NonlinearRegression();
-          nls.Fit(p, parametricExpr, foldTrainX, foldTrainY, maxIterations: 5000); // TODO make CLI parameter
-
-          var foldPred = nls.Predict(foldTestX);
-          var SSRtest = 0.0;
-          for (int i = 0; i < foldTestY.Length; i++) {
-            var r = foldTestY[i] - foldPred[i];
-            SSRtest += r * r;
-          }
-          lock (rmse) {
-            rmse.Add(Math.Sqrt(SSRtest / foldTestY.Length));
-          }
-        });
-
-        System.Console.WriteLine($"CV RMSE mean: {rmse.Average():e4} stddev: {Math.Sqrt(Util.Variance(rmse.ToArray())):e4}");
-      } catch(Exception e) {
+        var cvrmse = CrossValidate(parametricExpr, p, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed);
+        System.Console.WriteLine($"CV RMSE mean: {cvrmse.Average():e4} stddev: {Math.Sqrt(Util.Variance(cvrmse.ToArray())):e4}");
+      }
+      catch (Exception e) {
         System.Console.WriteLine($"Error in fitting");
       }
+
     }
 
+    private static List<double> CrossValidate(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] X, double[] y, int folds = 10, bool shuffle = false, int? seed = null) {
+      Random rand;
+      if (seed.HasValue) {
+        rand = new Random(seed.Value);
+      } else {
+        rand = new Random();
+      }
+
+      if (shuffle) {
+        Shuffle(X, y, rand);
+      }
+
+
+      var foldSize = (int)Math.Truncate((y.Length + 1) / (double)folds);
+      var rmse = new List<double>();
+      Parallel.For(0, folds, (f) => {
+        var foldStart = f * foldSize;
+        var foldEnd = (f + 1) * foldSize - 1;
+        if (f == folds - 1) {
+          foldEnd = y.Length - 1; // include remaining part in last fold
+        }
+
+        DeletePartition(X, y, foldStart, foldEnd, out var foldTrainX, out var foldTrainY);
+        Split(X, y, foldStart, foldEnd, foldStart, foldEnd, out var foldTestX, out var foldTestY, out _, out _);
+
+        var nls = new NonlinearRegression();
+        nls.Fit(p, parametricExpr, foldTrainX, foldTrainY, maxIterations: 5000); // TODO make CLI parameter
+
+        var foldPred = nls.Predict(foldTestX);
+        var SSRtest = 0.0;
+        for (int i = 0; i < foldTestY.Length; i++) {
+          var r = foldTestY[i] - foldPred[i];
+          SSRtest += r * r;
+        }
+        lock (rmse) {
+          rmse.Add(Math.Sqrt(SSRtest / foldTestY.Length));
+        }
+      });
+      return rmse;
+    }
 
     private static void Simplify(SimplifyOptions options) {
       var varNames = options.Variables.Split(',').Select(vn => vn.Trim()).ToArray();
 
       var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
-      var simplifiedExpr = Expr.FoldParameters(parametricExpr, p, out var newP);
+      Expression<Expr.ParametricFunction> simplifiedExpr;
+
+      Simplify(parametricExpr, p, varNames, out simplifiedExpr, out var newP);
+
+      System.Console.WriteLine(simplifiedExpr);
+      System.Console.WriteLine($"theta: {string.Join(",", newP.Select(pi => pi.ToString()))}");
+
+      System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
+    }
+
+    private static void Simplify(Expression<Expr.ParametricFunction> parametricExpr, double[] p, string[] varNames, out Expression<Expr.ParametricFunction> simplifiedExpr, out double[] newP) {
+      simplifiedExpr = Expr.FoldParameters(parametricExpr, p, out newP);
       var newSimplifiedStr = simplifiedExpr.ToString();
       var exprSet = new HashSet<string>();
       // simplify until no change (TODO: this shouldn't be necessary if a visitors are implemented carefully)
       do {
         exprSet.Add(newSimplifiedStr);
         simplifiedExpr = Expr.FoldParameters(simplifiedExpr, newP, out newP);
-        System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
+        // System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
         newSimplifiedStr = simplifiedExpr.ToString();
       } while (!exprSet.Contains(newSimplifiedStr));
-
-
-      System.Console.WriteLine(simplifiedExpr);
-      System.Console.WriteLine($"theta: {string.Join(",", newP.Select(pi => pi.ToString()))}");
-
-
-      System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
     }
 
-    private static void AnalyseNestedModels(NestedModelsOptions options) {
+    private static void GenerateNestedModels(NestedModelsOptions options) {
       ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
 
       // default is full dataset
       var trainStart = 0;
       var trainEnd = y.Length - 1;
+      var testStart = 0;
+      var testEnd = y.Length - 1;
       if (options.TrainingRange != null) {
         var toks = options.TrainingRange.Split(":");
         trainStart = int.Parse(toks[0]);
         trainEnd = int.Parse(toks[1]);
+        testStart = trainEnd + 1;
+        testEnd = y.Length - 1;
       }
 
-      Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
+      Split(x, y, trainStart, trainEnd, testStart, testEnd, out var trainX, out var trainY, out var testX, out var testY);
 
       var modelExpression = PreprocessModelString(options.Model, varNames, out var constants);
-      //System.Console.WriteLine(modelExpression);
-
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
-      // System.Console.WriteLine(parametricExpr);
 
-      var impacts = ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, p);
+      // calculate ref stats for full model
+      var nlr = new NonlinearRegression();
+      nlr.Fit(p, parametricExpr, trainX, trainY);
+      var refStats = nlr.Statistics;
+
+      var allModels = new List<Tuple<Expression<Expr.ParametricFunction>, double[]>>();
+      var modelQueue = new Queue<Tuple<Expression<Expr.ParametricFunction>, double[]>>();
+      modelQueue.Enqueue(Tuple.Create(parametricExpr, (double[])p.Clone()));
 
 
 
-      System.Console.WriteLine("Try following reduced expressions:");
-      foreach (var tup in impacts) {
-        var paramIdx = tup.Item1;
-        var ssrFactor = tup.Item2;
-        var deltaAICc = tup.Item3;
-        var reducedExpr = tup.Item4;
-        var reducedParam = tup.Item5;
-        if (deltaAICc < 5.0) {
-          System.Console.WriteLine($"SSR_factor: {ssrFactor:g2} deltaAICc: {deltaAICc:f2} Expr: {Expr.ToString(reducedExpr, varNames, reducedParam)}");
+      while (modelQueue.Any()) {
+
+        (parametricExpr, p) = modelQueue.Dequeue();
+        allModels.Add(Tuple.Create(parametricExpr, p));
+        var impacts = ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, (double[])p.Clone(), options.Verbose);
+
+        // order by SSRfactor and use the best as an alternative (if it has delta AICc < 5.0)
+        var alternative = impacts.OrderBy(tup => tup.Item2).Where(tup => tup.Item3 < 5.0).FirstOrDefault();
+        if (alternative != null) {
+          var ssrFactor = alternative.Item2;
+          var deltaAICc = alternative.Item3;
+          var reducedExpr = alternative.Item4;
+          var reducedParam = alternative.Item5;
+          System.Console.Error.WriteLine($"New model {reducedParam.Length} {ssrFactor:e4} {deltaAICc:e4} {reducedExpr}");
+          modelQueue.Enqueue(Tuple.Create(reducedExpr, reducedParam));
         }
+
+        // foreach (var tup in impacts) {
+        //   var paramIdx = tup.Item1;
+        //   var ssrFactor = tup.Item2;
+        //   var deltaAICc = tup.Item3;
+        //   var reducedExpr = tup.Item4;
+        //   var reducedParam = tup.Item5;
+        //   // TODO make CLI parameter
+        //   if (deltaAICc < 5.0) {
+        //     // System.Console.Write(".");
+        //     System.Console.WriteLine($"New model {reducedParam.Length} {ssrFactor:e4} {deltaAICc:e4} {reducedExpr.ToString()}");
+        //     if (modelQueue.All(tup => tup.Item1.ToString() != reducedExpr.ToString()))
+        //       modelQueue.Enqueue(Tuple.Create(reducedExpr, reducedParam));
+        //   }
+        // }
+      }
+      System.Console.WriteLine();
+      System.Console.WriteLine($"SSR_Factor\tnumPar\tRMSE_tr\tRMSE_te\tRMSE_cv\tRMSE_cv_std\tAICc\tdAICc\tBIC\tdBIC\tModel");
+      foreach (var model in allModels) {
+        (parametricExpr, p) = model;
+
+        // output training, CV, and test result for original model
+        nlr = new NonlinearRegression();
+        nlr.SetModel(p, parametricExpr, trainX, trainY);
+        var stats = nlr.Statistics;
+        var ssrTrain = stats.SSR;
+        var rmseTrain = Math.Sqrt(ssrTrain / trainY.Length);
+        var ssrTest = EvaluateSSR(parametricExpr, p, testX, testY, out _);
+        var rmseTest = Math.Sqrt(ssrTest / testY.Length);
+        var cvrmseMean = double.NaN;
+        var cvrmseStd = double.NaN;
+        try {
+          var cvrmse = CrossValidate(parametricExpr, p, trainX, trainY, folds: 3);
+          cvrmseMean = cvrmse.Average();
+          cvrmseStd = Math.Sqrt(Util.Variance(cvrmse.ToArray()));
+        }
+        catch (Exception) { }
+        System.Console.WriteLine($"{stats.SSR / refStats.SSR:e4}\t{stats.n}\t{rmseTrain:e4}\t{rmseTest:e4}\t{cvrmseMean:e4}\t{cvrmseStd:e4}\t{stats.AICc:e4}\t{stats.AICc - refStats.AICc:e4}\t{stats.BIC:e4}\t{stats.BIC - refStats.BIC:e4}\t{Expr.ToString(parametricExpr, varNames, p)}");
       }
     }
 
@@ -593,6 +670,9 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("train", Required = false, HelpText = "The training range <firstRow>:<lastRow> in the dataset (inclusive).")]
       public string TrainingRange { get; set; }
+
+      [Option("verbose", Required = false, HelpText = "Produced more detailed output.")]
+      public bool Verbose { get; set; }
     }
 
     [Verb("subtrees", HelpText = "Subtree importance")]
@@ -817,6 +897,7 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
     private static string TranslateFunctionCalls(string model) {
+      model = model.Replace("pow(", "Math.Pow(", StringComparison.InvariantCultureIgnoreCase);
       return TranslatePower(TranslateSqr(TranslateCube(model)))
         .Replace("log(", "Math.Log(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("exp(", "Math.Exp(", StringComparison.InvariantCultureIgnoreCase)
@@ -870,8 +951,8 @@ namespace HEAL.NonlinearRegression.Console {
       // TODO handle the case when the variable names are x or x[1] or similar
       for (int i = 0; i < varNames.Length; i++) {
         // We have to be careful to only replace variable names and keep function calls unchanged.
-        // A variable must be followed by an operator (+,-,*,/), ' ', or ')' or end-of-string .
-        var varRegex = new System.Text.RegularExpressions.Regex("(" + varNames[i] + @")([ +\-*/\)])");
+        // A variable must be followed by an operator (+,-,*,/),',', ' ', or ')' or end-of-string .
+        var varRegex = new System.Text.RegularExpressions.Regex("(" + varNames[i] + @")([ +\-*/\),])");
         var varEolRegex = new System.Text.RegularExpressions.Regex("(" + varNames[i] + @")\z"); // variable at end of line
         model = varRegex.Replace(model, $"x[{i}]$2");
         model = varEolRegex.Replace(model, $"x[{i}]");
