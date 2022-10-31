@@ -952,10 +952,12 @@ namespace HEAL.NonlinearRegression.Console {
       for (int i = 0; i < varNames.Length; i++) {
         // We have to be careful to only replace variable names and keep function calls unchanged.
         // A variable must be followed by an operator (+,-,*,/),',', ' ', or ')' or end-of-string .
-        var varRegex = new System.Text.RegularExpressions.Regex("(" + varNames[i] + @")([ +\-*/\),])");
-        var varEolRegex = new System.Text.RegularExpressions.Regex("(" + varNames[i] + @")\z"); // variable at end of line
-        model = varRegex.Replace(model, $"x[{i}]$2");
-        model = varEolRegex.Replace(model, $"x[{i}]");
+        var varLineStartRegex = new Regex("^(" + varNames[i] + @")([ +\-*/\),])");
+        var varRegex = new Regex("([^a-zA-Z])(" + varNames[i] + @")([ +\-*/\),])");
+        var varEolRegex = new Regex("([^a-zA-Z])(" + varNames[i] + @")\z"); // variable at end of line
+        model = varLineStartRegex.Replace(model, $"x[{i}]$2");
+        model = varRegex.Replace(model, $"$1x[{i}]$3");
+        model = varEolRegex.Replace(model, $"$1x[{i}]");
       }
 
       return model;
