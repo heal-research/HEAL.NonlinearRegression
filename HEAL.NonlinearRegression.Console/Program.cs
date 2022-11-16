@@ -109,7 +109,7 @@ namespace HEAL.NonlinearRegression.Console {
       void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
       var stats = new LeastSquaresStatistics(y.Length, p.Length, SSR, yPred, p, jac, x);
 
-      System.Console.WriteLine($"SSR: {SSR} MSE: {SSR/y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1-nmse} LogLik: {stats.LogLikelihood} AICc: {stats.AICc} BIC: {stats.BIC} DoF: {p.Length}");
+      System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {stats.LogLikelihood} AICc: {stats.AICc} BIC: {stats.BIC} DoF: {p.Length}");
     }
 
     private static double EvaluateSSR(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y, out double[] yPred) {
@@ -193,8 +193,7 @@ namespace HEAL.NonlinearRegression.Console {
       try {
         var cvrmse = CrossValidate(parametricExpr, p, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed);
         System.Console.WriteLine($"CV RMSE mean: {cvrmse.Average():e4} stddev: {Math.Sqrt(Util.Variance(cvrmse.ToArray())):e4}");
-      }
-      catch (Exception e) {
+      } catch (Exception e) {
         System.Console.WriteLine($"Error in fitting");
       }
 
@@ -352,8 +351,7 @@ namespace HEAL.NonlinearRegression.Console {
           var cvrmse = CrossValidate(parametricExpr, p, trainX, trainY, folds: 3);
           cvrmseMean = cvrmse.Average();
           cvrmseStd = Math.Sqrt(Util.Variance(cvrmse.ToArray()));
-        }
-        catch (Exception) { }
+        } catch (Exception) { }
         System.Console.WriteLine($"{stats.SSR / refStats.SSR:e4}\t{stats.n}\t{rmseTrain:e4}\t{rmseTest:e4}\t{cvrmseMean:e4}\t{cvrmseStd:e4}\t{stats.AICc:e4}\t{stats.AICc - refStats.AICc:e4}\t{stats.BIC:e4}\t{stats.BIC - refStats.BIC:e4}\t{Expr.ToString(parametricExpr, varNames, p)}");
       }
     }
@@ -569,8 +567,10 @@ namespace HEAL.NonlinearRegression.Console {
       var parametricExpr = GenerateExpression(modelExpression, constants, out var parameters);
       // System.Console.WriteLine(parametricExpr);
 
-      var nlr = new NonlinearRegression();
-      nlr.Fit(parameters, parametricExpr, trainX, trainY, maxIterations: 3000);
+      if (!options.NoOptimization) {
+        var nlr = new NonlinearRegression();
+        nlr.Fit(parameters, parametricExpr, trainX, trainY, maxIterations: 3000);
+      }
 
       var _func = Expr.Broadcast(parametricExpr).Compile();
       var _jac = Expr.Jacobian(parametricExpr, parameters.Length).Compile();
@@ -582,17 +582,22 @@ namespace HEAL.NonlinearRegression.Console {
       _jac(parameters, trainX, f, jac); // get Jacobian
       alglib.rmatrixsvd(jac, m, n, 0, 0, 0, out var w, out var u, out var vt);
 
-      var eps = 2.2204460492503131E-16; // the difference between 1.0 and the next larger double value
-      // var eps = 1.192092896e-7f; for floats
-      var tol = n * eps;
-      var rank = 0;
-      for (int i = 0; i < n; i++) {
-        if (w[i] > tol * w[0]) rank++;
+      if (w.Any(wi => double.IsNaN(wi))) {
+        System.Console.WriteLine("Jacobian undefined");
+      } else {
+
+        var eps = 2.2204460492503131E-16; // the difference between 1.0 and the next larger double value
+                                          // var eps = 1.192092896e-7f; for floats
+        var tol = n * eps;
+        var rank = 0;
+        for (int i = 0; i < n; i++) {
+          if (w[i] > tol * w[0]) rank++;
+        }
+        // full condition number largest singular value over smallest singular value
+        var k = w[0] / w[n - 1];
+        var k_subset = w[0] / w[rank - 1]; // condition number without the redundant parameters
+        System.Console.WriteLine($"Num param: {n} rank: {rank} log10_K(J): {Math.Log10(k)} log10_K(J_rank): {Math.Log10(k_subset)}");
       }
-      // full condition number largest singular value over smallest singular value
-      var k = w[0] / w[n - 1];
-      var k_subset = w[0] / w[rank - 1]; // condition number without the redundant parameters
-      System.Console.WriteLine($"Num param: {n} rank: {rank} log10_K(J): {Math.Log10(k)} log10_K(J_rank): {Math.Log10(k_subset)}");
     }
     #endregion
 
@@ -791,6 +796,10 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for profile calculation.")]
       public string TrainingRange { get; set; }
+
+      [Option("no-optimization", Required = false, Default = false, HelpText = "Switch to skip nonlinear least squares fitting.")]
+      public bool NoOptimization { get; set; }
+
     }
 
     #endregion
@@ -876,7 +885,9 @@ namespace HEAL.NonlinearRegression.Console {
     private static Expression<Expr.ParametricFunction> GenerateExpression(string modelExpression, double[] constants, out double[] p) {
       var options = ScriptOptions.Default
         .AddReferences(typeof(Expression).Assembly)
+        .AddReferences(typeof(HEAL.Expressions.Expr).Assembly) // for Functions class
         .AddImports("System")
+        .AddImports("HEAL.Expressions") // for Functions class
         .WithEmitDebugInformation(false)
         .WithOptimizationLevel(Microsoft.CodeAnalysis.OptimizationLevel.Release);
 
@@ -892,14 +903,19 @@ namespace HEAL.NonlinearRegression.Console {
       model = ReparameterizeModel(model, varNames); // replaces variables names with references to x[i] 
       model = ReplaceFloatLiteralsWithParameter(model, out constants); // replaces and float literals (e.g. 1.0f) with constants.
 
+      // System.Console.WriteLine(model);
       var modelExpression = "(double[] x, double[] constants) => " + model;
       return modelExpression;
     }
 
+    private static Regex logRegex = new Regex(@"([^a-zA-Z.])log\(");
+    private static Regex plogRegex = new Regex(@"([^a-zA-Z.])plog\(");
+
     private static string TranslateFunctionCalls(string model) {
+
       model = model.Replace("pow(", "Math.Pow(", StringComparison.InvariantCultureIgnoreCase);
-      return TranslatePower(TranslateSqr(TranslateCube(model)))
-        .Replace("log(", "Math.Log(", StringComparison.InvariantCultureIgnoreCase)
+      model = TranslatePower(TranslateSqr(TranslateCube(model)))
+        .Replace("abs(", "Math.Abs(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("exp(", "Math.Exp(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("sin(", "Math.Sin(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("cos(", "Math.Cos(", StringComparison.InvariantCultureIgnoreCase)
@@ -916,6 +932,9 @@ namespace HEAL.NonlinearRegression.Console {
         .Replace("atanh(", "Math.Atanh(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("cbrt(", "Math.Cbrt(", StringComparison.InvariantCultureIgnoreCase)
         ;
+      model = plogRegex.Replace(model, @"$1Functions.plog(");
+      model = logRegex.Replace(model, @"$1Math.Log(");
+      return model;
     }
 
     private static string TranslatePower(string model) {
@@ -952,12 +971,17 @@ namespace HEAL.NonlinearRegression.Console {
       for (int i = 0; i < varNames.Length; i++) {
         // We have to be careful to only replace variable names and keep function calls unchanged.
         // A variable must be followed by an operator (+,-,*,/),',', ' ', or ')' or end-of-string .
-        var varLineStartRegex = new Regex("^(" + varNames[i] + @")([ +\-*/\),])");
-        var varRegex = new Regex("([^a-zA-Z])(" + varNames[i] + @")([ +\-*/\),])");
+        var varLineStartRegex = new Regex("^(" + varNames[i] + @")([ \+\-\*\/\),])");
+        var varRegex = new Regex("([^a-zA-Z])(" + varNames[i] + @")([ \+\-\*\/\),])");
         var varEolRegex = new Regex("([^a-zA-Z])(" + varNames[i] + @")\z"); // variable at end of line
-        model = varLineStartRegex.Replace(model, $"x[{i}]$2");
-        model = varRegex.Replace(model, $"$1x[{i}]$3");
-        model = varEolRegex.Replace(model, $"$1x[{i}]");
+        // we do this in a loop because of potential overlapping matches that might be missed
+        string origModel;
+        do {
+          origModel = model;
+          model = varLineStartRegex.Replace(model, $"x[{i}]$2");
+          model = varRegex.Replace(model, $"$1x[{i}]$3");
+          model = varEolRegex.Replace(model, $"$1x[{i}]");
+        } while (origModel != model);
       }
 
       return model;

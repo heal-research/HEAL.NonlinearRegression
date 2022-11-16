@@ -17,6 +17,7 @@ namespace HEAL.Expressions {
     private readonly HashSet<int> usedParameters = new HashSet<int>();
 
     private static readonly MethodInfo[] SupportedMethods = new[] {
+      typeof(Math).GetMethod("Abs", new [] {typeof(double)}),
       typeof(Math).GetMethod("Log", new[] {typeof(double)}),
       typeof(Math).GetMethod("Exp", new[] {typeof(double)}),
       typeof(Math).GetMethod("Sqrt", new[] {typeof(double)}),
@@ -25,6 +26,7 @@ namespace HEAL.Expressions {
       typeof(Math).GetMethod("Cos", new[] {typeof(double)}),
       typeof(Math).GetMethod("Tanh", new[] {typeof(double)}),
       typeof(Math).GetMethod("Pow", new[] {typeof(double), typeof(double)}),
+      typeof(Functions).GetMethod("plog", new[] {typeof(double)})
     };
 
     private CheckExprVisitor(ParameterExpression theta, ParameterExpression x) {

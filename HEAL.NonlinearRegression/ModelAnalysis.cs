@@ -92,7 +92,7 @@ namespace HEAL.NonlinearRegression {
 
 
         // fit reduced model
-        nlr.Fit(newTheta, reducedExpression, X, y, maxIterations: 2000); // TODO make CLI parameter
+        nlr.Fit(newTheta, reducedExpression, X, y); // TODO make CLI parameter
         var reducedStats = nlr.Statistics;
 
         var impact = reducedStats.SSR / stats0.SSR;
