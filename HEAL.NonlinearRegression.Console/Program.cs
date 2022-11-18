@@ -967,23 +967,21 @@ namespace HEAL.NonlinearRegression.Console {
 
 
     private static string ReparameterizeModel(string model, string[] varNames) {
+      model = " " + model + " "; // so that we don't need special regex for matching at start and end of expression
       // TODO handle the case when the variable names are x or x[1] or similar
       for (int i = 0; i < varNames.Length; i++) {
         // We have to be careful to only replace variable names and keep function calls unchanged.
-        // A variable must be followed by an operator (+,-,*,/),',', ' ', or ')' or end-of-string .
-        var varLineStartRegex = new Regex("^(" + varNames[i] + @")([ \+\-\*\/\),])");
+        // A variable must be followed by an operator (+,-,*,/),',', ' ', or ')'.
         var varRegex = new Regex("([^a-zA-Z])(" + varNames[i] + @")([ \+\-\*\/\),])");
-        var varEolRegex = new Regex("([^a-zA-Z])(" + varNames[i] + @")\z"); // variable at end of line
         // we do this in a loop because of potential overlapping matches that might be missed
         string origModel;
         do {
           origModel = model;
-          model = varLineStartRegex.Replace(model, $"x[{i}]$2");
           model = varRegex.Replace(model, $"$1x[{i}]$3");
-          model = varEolRegex.Replace(model, $"$1x[{i}]");
         } while (origModel != model);
       }
 
+      // System.Console.WriteLine(model);
       return model;
     }
 

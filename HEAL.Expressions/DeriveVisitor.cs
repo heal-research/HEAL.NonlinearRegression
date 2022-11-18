@@ -120,7 +120,7 @@ namespace HEAL.Expressions {
           ifTrue: Expression.Constant(0.0), 
           ifFalse: Expression.Call(log, x)); 
       } else if (node.Method == abs) {
-        dfx = Expression.Call(sign, x);
+        dfx = Expression.Convert(Expression.Call(sign, x), typeof(double));
       } else throw new NotSupportedException($"Unsupported method call {node.Method.Name}");
 
       return Expression.Multiply(dfx, dx);
