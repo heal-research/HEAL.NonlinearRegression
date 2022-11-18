@@ -139,7 +139,7 @@ namespace HEAL.Expressions {
         node.Update(node.Object, args);
       } else if (node.Method.Name == "Pow") {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
-        var exponent = (double)((ConstantExpression)args[1]).Value; // this has to be a constant (must be integer)
+        var exponent = (double)((ConstantExpression)args[1]).Value; // this has to be a constant
 
         if (terms.All(HasScalingParameter)) {
           var paramExpr = FindScalingParameter(terms.First());

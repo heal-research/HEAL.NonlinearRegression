@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.Tracing;
 using System.IO;
 using System.Linq;
@@ -892,17 +893,24 @@ namespace HEAL.NonlinearRegression.Console {
         .WithOptimizationLevel(Microsoft.CodeAnalysis.OptimizationLevel.Release);
 
       // use Microsoft.CodeAnalysis.CSharp.Scripting to compile the model string
+      var sw = new Stopwatch();
+      sw.Start();
       var expr = CSharpScript.EvaluateAsync<Expression<Func<double[], double[], double>>>(modelExpression, options).Result;
+      sw.Stop();
+      // System.Console.Error.WriteLine($"Compilation time: {sw.ElapsedMilliseconds}ms");
       var newExpr = Expr.ReplaceNumbersWithParameter(expr, out p);
       var constantsParameter = expr.Parameters.First(p => p.Name == "constants");
       return Expr.ReplaceParameterWithValues<Expr.ParametricFunction>(newExpr, constantsParameter, constants);
     }
 
     private static string PreprocessModelString(string model, string[] varNames, out double[] constants) {
+      var sw = new Stopwatch();
       model = TranslateFunctionCalls(model);
       model = ReparameterizeModel(model, varNames); // replaces variables names with references to x[i] 
       model = ReplaceFloatLiteralsWithParameter(model, out constants); // replaces and float literals (e.g. 1.0f) with constants.
 
+      sw.Stop();
+     //  System.Console.Error.WriteLine($"Parse time: {sw.ElapsedMilliseconds}ms");
       // System.Console.WriteLine(model);
       var modelExpression = "(double[] x, double[] constants) => " + model;
       return modelExpression;
@@ -912,7 +920,7 @@ namespace HEAL.NonlinearRegression.Console {
     private static Regex plogRegex = new Regex(@"([^a-zA-Z.])plog\(");
 
     private static string TranslateFunctionCalls(string model) {
-
+      model = " " + model + " "; // no special handling required for start and end of string
       model = model.Replace("pow(", "Math.Pow(", StringComparison.InvariantCultureIgnoreCase);
       model = TranslatePower(TranslateSqr(TranslateCube(model)))
         .Replace("abs(", "Math.Abs(", StringComparison.InvariantCultureIgnoreCase)
@@ -932,17 +940,25 @@ namespace HEAL.NonlinearRegression.Console {
         .Replace("atanh(", "Math.Atanh(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("cbrt(", "Math.Cbrt(", StringComparison.InvariantCultureIgnoreCase)
         ;
-      model = plogRegex.Replace(model, @"$1Functions.plog(");
-      model = logRegex.Replace(model, @"$1Math.Log(");
+      string origModel;
+      do {
+        // loop for overlapping matches
+        origModel = model;
+        model = plogRegex.Replace(model, @"$1Functions.plog(");
+        model = logRegex.Replace(model, @"$1Math.Log(");
+      } while (model != origModel);
       return model;
     }
 
     private static string TranslatePower(string model) {
       // https://stackoverflow.com/questions/19596502/regex-nested-parentheses
       string oldModel;
+
+
       do {
         oldModel = model;
-        model = Regex.Replace(model, @"(\w*\((?>\((?<DEPTH>)|\)(?<-DEPTH>)|[^()]+)*\)(?(DEPTH)(?!)))\s*\^\s*([^-+*/) ]+)", "Math.Pow($1, $2)"); // only supports integer powers
+        model = Regex.Replace(model, @"(\w*\((?>\((?<DEPTH>)|\)(?<-DEPTH>)|[^()]+)*\)(?(DEPTH)(?!)))\s*\^\s*([^-+*/) ]+)", "Math.Pow($1, $2)");
+        model = Regex.Replace(model, @"([^\-\+\*/\(\) ]+)\s*\^\s*([^\-\+\*/) ]+)", "Math.Pow($1, $2)");
       } while (model != oldModel);
       return model;
     }
