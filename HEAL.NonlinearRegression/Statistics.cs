@@ -11,10 +11,8 @@ namespace HEAL.NonlinearRegression {
     public double[] paramStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
     public double[,] correlation { get; internal set; }// correlation matrix for parameters
 
-    public double LogLikelihood
-    {
-      get
-      {
+    public double LogLikelihood {
+      get {
         var v = SSR / m;
         return -m / 2.0 * Math.Log(2 * Math.PI) - m / 2.0 * Math.Log(v) - SSR / (2.0 * v);
       }
@@ -55,12 +53,20 @@ namespace HEAL.NonlinearRegression {
       jacobian(pOpt, x, yPred, J);
       // clone J for the QR decomposition
       var QR = (double[,])J.Clone();
-      alglib.rmatrixqr(ref QR, m, n, out _);
-      alglib.rmatrixqrunpackr(QR, n, n, out invR); // get R which is inverted in-place in the next statement
+      try {
+        alglib.rmatrixqr(ref QR, m, n, out _);
+        alglib.rmatrixqrunpackr(QR, n, n, out invR); // get R which is inverted in-place in the next statement
 
-      // inverse of R
-      alglib.rmatrixtrinverse(ref invR, isupper: true, out var info, out var invReport);
-      if (info < 0) throw new InvalidOperationException("Cannot invert R");
+        // inverse of R
+        alglib.rmatrixtrinverse(ref invR, isupper: true, out var info, out var invReport);
+        if (info < 0) {
+          System.Console.WriteLine("Jacobian is not of full rank or contains NaN values");
+          throw new InvalidOperationException("Cannot invert R");
+        }
+      } catch (alglib.alglibexception) {
+        System.Console.WriteLine("Jacobian is not of full rank or contains NaN values");
+        throw;
+      }
 
       // extract R^-1 into diag(|r1|,|r2|, ...|rp|) L where L has unit length rows
       var L = new double[n, n];
