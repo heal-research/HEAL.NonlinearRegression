@@ -71,7 +71,7 @@ namespace HEAL.NonlinearRegression.Console {
       var parametricExpr = GenerateExpression(modelExpression, constants, out var p);
 
       var nls = new NonlinearRegression();
-      nls.Fit(p, parametricExpr, trainX, trainY, maxIterations: 200);
+      nls.Fit(p, parametricExpr, trainX, trainY);
 
       if (nls.OptReport.Success) {
         System.Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
@@ -900,7 +900,9 @@ namespace HEAL.NonlinearRegression.Console {
       // System.Console.Error.WriteLine($"Compilation time: {sw.ElapsedMilliseconds}ms");
       var newExpr = Expr.ReplaceNumbersWithParameter(expr, out p);
       var constantsParameter = expr.Parameters.First(p => p.Name == "constants");
-      return Expr.ReplaceParameterWithValues<Expr.ParametricFunction>(newExpr, constantsParameter, constants);
+      var parametricExpr = Expr.ReplaceParameterWithValues<Expr.ParametricFunction>(newExpr, constantsParameter, constants);
+      parametricExpr = Expr.FoldConstants(parametricExpr);
+      return parametricExpr;
     }
 
     private static string PreprocessModelString(string model, string[] varNames, out double[] constants) {
@@ -916,7 +918,7 @@ namespace HEAL.NonlinearRegression.Console {
       return modelExpression;
     }
 
-    private static Regex logRegex = new Regex(@"([^a-zA-Z.])log\(");
+    private static Regex logRegex = new Regex(@"([^a-zA-Z.])[lL]og\(");
     private static Regex plogRegex = new Regex(@"([^a-zA-Z.])plog\(");
 
     private static string TranslateFunctionCalls(string model) {
@@ -957,8 +959,8 @@ namespace HEAL.NonlinearRegression.Console {
 
       do {
         oldModel = model;
-        model = Regex.Replace(model, @"(\w*\((?>\((?<DEPTH>)|\)(?<-DEPTH>)|[^()]+)*\)(?(DEPTH)(?!)))\s*\^\s*([^-+*/) ]+)", "Math.Pow($1, $2)");
-        model = Regex.Replace(model, @"([^\-\+\*/\(\) ]+)\s*\^\s*([^\-\+\*/) ]+)", "Math.Pow($1, $2)");
+        model = Regex.Replace(model, @"(\w*\((?>\((?<DEPTH>)|\)(?<-DEPTH>)|[^()]+)*\)(?(DEPTH)(?!)))\s*\^\s*(-?[^-+*/) ]+)", "Math.Pow($1, $2)");
+        model = Regex.Replace(model, @"([^\-\+\*/\(\) ]+)\s*\^\s*(-?[^\-\+\*/) ]+)", "Math.Pow($1, $2)");
       } while (model != oldModel);
       return model;
     }
