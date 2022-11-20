@@ -92,7 +92,8 @@ namespace HEAL.Expressions {
         dfx = Expression.Negate(Expression.Call(sin, x));
       } else if (node.Method == exp) {
         dfx = node;
-      } else if (node.Method == log) {
+      } else if (node.Method == log || node.Method == plog) {
+        // protected log: log(abs(x))
         dfx = Expression.Divide(Expression.Constant(1.0), x);
       } else if (node.Method == tanh) {
         dfx = Expression.Divide(
@@ -113,12 +114,6 @@ namespace HEAL.Expressions {
         if (exponent.NodeType != ExpressionType.Constant) throw new NotSupportedException("only constant exponents are allowed");
         var expVal = (double)((ConstantExpression)exponent).Value;
         dfx = Expression.Multiply(exponent, Expression.Call(pow, b, Expression.Constant(expVal - 1)));
-      } else if (node.Method == plog) {
-        // protected log: x <= 0 ? 0 : log(x)
-        dfx = Expression.Condition(
-          test: Expression.LessThanOrEqual(x, Expression.Constant(0.0)),
-          ifTrue: Expression.Constant(0.0), 
-          ifFalse: Expression.Call(log, x)); 
       } else if (node.Method == abs) {
         dfx = Expression.Convert(Expression.Call(sign, x), typeof(double));
       } else throw new NotSupportedException($"Unsupported method call {node.Method.Name}");
