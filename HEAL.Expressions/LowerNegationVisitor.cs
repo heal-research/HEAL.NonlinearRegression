@@ -47,8 +47,15 @@ namespace HEAL.Expressions {
           if (binOpd.NodeType == ExpressionType.Add || binOpd.NodeType == ExpressionType.Subtract) {
             return binOpd.Update(Visit(Expression.Negate(binOpd.Left)), null, Visit(Expression.Negate(binOpd.Right)));
           } else if (binOpd.NodeType == ExpressionType.Multiply || binOpd.NodeType == ExpressionType.Divide) {
-            SelectLeftOrRight(binOpd, out var selectedLeft, out var selectedRight);
-            return binOpd.Update(selectedLeft, null, Visit(Expression.Negate(selectedRight)));
+            var left = binOpd.Left;
+            var right = binOpd.Right;
+            if (left.NodeType == ExpressionType.Constant && right.NodeType != ExpressionType.Constant) {
+              return binOpd.Update(Visit(Expression.Negate(left)), null, right);
+            } else if (IsParameter(left) && !IsParameter(right)) {
+              return binOpd.Update(Visit(Expression.Negate(left)), null, right);
+            } else {
+              return binOpd.Update(left, null, Visit(Expression.Negate(right))); // default: negate right
+            }
           } else if (IsParameter(binOpd)) {
             thetaValues[ParameterIndex(binOpd)] = -ParameterValue(binOpd);
             return binOpd;
@@ -67,21 +74,6 @@ namespace HEAL.Expressions {
       return node.Update(opd);
     }
 
-    private void SelectLeftOrRight(BinaryExpression binOpd, out Expression selectedLeft, out Expression selectedRight) {
-      var left = binOpd.Left;
-      var right = binOpd.Right;
-      if (left.NodeType == ExpressionType.Constant && right.NodeType != ExpressionType.Constant) {
-        // swap constant
-        selectedLeft = right;
-        selectedRight = left;
-      } else if (IsParameter(left) && !IsParameter(right)) {
-        selectedLeft = right;
-        selectedRight = left;
-      } else {
-        selectedLeft = left;
-        selectedRight = right;
-      }
-    }
 
     private double ParameterValue(Expression expr) {
       return thetaValues[ParameterIndex(expr)];
