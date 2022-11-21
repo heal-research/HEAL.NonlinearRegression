@@ -151,7 +151,7 @@ namespace HEAL.Expressions {
           return Expression.Multiply(node.Update(node.Object, args), CreateParameter(Math.Pow(p0, exponent)));
         }
         node.Update(node.Object, args);
-      } else if (node.Method.Name == "Log" || node.Method.Name == "plog") {
+      } else if (node.Method.Name == "Log" /* || node.Method.Name == "plog"*/) {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
 
         if (terms.All(HasScalingParameter)) {
