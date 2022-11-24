@@ -589,7 +589,7 @@ namespace HEAL.NonlinearRegression.Console {
 
         var eps = 2.2204460492503131E-16; // the difference between 1.0 and the next larger double value
                                           // var eps = 1.192092896e-7f; for floats
-        var tol = n * eps;
+        var tol = m * eps;
         var rank = 0;
         for (int i = 0; i < n; i++) {
           if (w[i] > tol * w[0]) rank++;
