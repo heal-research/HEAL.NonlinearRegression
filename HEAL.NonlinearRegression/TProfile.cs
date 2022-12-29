@@ -226,30 +226,43 @@ namespace HEAL.NonlinearRegression {
       nls.func(nls.Statistics.paramEst, x, yPred);
 
       var offsetIdx = FindOffsetParameterIndex(nls.ParamEst, nls.x, nls.jacobian); // returns -1 if there is no offset parameter
-      double[] paramEstExt = new double[n];
-      if (offsetIdx == -1) {
-        throw new NotSupportedException("Only models with an explicit offset parameter are supported by the t-profile prediction intervals.");
+      int scaleIdx = FindScalingParameterIndex(nls.ParamEst, nls.x, yPred, nls.jacobian);
+      if (offsetIdx == -1 && scaleIdx == -1) {
+        throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
       }
 
       // buffer
+      double[] paramEstExt = new double[n];
       var xi = new double[d];
       Array.Copy(nls.ParamEst, paramEstExt, nls.ParamEst.Length);
 
       // prediction intervals for each point in x
       for (int i = 0; i < m; i++) {
         Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
-        var funcExt = Util.ReparameterizeFunc(nls.func, xi, offsetIdx);
-        var jacExt = Util.ReparameterizeJacobian(nls.jacobian, xi, offsetIdx);
+        Function funcExt;
+        Jacobian jacExt;
+        int outputParamIdx;
+        if (offsetIdx > 0) {
+          funcExt = Util.ReparameterizeFuncWithOffset(nls.func, xi, offsetIdx);
+          jacExt = Util.ReparameterizeJacobianWithOffset(nls.jacobian, xi, offsetIdx);
+          outputParamIdx = offsetIdx; 
+        } else if(scaleIdx > 0) {
+          funcExt = Util.ReparameterizeFuncWithScale(nls.func, xi, scaleIdx);
+          jacExt = Util.ReparameterizeJacobianWithScale(nls.jacobian, xi, scaleIdx);
+          outputParamIdx = scaleIdx; 
+        } else {
+          throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
+        }
 
-        paramEstExt[offsetIdx] = yPred[i]; // offset parameter is prediction at point xi
+        paramEstExt[outputParamIdx] = yPred[i]; // function output parameter is prediction at point xi
         var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, yPred, paramEstExt, jacExt, nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
 
-        var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, offsetIdx); // only for extra parameter
+        var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, outputParamIdx); // only for the function output parameter
 
         var tau = profile.Item1;
         var theta = new double[tau.Length];
         for (int k = 0; k < theta.Length; k++) {
-          theta[k] = profile.Item2[offsetIdx][k]; // profile of extra parameter
+          theta[k] = profile.Item2[outputParamIdx][k]; // profile of function output parameter
         }
         alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
         var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
@@ -265,6 +278,7 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
+    // the Jacobian of an offset parameter (f(x) = g(x) + p) is 1
     private static int FindOffsetParameterIndex(double[] theta, double[,] x, Jacobian jacobian) {
       var m = x.GetLength(0);
       var d = theta.Length;
@@ -280,6 +294,29 @@ namespace HEAL.NonlinearRegression {
         int i = 1;
         while (i < m && isConstant) {
           isConstant = jac[i, colIdx] == firstVal;
+          i++;
+        }
+        if (i >= m) res = colIdx; // found
+        colIdx++;
+      }
+      return res;
+    }
+
+    // the Jacobian of a scaling parameter (f(x) = g(x) * p) is g(x),
+    private static int FindScalingParameterIndex(double[] theta, double[,] x, double[] fx, Jacobian jacobian) {
+      var m = x.GetLength(0);
+      var d = theta.Length;
+      var f = new double[m];
+      var jac = new double[m, d];
+      jacobian(theta, x, f, jac);
+      // find a column that is fx when multiplied with theta_i
+      var res = -1;
+      int colIdx = 0;
+      while (colIdx < d && res == -1) {
+        var isMatch = true;
+        int i = 0;
+        while (i < m && isMatch) {
+          isMatch = jac[i, colIdx] * theta[colIdx] == fx[i];
           i++;
         }
         if (i >= m) res = colIdx; // found
