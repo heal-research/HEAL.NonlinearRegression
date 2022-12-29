@@ -1,12 +1,9 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.Tracing;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Net.WebSockets;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using CommandLine;
@@ -912,14 +909,15 @@ namespace HEAL.NonlinearRegression.Console {
       model = ReplaceFloatLiteralsWithParameter(model, out constants); // replaces and float literals (e.g. 1.0f) with constants.
 
       sw.Stop();
-     //  System.Console.Error.WriteLine($"Parse time: {sw.ElapsedMilliseconds}ms");
-      // System.Console.WriteLine(model);
+      //  System.Console.Error.WriteLine($"Parse time: {sw.ElapsedMilliseconds}ms");
       var modelExpression = "(double[] x, double[] constants) => " + model;
       return modelExpression;
     }
 
     private static Regex logRegex = new Regex(@"([^a-zA-Z.])[lL]og\(");
     private static Regex plogRegex = new Regex(@"([^a-zA-Z.])plog\(");
+    private static Regex sqrtRegex = new Regex(@"([^a-zA-Z.])[sS]qrt\(");
+    private static Regex psqrtRegex = new Regex(@"([^a-zA-Z.])psqrt\(");
 
     private static string TranslateFunctionCalls(string model) {
       model = " " + model + " "; // no special handling required for start and end of string
@@ -930,7 +928,6 @@ namespace HEAL.NonlinearRegression.Console {
         .Replace("sin(", "Math.Sin(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("cos(", "Math.Cos(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("tan(", "Math.Tan(", StringComparison.InvariantCultureIgnoreCase)
-        .Replace("sqrt(", "Math.Sqrt(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("tanh(", "Math.Tanh(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("sinh(", "Math.Sinh(", StringComparison.InvariantCultureIgnoreCase)
         .Replace("cosh(", "Math.Cosh(", StringComparison.InvariantCultureIgnoreCase)
@@ -946,6 +943,8 @@ namespace HEAL.NonlinearRegression.Console {
       do {
         // loop for overlapping matches
         origModel = model;
+        model = psqrtRegex.Replace(model, @"$1Functions.psqrt(");
+        model = sqrtRegex.Replace(model, @"$1Math.Sqrt(");
         model = plogRegex.Replace(model, @"$1Functions.plog(");
         model = logRegex.Replace(model, @"$1Math.Log(");
       } while (model != origModel);
@@ -990,7 +989,8 @@ namespace HEAL.NonlinearRegression.Console {
       for (int i = 0; i < varNames.Length; i++) {
         // We have to be careful to only replace variable names and keep function calls unchanged.
         // A variable must be followed by an operator (+,-,*,/),',', ' ', or ')'.
-        var varRegex = new Regex("([^a-zA-Z])(" + varNames[i] + @")([ \+\-\*\/\),])");
+        var varRegex = new Regex("([^a-zA-Z])(" + varNames[i] + @")([- +*/),])");
+
         // we do this in a loop because of potential overlapping matches that might be missed
         string origModel;
         do {
@@ -999,7 +999,6 @@ namespace HEAL.NonlinearRegression.Console {
         } while (origModel != model);
       }
 
-      // System.Console.WriteLine(model);
       return model;
     }
 

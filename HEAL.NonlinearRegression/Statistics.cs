@@ -31,7 +31,11 @@ namespace HEAL.NonlinearRegression {
       this.SSR = SSR;
       this.yPred = yPred;
       this.paramEst = (double[])paramEst.Clone();
-      CalcParameterStatistics(jacobian, x);
+      try {
+        CalcParameterStatistics(jacobian, x);
+      } catch(Exception e) {
+        System.Console.WriteLine($"Problem while calculating statistics. Prediction intervals will not work.");
+      }
     }
 
     // TODO

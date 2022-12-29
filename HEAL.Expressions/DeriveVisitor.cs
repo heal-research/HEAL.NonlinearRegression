@@ -76,6 +76,7 @@ namespace HEAL.Expressions {
     private readonly MethodInfo sign = typeof(Math).GetMethod("Sign", new[] { typeof(double) }); // for deriv abs(x)
 
     private readonly MethodInfo plog = typeof(Functions).GetMethod("plog", new[] { typeof(double) });
+    private readonly MethodInfo psqrt = typeof(Functions).GetMethod("psqrt", new[] { typeof(double) });
 
     //private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
     //private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
@@ -102,7 +103,7 @@ namespace HEAL.Expressions {
             Expression.Call(cosh,
               Expression.Multiply(Expression.Constant(2.0), x)),
             Expression.Constant(1.0)));
-      } else if (node.Method == sqrt) {
+      } else if (node.Method == sqrt || node.Method == psqrt) {
         dfx = Expression.Multiply(Expression.Constant(0.5), Expression.Divide(Expression.Constant(1.0), node));
       } else if (node.Method == cbrt) {
         // 1/3 * 1/cbrt(...)^2
