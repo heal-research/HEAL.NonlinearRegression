@@ -187,6 +187,7 @@ namespace HEAL.Expressions {
     /// <returns>A new expression that calculates the partial derivative of d expr(x) / d x_i</returns>
     public static Expression<ParametricFunction> Derive(Expression<ParametricFunction> expr, int dxIdx) {
       if (!CheckExprVisitor.CheckValid(expr)) throw new NotSupportedException(expr.ToString());
+      expr = FoldConstants(expr);
       var deriveVisitor = new DeriveVisitor(expr.Parameters.First(), dxIdx);
       return FoldConstants((Expression<ParametricFunction>)deriveVisitor.Visit(expr));
     }

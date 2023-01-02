@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Transactions;
 
 namespace HEAL.Expressions {
   /// <summary>
@@ -21,13 +20,11 @@ namespace HEAL.Expressions {
       typeof(Math).GetMethod("Log", new[] {typeof(double)}),
       typeof(Math).GetMethod("Exp", new[] {typeof(double)}),
       typeof(Math).GetMethod("Sqrt", new[] {typeof(double)}),
-      typeof(Math).GetMethod("Cbrt", new[] {typeof(double)}),
       typeof(Math).GetMethod("Sin", new[] {typeof(double)}),
       typeof(Math).GetMethod("Cos", new[] {typeof(double)}),
       typeof(Math).GetMethod("Tanh", new[] {typeof(double)}),
       typeof(Math).GetMethod("Pow", new[] {typeof(double), typeof(double)}),
-      typeof(Functions).GetMethod("plog", new[] {typeof(double)}),
-      typeof(Functions).GetMethod("psqrt", new[] {typeof(double)})
+      typeof(Functions).GetMethod("Cbrt", new[] {typeof(double)}),
     };
 
     private CheckExprVisitor(ParameterExpression theta, ParameterExpression x) {
