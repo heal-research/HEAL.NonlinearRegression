@@ -2,12 +2,12 @@
 
 namespace HEAL.Expressions {
   public static class Functions {
-    // protected log (used in compiled expressions)
-    public static double plog(double x) {
-      return Math.Log(Math.Abs(x));
+    public static double Cbrt(double x) {
+      if (x < 0) return -Math.Pow(-x, 1.0 / 3.0);
+      else return Math.Pow(x, 1.0 / 3.0);
     }
-    public static double psqrt(double x) {
-      return Math.Sqrt(Math.Abs(x));
+    public static double AQ(double a, double b) {
+      return a / Math.Sqrt(1 + b * b);
     }
   }
 }
