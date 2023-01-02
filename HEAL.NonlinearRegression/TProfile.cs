@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace HEAL.NonlinearRegression {
 
@@ -47,7 +48,7 @@ namespace HEAL.NonlinearRegression {
       p = new double[n];
       tau = new double[n];
       p_stud = new double[n];
-      for(int i=0;i<n;i++) {
+      for (int i = 0; i < n; i++) {
         tau[i] = profile.Item1[i];
         p[i] = profile.Item2[paramIdx][i];
         p_stud[i] = (p[i] - paramEst[paramIdx]) / paramStdError[paramIdx];
@@ -218,8 +219,8 @@ namespace HEAL.NonlinearRegression {
       var n = nls.Statistics.n; // number of parameters
       var d = x.GetLength(1); // number of features
 
-      low = new double[m];
-      high = new double[m];
+      var _low = new double[m];
+      var _high = new double[m];
 
       // calc predicted values
       var yPred = new double[m];
@@ -231,51 +232,57 @@ namespace HEAL.NonlinearRegression {
         throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
       }
 
-      // buffer
-      double[] paramEstExt = new double[n];
-      var xi = new double[d];
-      Array.Copy(nls.ParamEst, paramEstExt, nls.ParamEst.Length);
 
       // prediction intervals for each point in x
-      for (int i = 0; i < m; i++) {
-        Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
-        Function funcExt;
-        Jacobian jacExt;
-        int outputParamIdx;
-        if (offsetIdx > 0) {
-          funcExt = Util.ReparameterizeFuncWithOffset(nls.func, xi, offsetIdx);
-          jacExt = Util.ReparameterizeJacobianWithOffset(nls.jacobian, xi, offsetIdx);
-          outputParamIdx = offsetIdx; 
-        } else if(scaleIdx > 0) {
-          funcExt = Util.ReparameterizeFuncWithScale(nls.func, xi, scaleIdx);
-          jacExt = Util.ReparameterizeJacobianWithScale(nls.jacobian, xi, scaleIdx);
-          outputParamIdx = scaleIdx; 
-        } else {
-          throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
-        }
+      Parallel.For(0, m,
+        (i, loopState) => {
+          // buffer
+          // actually they are only needed once for the whole loop but with parallel for we need to make copies
+          double[] paramEstExt = new double[n];
+          Array.Copy(nls.ParamEst, paramEstExt, nls.ParamEst.Length);
+          var xi = new double[d];
 
-        paramEstExt[outputParamIdx] = yPred[i]; // function output parameter is prediction at point xi
-        var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, yPred, paramEstExt, jacExt, nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
+          Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
+          Function funcExt;
+          Jacobian jacExt;
+          int outputParamIdx;
+          if (offsetIdx > 0) {
+            funcExt = Util.ReparameterizeFuncWithOffset(nls.func, xi, offsetIdx);
+            jacExt = Util.ReparameterizeJacobianWithOffset(nls.jacobian, xi, offsetIdx);
+            outputParamIdx = offsetIdx;
+          } else if (scaleIdx > 0) {
+            funcExt = Util.ReparameterizeFuncWithScale(nls.func, xi, scaleIdx);
+            jacExt = Util.ReparameterizeJacobianWithScale(nls.jacobian, xi, scaleIdx);
+            outputParamIdx = scaleIdx;
+          } else {
+            throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
+          }
 
-        var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, outputParamIdx); // only for the function output parameter
+          paramEstExt[outputParamIdx] = yPred[i]; // function output parameter is prediction at point xi
+          var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, yPred, paramEstExt, jacExt, nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
 
-        var tau = profile.Item1;
-        var theta = new double[tau.Length];
-        for (int k = 0; k < theta.Length; k++) {
-          theta[k] = profile.Item2[outputParamIdx][k]; // profile of function output parameter
-        }
-        alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
-        var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
-        var f = alglib.invfdistribution(n, m - n, alpha);
-        var s = nls.Statistics.s;
-        if (m == 1) {
-          low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
-          high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
-        } else {
-          low[i] = alglib.spline1dcalc(tau2theta, -f) - (includeNoise ? t * s : 0.0);
-          high[i] = alglib.spline1dcalc(tau2theta, f) + (includeNoise ? t * s : 0.0);
-        }
-      }
+          var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, outputParamIdx); // only for the function output parameter
+
+          var tau = profile.Item1;
+          var theta = new double[tau.Length];
+          for (int k = 0; k < theta.Length; k++) {
+            theta[k] = profile.Item2[outputParamIdx][k]; // profile of function output parameter
+          }
+          alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
+          var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
+          var f = alglib.invfdistribution(n, m - n, alpha);
+          var s = nls.Statistics.s;
+          if (m == 1) {
+            _low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
+            _high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
+          } else {
+            _low[i] = alglib.spline1dcalc(tau2theta, -f) - (includeNoise ? t * s : 0.0);
+            _high[i] = alglib.spline1dcalc(tau2theta, f) + (includeNoise ? t * s : 0.0);
+          }
+        });
+      // cannot manipulate low and high output parameters directly in parallel.for
+      low = (double[])_low.Clone();
+      high = (double[])_high.Clone();
     }
 
     // the Jacobian of an offset parameter (f(x) = g(x) + p) is 1
