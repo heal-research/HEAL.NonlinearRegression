@@ -57,8 +57,7 @@ namespace HEAL.NonlinearRegression.Console {
     #region verbs
     private static void Fit(FitOptions options) {
       PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
-
-      foreach (var model in options.Model.Split("\n")) {
+      foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
         var nls = new NonlinearRegression();
@@ -75,6 +74,13 @@ namespace HEAL.NonlinearRegression.Console {
       }
     }
 
+    private static IEnumerable<string> GetModels(string optionsModel) {
+      if (File.Exists(optionsModel)) {
+        return File.ReadLines(optionsModel);
+      } else {
+        return optionsModel.Split("\n");
+      }
+    }
 
     private static void Evaluate(EvalOptions options) {
       ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
@@ -90,7 +96,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       Split(x, y, start, end, start, end, out x, out y, out _, out _);
 
-      foreach (var model in options.Model.Split("\n")) {
+      foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
         var SSR = EvaluateSSR(parametricExpr, p, x, y, out var yPred);
@@ -124,7 +130,7 @@ namespace HEAL.NonlinearRegression.Console {
     private static void Predict(PredictOptions options) {
       PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
 
-      foreach (var model in options.Model.Split("\n")) {
+      foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
         var nlr = new NonlinearRegression();
@@ -175,7 +181,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
 
-      foreach (var model in options.Model.Split("\n")) {
+      foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
         try {
@@ -231,7 +237,7 @@ namespace HEAL.NonlinearRegression.Console {
     private static void Simplify(SimplifyOptions options) {
       var varNames = options.Variables.Split(',').Select(vn => vn.Trim()).ToArray();
 
-      foreach (var model in options.Model.Split("\n")) {
+      foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
         Expression<Expr.ParametricFunction> simplifiedExpr;
 
@@ -275,7 +281,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       Split(x, y, trainStart, trainEnd, testStart, testEnd, out var trainX, out var trainY, out var testX, out var testY);
 
-      foreach (var model in options.Model.Split("\n")) {
+      foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
         // calculate ref stats for full model
@@ -362,7 +368,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out var testX, out var testY);
 
-      foreach (var model in options.Model.Split("\n")) {
+      foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
         var subExprImportance = ModelAnalysis.SubtreeImportance(parametricExpr, trainX, trainY, p);
@@ -420,7 +426,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
 
-      foreach (var model in options.Model.Split("\n")) {
+      foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
         var varImportance = ModelAnalysis.VariableImportance(parametricExpr, trainX, trainY, p);
@@ -449,7 +455,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
 
-      foreach (var model in options.Model.Split("\n")) {
+      foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var parameters);
 
         var nlr = new NonlinearRegression();
@@ -497,28 +503,30 @@ namespace HEAL.NonlinearRegression.Console {
 
       Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
 
-      GenerateExpression(options.Model, varNames, out var parametricExpr, out var parameters);
+      foreach (var model in GetModels(options.Model)) {
+        GenerateExpression(model, varNames, out var parametricExpr, out var parameters);
 
-      var nlr = new NonlinearRegression();
-      nlr.Fit(parameters, parametricExpr, trainX, trainY);
+        var nlr = new NonlinearRegression();
+        nlr.Fit(parameters, parametricExpr, trainX, trainY);
 
-      var _func = Expr.Broadcast(parametricExpr).Compile();
-      var _jac = Expr.Jacobian(parametricExpr, parameters.Length).Compile();
-      void func(double[] p, double[,] x, double[] f) => _func(p, x, f);
-      void jac(double[] p, double[,] x, double[] f, double[,] j) => _jac(p, x, f, j);
+        var _func = Expr.Broadcast(parametricExpr).Compile();
+        var _jac = Expr.Jacobian(parametricExpr, parameters.Length).Compile();
+        void func(double[] p, double[,] x, double[] f) => _func(p, x, f);
+        void jac(double[] p, double[,] x, double[] f, double[,] j) => _jac(p, x, f, j);
 
-      var folder = Path.GetDirectoryName(options.Dataset);
-      var filename = Path.GetFileNameWithoutExtension(options.Dataset);
+        var folder = Path.GetDirectoryName(options.Dataset);
+        var filename = Path.GetFileNameWithoutExtension(options.Dataset);
 
-      var tProfile = new TProfile(trainY, trainX, nlr.Statistics, func, jac);
+        var tProfile = new TProfile(trainY, trainX, nlr.Statistics, func, jac);
 
-      for (int pIdx = 0; pIdx < parameters.Length; pIdx++) {
-        tProfile.GetProfile(pIdx, out var p, out var tau, out var p_stud);
-        var outfilename = Path.Combine(folder, filename + $"_profile_{pIdx}.csv");
-        using (var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create))) {
-          writer.WriteLine("tau,p,p_stud");
-          for (int i = 0; i < p.Length; i++) {
-            writer.WriteLine($"{tau[i]},{p[i]},{p_stud[i]}");
+        for (int pIdx = 0; pIdx < parameters.Length; pIdx++) {
+          tProfile.GetProfile(pIdx, out var p, out var tau, out var p_stud);
+          var outfilename = Path.Combine(folder, filename + $"_profile_{pIdx}.csv");
+          using (var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create))) {
+            writer.WriteLine("tau,p,p_stud");
+            for (int i = 0; i < p.Length; i++) {
+              writer.WriteLine($"{tau[i]},{p[i]},{p_stud[i]}");
+            }
           }
         }
       }
@@ -541,7 +549,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
 
-      foreach (var model in options.Model.Split("\n")) {
+      foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var parameters);
 
         if (!options.NoOptimization) {
