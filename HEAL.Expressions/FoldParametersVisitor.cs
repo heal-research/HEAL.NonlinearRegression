@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -110,12 +109,13 @@ namespace HEAL.Expressions {
         return Expression.Multiply(args[0], arrIdxExpr);
       } else if (node.Method == pow
         && IsParam(args[1], out _, out _)
-        && args[0] is MethodCallExpression subFuncCall
-        && subFuncCall.Method == exp) {
+        && args[0] is MethodCallExpression expCall
+        && expCall.Method == exp) {
         // exp(x)^p = exp(p*x)
-        var x = subFuncCall.Arguments[0];
-        return subFuncCall.Update(subFuncCall.Object, new[] { Expression.Multiply(x, args[1]) });
-      } else {
+        var x = expCall.Arguments[0];
+        return expCall.Update(expCall.Object, new[] { Expression.Multiply(x, args[1]) });
+      } // no rule for aq(a,b)^p because this would introduce a new parameter
+      else {
         return node.Update(node.Object, args);
       }
     }

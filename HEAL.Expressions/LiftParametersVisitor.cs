@@ -184,6 +184,9 @@ namespace HEAL.Expressions {
           return Expression.Multiply(node.Update(node.Object, args), CreateParameter(f));
         }
         node.Update(node.Object, args);
+      } else if (node.Method.Name == "AQ") {
+        // aq(x,y) = aq(1,y)*x
+        return Expression.Multiply(node.Update(node.Object, new[] { Expression.Constant(1.0), args[1] }), args[0]);
       }
       // cannot extract parameters from: sin, cos, tan, tanh
       return node.Update(node.Object, args);

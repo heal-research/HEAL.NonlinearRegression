@@ -89,11 +89,26 @@ namespace HEAL.Expressions {
         return Expression.Multiply(Expression.Constant(1.0 / Math.Sqrt(1.0 + c * c)), args[0]);
       } else if (node.Method == pow
         && args[1].NodeType == ExpressionType.Constant
-        && args[0] is MethodCallExpression subFuncCall
-        && subFuncCall.Method == exp) {
+        && args[0] is MethodCallExpression expCall
+        && expCall.Method == exp) {
         // exp(x)^c = exp(c*x)
-        var x = subFuncCall.Arguments[0];
-        return subFuncCall.Update(subFuncCall.Object, new[] { Expression.Multiply(x, args[1]) });
+        var x = expCall.Arguments[0];
+        return expCall.Update(expCall.Object, new[] { Expression.Multiply(x, args[1]) });
+      } else if (node.Method == pow
+        && args[1] is ConstantExpression const2Expr && (double)const2Expr.Value==2.0
+        && args[0] is MethodCallExpression aqCall
+        && aqCall.Method == aq) {
+        // aq(a,b)^2  = a^2 / sqrt(1 + b*b)^2 = a^2 / (1+b^2)
+        var a = aqCall.Arguments[0];
+        var b = aqCall.Arguments[1];
+        return Expression.Divide(Expression.Call(pow, a, const2Expr), Expression.Add(Expression.Call(pow, b, const2Expr), Expression.Constant(1.0)));
+      } else if (node.Method == pow
+        && args[1] is ConstantExpression constExpr
+        && args[0] is BinaryExpression binExpr && (binExpr.NodeType == ExpressionType.Multiply || binExpr.NodeType == ExpressionType.Divide)
+        ) {
+        // (x*y)^c == x^c * y^c
+        // (x/y)^c == x^c / y^c
+        return binExpr.Update(Expression.Call(pow, binExpr.Left, constExpr), null, Expression.Call(pow, binExpr.Right, constExpr));
       }
 
 
