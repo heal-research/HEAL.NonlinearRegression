@@ -139,7 +139,12 @@ namespace HEAL.Expressions {
         node.Update(node.Object, args);
       } else if (node.Method.Name == "Pow") {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
-        var exponent = (double)((ConstantExpression)args[1]).Value; // this has to be a constant
+        double exponent;
+        if (args[1] is ConstantExpression constExpr) {
+          exponent = (double)constExpr.Value; // this has to be a constant
+        } else if (IsParameter(args[1])) {
+          exponent = thetaValues[ParameterIndex(args[1])];
+        } else throw new NotSupportedException("Power can only have constant or parameter exponents.");
 
         if (terms.All(HasScalingParameter)) {
           var paramExpr = FindScalingParameter(terms.First());

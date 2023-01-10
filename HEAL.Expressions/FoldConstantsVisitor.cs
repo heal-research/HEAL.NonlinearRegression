@@ -7,9 +7,12 @@ namespace HEAL.Expressions {
   // Mainly useful to simplify expressions after symbolic derivation
   // folds constants and handles x + 0, x * 0, x * 1, x/1 , 0/x...
   // TODO would be interesting to extend this to other numeric types and using zero / identity instead of (0.0 and 1.0)
+  // TODO FoldConstants and FoldParameters should implement the same rules (combine!)
 
   public class FoldConstantsVisitor : ExpressionVisitor {
     private MethodInfo aq = typeof(Functions).GetMethod("AQ", new[] { typeof(double), typeof(double) });
+    private MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
+    private MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
     protected override Expression VisitBinary(BinaryExpression node) {
       var left = Visit(node.Left);
       var right = Visit(node.Right);
@@ -80,10 +83,17 @@ namespace HEAL.Expressions {
                           && arg.Type == typeof(double))) {
         var values = args.Select(arg => ((ConstantExpression)arg).Value).ToArray();
         return Expression.Constant(node.Method.Invoke(node.Object, values));
-      } else if(node.Method == aq && args[1].NodeType == ExpressionType.Constant) {
+      } else if (node.Method == aq && args[1].NodeType == ExpressionType.Constant) {
         // aq(x, c) = x / sqrt(1 + c²) = 1/sqrt(1+c²) * x
         var c = (double)((ConstantExpression)args[1]).Value;
         return Expression.Multiply(Expression.Constant(1.0 / Math.Sqrt(1.0 + c * c)), args[0]);
+      } else if (node.Method == pow
+        && args[1].NodeType == ExpressionType.Constant
+        && args[0] is MethodCallExpression subFuncCall
+        && subFuncCall.Method == exp) {
+        // exp(x)^c = exp(c*x)
+        var x = subFuncCall.Arguments[0];
+        return subFuncCall.Update(subFuncCall.Object, new[] { Expression.Multiply(x, args[1]) });
       }
 
 

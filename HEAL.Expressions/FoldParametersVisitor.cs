@@ -13,6 +13,8 @@ namespace HEAL.Expressions {
     private readonly List<double> thetaValues;
 
     private MethodInfo aq = typeof(Functions).GetMethod("AQ", new[] { typeof(double), typeof(double) });
+    private MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
+    private MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
 
     public static Expression FoldParameters(Expression expr, ParameterExpression theta, double[] thetaValues, out double[] newThetaValues) {
       var visitor = new FoldParametersVisitor(theta, thetaValues);
@@ -106,6 +108,13 @@ namespace HEAL.Expressions {
         // aq(x, p) = x / sqrt(1 + p²) = x * 1/sqrt(1+p²) = x * p'
         thetaValues[paramIdx] = 1.0 / Math.Sqrt(1 + thetaValues[paramIdx] * thetaValues[paramIdx]);
         return Expression.Multiply(args[0], arrIdxExpr);
+      } else if (node.Method == pow
+        && IsParam(args[1], out _, out _)
+        && args[0] is MethodCallExpression subFuncCall
+        && subFuncCall.Method == exp) {
+        // exp(x)^p = exp(p*x)
+        var x = subFuncCall.Arguments[0];
+        return subFuncCall.Update(subFuncCall.Object, new[] { Expression.Multiply(x, args[1]) });
       } else {
         return node.Update(node.Object, args);
       }
