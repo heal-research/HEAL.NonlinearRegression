@@ -134,7 +134,7 @@ namespace HEAL.Expressions {
             thetaValues[ParameterIndex(FindScalingParameter(t))] /= p0;
           }
 
-          return Expression.Multiply(node.Update(node.Object, args), CreateParameter(Cbrt(p0)));
+          return Expression.Multiply(node.Update(node.Object, args), CreateParameter(Functions.Cbrt(p0)));
         }
         node.Update(node.Object, args);
       } else if (node.Method.Name == "Pow") {
@@ -182,11 +182,6 @@ namespace HEAL.Expressions {
       }
       // cannot extract parameters from: sin, cos, tan, tanh
       return node.Update(node.Object, args);
-    }
-
-    private double Cbrt(double p0) {
-      if (p0 > 0) return Math.Pow(p0, 1.0 / 3.0);
-      else return -Math.Pow(-p0, 1.0 / 3.0);
     }
 
     private Expression CreateParameter(double value) {

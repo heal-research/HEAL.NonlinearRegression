@@ -25,6 +25,7 @@ namespace HEAL.Expressions {
       typeof(Math).GetMethod("Tanh", new[] {typeof(double)}),
       typeof(Math).GetMethod("Pow", new[] {typeof(double), typeof(double)}),
       typeof(Functions).GetMethod("Cbrt", new[] {typeof(double)}),
+      typeof(Functions).GetMethod("AQ", new[] {typeof(double), typeof(double) }),
     };
 
     private CheckExprVisitor(ParameterExpression theta, ParameterExpression x) {

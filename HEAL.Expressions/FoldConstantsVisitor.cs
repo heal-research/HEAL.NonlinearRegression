@@ -1,5 +1,7 @@
+using System;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 
 namespace HEAL.Expressions {
   // Mainly useful to simplify expressions after symbolic derivation
@@ -7,6 +9,7 @@ namespace HEAL.Expressions {
   // TODO would be interesting to extend this to other numeric types and using zero / identity instead of (0.0 and 1.0)
 
   public class FoldConstantsVisitor : ExpressionVisitor {
+    private MethodInfo aq = typeof(Functions).GetMethod("AQ", new[] { typeof(double), typeof(double) });
     protected override Expression VisitBinary(BinaryExpression node) {
       var left = Visit(node.Left);
       var right = Visit(node.Right);
@@ -77,7 +80,12 @@ namespace HEAL.Expressions {
                           && arg.Type == typeof(double))) {
         var values = args.Select(arg => ((ConstantExpression)arg).Value).ToArray();
         return Expression.Constant(node.Method.Invoke(node.Object, values));
+      } else if(node.Method == aq && args[1].NodeType == ExpressionType.Constant) {
+        // aq(x, c) = x / sqrt(1 + c²) = 1/sqrt(1+c²) * x
+        var c = (double)((ConstantExpression)args[1]).Value;
+        return Expression.Multiply(Expression.Constant(1.0 / Math.Sqrt(1.0 + c * c)), args[0]);
       }
+
 
       return node.Update(node.Object, args);
     }

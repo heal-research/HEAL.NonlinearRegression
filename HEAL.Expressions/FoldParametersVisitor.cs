@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.Common;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using static HEAL.Expressions.Expr;
 
 namespace HEAL.Expressions {
@@ -10,6 +11,8 @@ namespace HEAL.Expressions {
   public class FoldParametersVisitor : ExpressionVisitor {
     private readonly ParameterExpression thetaParam;
     private readonly List<double> thetaValues;
+
+    private MethodInfo aq = typeof(Functions).GetMethod("AQ", new[] { typeof(double), typeof(double) });
 
     public static Expression FoldParameters(Expression expr, ParameterExpression theta, double[] thetaValues, out double[] newThetaValues) {
       var visitor = new FoldParametersVisitor(theta, thetaValues);
@@ -99,6 +102,10 @@ namespace HEAL.Expressions {
         }
         thetaValues[firstParamIdx] = (double)node.Method.Invoke(node.Object, argValues); // override the first parameter with the result value of the function
         return Expression.ArrayIndex(thetaParam, Expression.Constant(firstParamIdx));
+      } else if (node.Method == aq && IsParam(args[1], out var arrIdxExpr, out var paramIdx)) {
+        // aq(x, p) = x / sqrt(1 + p²) = x * 1/sqrt(1+p²) = x * p'
+        thetaValues[paramIdx] = 1.0 / Math.Sqrt(1 + thetaValues[paramIdx] * thetaValues[paramIdx]);
+        return Expression.Multiply(args[0], arrIdxExpr);
       } else {
         return node.Update(node.Object, args);
       }
@@ -117,15 +124,6 @@ namespace HEAL.Expressions {
         arrayIdxExpr = null;
       }
       return false;
-    }
-
-    private double ParameterValue(Expression expr) {
-      return thetaValues[ParameterIndex(expr)];
-    }
-    private int ParameterIndex(Expression expr) {
-      if (!IsParam(expr, out _, out _)) throw new InvalidProgramException("internal error");
-      var binExpr = (BinaryExpression)expr;
-      return (int)((ConstantExpression)binExpr.Right).Value;
     }
 
     private bool HasScalingParameter(Expression expr) {

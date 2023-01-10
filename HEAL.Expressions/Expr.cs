@@ -340,8 +340,5 @@ namespace HEAL.Expressions {
       return exprBody.ToString();
 
     }
-
-    // TODO: method to take an expression and extract all double constants as parameters
-    // ( so that we can directly copy operon models into the code)
   }
 }
