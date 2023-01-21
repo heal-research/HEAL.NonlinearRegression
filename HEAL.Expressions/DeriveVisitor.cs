@@ -112,8 +112,7 @@ namespace HEAL.Expressions {
           var expVal = (double)((ConstantExpression)exponent).Value;
           dfx = Expression.Multiply(exponent, Expression.Call(pow, b, Expression.Constant(expVal - 1)));
         } else if (exponent is BinaryExpression binaryExpression && binaryExpression.Left == param){
-          // parameter. 
-          dfx = Expression.Multiply(exponent, Expression.Call(pow, b, Expression.Subtract(exponent, Expression.Constant(-1.0))));
+          return Expression.Multiply(node, Expression.Add(Expression.Divide(Expression.Multiply(exponent, dx), b), Expression.Call(log, b)));
         } else {
           throw new NotSupportedException("Exponents can only be parameters or constants.");
         }
