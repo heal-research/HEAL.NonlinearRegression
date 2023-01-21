@@ -340,5 +340,13 @@ namespace HEAL.Expressions {
       return exprBody.ToString();
 
     }
+
+    public static int NumberOfNodes(Expression<ParametricFunction> parametricExpr) {
+      return CountNodesVisitor.Count(parametricExpr);
+    }
+
+    public static double[] CollectConstants(Expression<ParametricFunction> parametricExpr) {
+      return CollectConstantsVisitor.CollectConstants(parametricExpr);
+    }
   }
 }

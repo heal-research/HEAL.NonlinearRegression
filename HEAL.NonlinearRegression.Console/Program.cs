@@ -40,6 +40,7 @@ namespace HEAL.NonlinearRegression.Console {
         .WithParsed<PredictOptions>(options => Predict(options))
         .WithParsed<FitOptions>(options => Fit(options))
         .WithParsed<EvalOptions>(options => Evaluate(options))
+        .WithParsed<EvalMDLOptions>(options => EvaluateMDL(options))
         .WithParsed<SimplifyOptions>(options => Simplify(options))
         .WithParsed<NestedModelsOptions>(options => GenerateNestedModels(options))
         .WithParsed<SubtreeImportanceOptions>(options => SubtreeImportance(options))
@@ -110,7 +111,36 @@ namespace HEAL.NonlinearRegression.Console {
       }
     }
 
-    private static double EvaluateSSR(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y, out double[] yPred) {
+    public static void EvaluateMDL(EvalMDLOptions options) {
+      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
+
+      // default is full dataset
+      var start = 0;
+      var end = y.Length - 1;
+      if (options.Range != null) {
+        var toks = options.Range.Split(":");
+        start = int.Parse(toks[0]);
+        end = int.Parse(toks[1]);
+      }
+
+      Split(x, y, start, end, start, end, out x, out y, out _, out _);
+
+      foreach (var model in GetModels(options.Model)) {
+        GenerateExpression(model, varNames, out var parametricExpr, out var p);
+
+        var SSR = EvaluateSSR(parametricExpr, p, x, y, out var yPred);
+        var nmse = SSR / y.Length / Util.Variance(y);
+
+        var _jac = Expr.Jacobian(parametricExpr, p.Length).Compile();
+        void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
+        var stats = new LeastSquaresStatistics(y.Length, p.Length, SSR, yPred, p, jac, x);
+
+        var mdl = MinimumDescriptionLength.MDL(stats, Expr.NumberOfNodes(parametricExpr), options.NumSymbols, Expr.CollectConstants(parametricExpr));
+        System.Console.WriteLine($"LogLik: {stats.LogLikelihood} MDL: {mdl} DoF: {p.Length}");
+      }
+    }
+
+    public static double EvaluateSSR(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y, out double[] yPred) {
       var func = Expr.Broadcast(parametricExpr).Compile();
 
       int m;
@@ -328,7 +358,7 @@ namespace HEAL.NonlinearRegression.Console {
           // }
         }
         System.Console.WriteLine();
-        System.Console.WriteLine($"SSR_Factor\tnumPar\tRMSE_tr\tRMSE_te\tRMSE_cv\tRMSE_cv_std\tAICc\tdAICc\tBIC\tdBIC\tModel");
+        System.Console.WriteLine($"SSR_Factor,numPar,RMSE_tr,RMSE_te,RMSE_cv,RMSE_cv_std,AICc,dAICc,BIC,dBIC,Model");
         foreach (var subModel in allModels) {
           (parametricExpr, p) = subModel;
 
@@ -347,7 +377,7 @@ namespace HEAL.NonlinearRegression.Console {
             cvrmseMean = cvrmse.Average();
             cvrmseStd = Math.Sqrt(Util.Variance(cvrmse.ToArray()));
           } catch (Exception) { }
-          System.Console.WriteLine($"{stats.SSR / refStats.SSR:e4}\t{stats.n}\t{rmseTrain:e4}\t{rmseTest:e4}\t{cvrmseMean:e4}\t{cvrmseStd:e4}\t{stats.AICc:e4}\t{stats.AICc - refStats.AICc:e4}\t{stats.BIC:e4}\t{stats.BIC - refStats.BIC:e4}\t{Expr.ToString(parametricExpr, varNames, p)}");
+          System.Console.WriteLine($"{stats.SSR / refStats.SSR:e4},{stats.n},{rmseTrain:e4},{rmseTest:e4},{cvrmseMean:e4},{cvrmseStd:e4},{stats.AICc:e4},{stats.AICc - refStats.AICc:e4},{stats.BIC:e4},{stats.BIC - refStats.BIC:e4},{Expr.ToString(parametricExpr, varNames, p)}");
         }
       }
     }
@@ -639,6 +669,25 @@ namespace HEAL.NonlinearRegression.Console {
       public string Range { get; set; }
     }
 
+
+    [Verb("mdl", HelpText = "Evaluate the minimum description length of a model on a dataset without fitting.")]
+    public class EvalMDLOptions {
+      [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
+      public string Dataset { get; set; }
+
+      [Option('t', "target", Required = true, HelpText = "Target variable name.")]
+      public string Target { get; set; }
+
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
+
+      [Option("range", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive).")]
+      public string Range { get; set; }
+
+      [Option("numSymbols", Required = false, HelpText = "The number of allowed symbols in expressions (count each operator, function, and variable).")]
+      public int NumSymbols { get; set; }
+    }
+
     [Verb("simplify", HelpText = "Remove redundant parameters.")]
     public class SimplifyOptions {
       [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
@@ -882,7 +931,7 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
 
-    private static void GenerateExpression(string model, string[] varNames, out Expression<Expr.ParametricFunction> parametricExpr, out double[] p) {
+    public static void GenerateExpression(string model, string[] varNames, out Expression<Expr.ParametricFunction> parametricExpr, out double[] p) {
       var varValues = Expression.Parameter(typeof(double[]), "x");
       var paramValues = Expression.Parameter(typeof(double[]), "p");
       var parser = new ExprParser(model, varNames, varValues, paramValues);
@@ -890,7 +939,7 @@ namespace HEAL.NonlinearRegression.Console {
       p = parser.ParameterValues;
     }
 
-    private static void ReadData(string filename, string targetVariable, out string[] variableNames, out double[,] x, out double[] y) {
+    public static void ReadData(string filename, string targetVariable, out string[] variableNames, out double[,] x, out double[] y) {
       using (var reader = new StreamReader(filename)) {
         var allVarNames = reader.ReadLine().Split(',');
         var yIdx = Array.IndexOf(allVarNames, targetVariable);

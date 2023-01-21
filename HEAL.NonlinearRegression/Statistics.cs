@@ -23,6 +23,8 @@ namespace HEAL.NonlinearRegression {
 
     public double BIC => (n + 1) * Math.Log(m) - 2 * LogLikelihood;
 
+    private double[,] fisherInformation;
+    public double[,] FisherInformation => (double[,])fisherInformation.Clone();
     private double[,] invR;
 
     public LeastSquaresStatistics(int m, int n, double SSR, double[] yPred, double[] paramEst, Jacobian jacobian, double[,] x) {
@@ -33,7 +35,7 @@ namespace HEAL.NonlinearRegression {
       this.paramEst = (double[])paramEst.Clone();
       try {
         CalcParameterStatistics(jacobian, x);
-      } catch(Exception e) {
+      } catch (Exception e) {
         System.Console.WriteLine($"Problem while calculating statistics. Prediction intervals will not work.");
       }
     }
@@ -59,7 +61,14 @@ namespace HEAL.NonlinearRegression {
       var QR = (double[,])J.Clone();
       try {
         alglib.rmatrixqr(ref QR, m, n, out _);
-        alglib.rmatrixqrunpackr(QR, n, n, out invR); // get R which is inverted in-place in the next statement
+        alglib.rmatrixqrunpackr(QR, n, n, out var R); // get R which is inverted in-place in the next statement
+
+        // I(p) = Cov(p)^-1 = (s² * invR * invR')^-1 = (1/s² * invR'^-1 * invR^-1) = (1/s² * R' * R)
+        fisherInformation = new double[n, n];
+        alglib.rmatrixgemm(n, n, n, alpha: 1.0/(s*s), R, 0, 0, optypea: 1, R, 0, 0, optypeb: 0, 0.0, ref fisherInformation, 0, 0);
+
+        // copy R for inversion
+        invR = R;
 
         // inverse of R
         alglib.rmatrixtrinverse(ref invR, isupper: true, out var info, out var invReport);
@@ -158,5 +167,7 @@ namespace HEAL.NonlinearRegression {
         }
       }
     }
+
+
   }
 }

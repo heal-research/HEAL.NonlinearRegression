@@ -102,7 +102,7 @@ namespace HEAL.NonlinearRegression {
 
           jac(p_cond, x, yPred_cond, J); // get predicted values and Jacobian for calculation of z and v_p
 
-          var SSR_cond = 0.0; // S(\theta_p)
+          var SSR_cond = 0.0; // S(,heta_p)
           var zv = 0.0; // z^T v_p
 
           for (int i = 0; i < m; i++) {
