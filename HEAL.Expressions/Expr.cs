@@ -18,6 +18,8 @@ namespace HEAL.Expressions {
 
     public delegate double ParametricGradientFunction(double[] theta, double[] x, double[] grad);
 
+    public delegate double ParametricHessianFunction(double[] theta, double[] x, double[,] hessian);
+
     public delegate void ParametricJacobianFunction(double[] theta, double[,] X, double[] f, double[,] Jac);
 
 
@@ -192,9 +194,10 @@ namespace HEAL.Expressions {
       return FoldConstants((Expression<ParametricFunction>)deriveVisitor.Visit(expr));
     }
 
+    // Symbolic gradient
     // returns function that also returns the gradient 
     public static Expression<ParametricGradientFunction> Gradient(Expression<ParametricFunction> expr, int numParam) {
-      var gParam = Expression.Parameter(typeof(double[]), "g");
+      var gParam = Expression.Parameter(typeof(double[]), "grad");
       var fVar = Expression.Variable(typeof(double), "f");
       var df_dx = new Expression<ParametricFunction>[numParam];
       for (int i = 0; i < numParam; i++) {
@@ -214,8 +217,6 @@ namespace HEAL.Expressions {
 
       expressions[expressions.Length - 1] = fVar; // result of the block is the result of the last expression
 
-
-
       var res = Expression.Lambda<ParametricGradientFunction>(
         Expression.Block(
             new[] { fVar }, // block local variables
@@ -224,6 +225,50 @@ namespace HEAL.Expressions {
         expr.Parameters.Concat(new[] { gParam }) // lambda parameters
         );
       // Console.WriteLine(res);
+      return res;
+    }
+
+    // symbolic Hessian
+    public static Expression<ParametricHessianFunction> Hessian(Expression<ParametricFunction> expr, int numParam) {
+      var hParam = Expression.Parameter(typeof(double[,]), "hessian");
+      var fVar = Expression.Variable(typeof(double), "f");
+      var H = new Expression<ParametricFunction>[numParam, numParam];
+      for (int i = 0; i < numParam; i++) {
+        var df_dx = Derive(expr, i);
+        for (int j = i; j < numParam; j++) {
+          H[i, j] = Derive(df_dx, j);
+          if (i != j)
+            H[j, i] = H[i, j];
+        }
+      }
+
+      var statements = new List<Expression>();
+      // Console.WriteLine(expr.Body);
+
+      statements.Add(Expression.Assign(fVar, expr.Body));
+
+      // diagonal elements of Hessian
+      for (int i = 0; i < numParam; i++) {
+        statements.Add(Expression.Assign(Expression.ArrayAccess(hParam, Expression.Constant(i), Expression.Constant(i)), H[i, i].Body));
+      }
+      // off-diagonal elements of Hessian
+      for (int i = 0; i < numParam; i++) {
+        for (int j = i + 1; j < numParam; j++) {
+          statements.Add(Expression.Assign(Expression.ArrayAccess(hParam, Expression.Constant(i), Expression.Constant(j)), H[i, j].Body));
+          statements.Add(Expression.Assign(Expression.ArrayAccess(hParam, Expression.Constant(j), Expression.Constant(i)), Expression.ArrayAccess(hParam, Expression.Constant(i), Expression.Constant(j))));
+          // Console.WriteLine(expressions[i + 1]);
+        }
+      }
+
+      statements.Add(fVar); // result of the block is the result of the last expression
+
+      var res = Expression.Lambda<ParametricHessianFunction>(
+        Expression.Block(
+            new[] { fVar }, // block local variables
+            statements
+          ),
+        expr.Parameters.Concat(new[] { hParam }) // lambda parameters
+        );
       return res;
     }
 

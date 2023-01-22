@@ -63,6 +63,9 @@ namespace HEAL.NonlinearRegression {
         alglib.rmatrixqr(ref QR, m, n, out _);
         alglib.rmatrixqrunpackr(QR, n, n, out var R); // get R which is inverted in-place in the next statement
 
+        // Fisher matrix is inverse of Hessian 
+        // I(p) = H(p)^-1
+        // we approximate the Hessian here via J'J
         // I(p) = Cov(p)^-1 = (s² * invR * invR')^-1 = (1/s² * invR'^-1 * invR^-1) = (1/s² * R' * R)
         fisherInformation = new double[n, n];
         alglib.rmatrixgemm(n, n, n, alpha: 1.0/(s*s), R, 0, 0, optypea: 1, R, 0, 0, optypeb: 0, 0.0, ref fisherInformation, 0, 0);

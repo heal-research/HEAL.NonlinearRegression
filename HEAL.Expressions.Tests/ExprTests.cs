@@ -28,15 +28,16 @@ namespace HEAL.Expressions.Tests {
 
     [Test]
     public void BroadcastGradient() {
-      CompileAndRun((p, x, g) => p[0] * x[0]);
-      CompileAndRun((a, b, g) => a[0] * b[0]);
-      CompileAndRun((p, x, g) => p[0] - x[0]);
-      CompileAndRun((p, x, g) => p[0] + x[0]);
-      CompileAndRun((p, x, g) => p[1] + x[1]);
-      CompileAndRun((p, x, g) => Math.Log(p[0] + x[0]));
-      CompileAndRun((p, x, g) => Math.Exp(p[0] * x[0]));
-      CompileAndRun((p, x, g) => Math.Sin(p[0] * x[0]));
-      CompileAndRun((p, x, g) => Math.Cos(p[0] * x[0]));
+      CompileAndRunJacobian((p, x, g) => p[0] * x[0]);
+      CompileAndRunJacobian((a, b, g) => a[0] * b[0]);
+      CompileAndRunJacobian((p, x, g) => p[0] - x[0]);
+      CompileAndRunJacobian((p, x, g) => p[0] + x[0]);
+      CompileAndRunJacobian((p, x, g) => p[1] + x[1]);
+      CompileAndRunJacobian((p, x, g) => Math.Log(p[0] + x[0]));
+      CompileAndRunJacobian((p, x, g) => Math.Exp(p[0] * x[0]));
+      CompileAndRunJacobian((p, x, g) => Math.Sin(p[0] * x[0]));
+      CompileAndRunJacobian((p, x, g) => Math.Cos(p[0] * x[0]));
+      Assert.Pass();
     }
 
     [Test]
@@ -64,6 +65,14 @@ namespace HEAL.Expressions.Tests {
       }
     }
 
+    [Test]
+    public void Hessian() {
+      CompileAndRunHessian((double[] p, double[] x) => Math.Log(p[0] + x[0]));
+      CompileAndRunHessian((double[] p, double[] x) => Math.Exp(p[0] * x[0]));
+      CompileAndRunHessian((double[] p, double[] x) => Math.Sin(p[0] * x[0]));
+      CompileAndRunHessian((double[] p, double[] x) => Math.Cos(p[0] * x[0]));
+      Assert.Pass();
+    }
 
     [Test]
     public void FoldParameters() {
@@ -685,7 +694,16 @@ namespace HEAL.Expressions.Tests {
       var t = new double[5] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       Expr.Broadcast(expr).Compile()(t, X, f);
     }
-    private void CompileAndRun(Expression<Expr.ParametricGradientFunction> expr) {
+
+    private void CompileAndRunHessian(Expression<Expr.ParametricFunction> expr) {
+      var x = new double[3];
+      var t = new double[5] { 1.0, 2.0, 3.0, 4.0, 5.0 };
+      var h = new double[5, 5];
+      var hessian = Expr.Hessian(expr, 5);
+      hessian.Compile()(t, x, h);
+    }
+
+    private void CompileAndRunJacobian(Expression<Expr.ParametricGradientFunction> expr) {
       int N = 10;
       var X = new double[N, 3];
       var f = new double[N];
