@@ -81,7 +81,7 @@ namespace HEAL.NonlinearRegression.Console.Tests {
 
           for (int k = 0; k < p.Length; k++)
             for (int l = 0; l < p.Length; l++) {
-              H[k, l] += (res * Hi[k, l] - gi[k] * gi[l]) / (hErr[r] * hErr[r]); // full Hessian
+              H[k, l] += (res * Hi[k, l] - gi[k] * gi[l]); // / (hErr[r] * hErr[r]); // full Hessian
             }
         }
 
@@ -108,7 +108,7 @@ namespace HEAL.NonlinearRegression.Console.Tests {
         // code length T2: function complexity = k log n + sum_j log(c_j)
         // code length T3: parameter complexity = 2.53
         // total code length: 16.39
-        var mdl = MinimumDescriptionLength.MDL(stats, numNodes, numSymbols, constants);
+        var mdl = MinimumDescriptionLength.MDL(expr, p, y, x, numNodes, numSymbols, constants);
         System.Console.WriteLine($"{model} LogLik: {stats.LogLikelihood} MDL: {mdl} DoF: {p.Length} NumNodes: {Expr.NumberOfNodes(expr)} num constants: {Expr.CollectConstants(expr).Length}");
       }
     }

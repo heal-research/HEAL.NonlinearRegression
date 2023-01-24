@@ -20,6 +20,8 @@ namespace HEAL.Expressions {
 
     public delegate double ParametricHessianFunction(double[] theta, double[] x, double[,] hessian);
 
+    public delegate double ParametricHessianDiagFunction(double[] theta, double[] x, double[] hessianDiag);
+
     public delegate void ParametricJacobianFunction(double[] theta, double[,] X, double[] f, double[,] Jac);
 
 
@@ -263,6 +265,35 @@ namespace HEAL.Expressions {
       statements.Add(fVar); // result of the block is the result of the last expression
 
       var res = Expression.Lambda<ParametricHessianFunction>(
+        Expression.Block(
+            new[] { fVar }, // block local variables
+            statements
+          ),
+        expr.Parameters.Concat(new[] { hParam }) // lambda parameters
+        );
+      return res;
+    }
+
+    // symbolic diagonal of Hessian matrix
+    public static Expression<ParametricHessianDiagFunction> HessianDiag(Expression<ParametricFunction> expr, int numParam) {
+      var hParam = Expression.Parameter(typeof(double[]), "hessianDiag");
+      var fVar = Expression.Variable(typeof(double), "f");
+      var H = new Expression<ParametricFunction>[numParam];
+      for (int i = 0; i < numParam; i++) {
+        H[i] = Derive(Derive(expr, i), i);
+      }
+
+      var statements = new List<Expression>();
+
+      statements.Add(Expression.Assign(fVar, expr.Body));
+
+      // diagonal elements of Hessian
+      for (int i = 0; i < numParam; i++) {
+        statements.Add(Expression.Assign(Expression.ArrayAccess(hParam, Expression.Constant(i)), H[i].Body));
+      }
+      statements.Add(fVar); // result of the block is the result of the last expression
+
+      var res = Expression.Lambda<ParametricHessianDiagFunction>(
         Expression.Block(
             new[] { fVar }, // block local variables
             statements

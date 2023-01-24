@@ -13,8 +13,9 @@ namespace HEAL.NonlinearRegression {
 
     public double LogLikelihood {
       get {
-        var v = SSR / m;
-        return -m / 2.0 * Math.Log(2 * Math.PI) - m / 2.0 * Math.Log(v) - SSR / (2.0 * v);
+        // this is not the likelihood function but the maximum value of the likelihood function (assumes parameters are optimized to maximize likelihood)
+        var s2 = SSR / m; // optimal value for s2 in the likelihood function for the maximum likelihood parameter estimate
+        return -m / 2.0 * Math.Log(2 * Math.PI) - m / 2.0 * Math.Log(s2) - SSR / (2.0 * s2);
       }
     }
 
@@ -23,8 +24,6 @@ namespace HEAL.NonlinearRegression {
 
     public double BIC => (n + 1) * Math.Log(m) - 2 * LogLikelihood;
 
-    private double[,] fisherInformation;
-    public double[,] FisherInformation => (double[,])fisherInformation.Clone();
     private double[,] invR;
 
     public LeastSquaresStatistics(int m, int n, double SSR, double[] yPred, double[] paramEst, Jacobian jacobian, double[,] x) {
@@ -62,13 +61,6 @@ namespace HEAL.NonlinearRegression {
       try {
         alglib.rmatrixqr(ref QR, m, n, out _);
         alglib.rmatrixqrunpackr(QR, n, n, out var R); // get R which is inverted in-place in the next statement
-
-        // Fisher matrix is inverse of Hessian 
-        // I(p) = H(p)^-1
-        // we approximate the Hessian here via J'J
-        // I(p) = Cov(p)^-1 = (s² * invR * invR')^-1 = (1/s² * invR'^-1 * invR^-1) = (1/s² * R' * R)
-        fisherInformation = new double[n, n];
-        alglib.rmatrixgemm(n, n, n, alpha: 1.0/(s*s), R, 0, 0, optypea: 1, R, 0, 0, optypeb: 0, 0.0, ref fisherInformation, 0, 0);
 
         // copy R for inversion
         invR = R;

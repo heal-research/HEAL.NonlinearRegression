@@ -128,15 +128,8 @@ namespace HEAL.NonlinearRegression.Console {
       foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
-        var SSR = EvaluateSSR(parametricExpr, p, x, y, out var yPred);
-        var nmse = SSR / y.Length / Util.Variance(y);
-
-        var _jac = Expr.Jacobian(parametricExpr, p.Length).Compile();
-        void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
-        var stats = new LeastSquaresStatistics(y.Length, p.Length, SSR, yPred, p, jac, x);
-
-        var mdl = MinimumDescriptionLength.MDL(stats, Expr.NumberOfNodes(parametricExpr), options.NumSymbols, Expr.CollectConstants(parametricExpr));
-        System.Console.WriteLine($"LogLik: {stats.LogLikelihood} MDL: {mdl} DoF: {p.Length}");
+        var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, x, Expr.NumberOfNodes(parametricExpr), options.NumSymbols, Expr.CollectConstants(parametricExpr));
+        System.Console.WriteLine($"MDL: {mdl} DoF: {p.Length}");
       }
     }
 
