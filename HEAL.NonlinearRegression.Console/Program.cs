@@ -35,7 +35,7 @@ namespace HEAL.NonlinearRegression.Console {
     public static void Main(string[] args) {
       System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
       var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, SimplifyOptions, NestedModelsOptions,
-        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, PairwiseProfileOptions, ProfileOptions,
+        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, EvalMDLOptions, PairwiseProfileOptions, ProfileOptions,
         RankDeterminationOptions>(args)
         .WithParsed<PredictOptions>(options => Predict(options))
         .WithParsed<FitOptions>(options => Fit(options))
