@@ -87,6 +87,7 @@ namespace HEAL.Expressions {
     }
 
 
+    /*
     // fold unary operations on parameters
     protected override Expression VisitUnary(UnaryExpression node) {
       var operand = Visit(node.Operand);
@@ -100,6 +101,23 @@ namespace HEAL.Expressions {
         }
       } else return node.Update(operand);
     }
+    */
+    protected override Expression VisitUnary(UnaryExpression node) {
+      var operand = Visit(node.Operand);
+      switch ((node, operand)) {
+        case ( { NodeType: ExpressionType.Negate },
+              BinaryExpression(ExpressionType.ArrayIndex, _, ConstantExpression(_) constExpr) binExpr)
+        when binExpr.Left == p: {
+            pValues[(int)constExpr.Value] *= -1;
+            return binExpr;
+          }
+        case ( { NodeType: ExpressionType.UnaryPlus }, _): {
+            return operand;
+          }
+        default: return node.Update(operand);
+      }
+    }
+
 
     // fold methods that only depend on one or multiple parameters
     protected override Expression VisitMethodCall(MethodCallExpression node) {
