@@ -29,7 +29,7 @@ namespace HEAL.Expressions {
           return node.Update(leftDiv.Left, null, Expression.Multiply(leftDiv.Right, right));
         } else if (right.NodeType == ExpressionType.Divide) {
           var rightDiv = right as BinaryExpression;
-          return node.Update(Expression.Multiply(left, rightDiv.Left), null, rightDiv.Left);
+          return node.Update(Expression.Multiply(left, rightDiv.Right), null, rightDiv.Left);
         } else return node.Update(left, null, right);
       }
       return node.Update(left, null, right);
