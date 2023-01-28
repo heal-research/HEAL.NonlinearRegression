@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 
 namespace HEAL.Expressions {
@@ -28,6 +29,23 @@ namespace HEAL.Expressions {
         Factors.Add(node);
         return node;
       }
+    }
+
+    private Expression Negate(Expression arg) {
+      if (arg is ConstantExpression constExpr) {
+        return Expression.Constant(-(double)constExpr.Value);
+      } else if (arg is UnaryExpression unaryExpr && unaryExpr.NodeType == ExpressionType.Negate) {
+        return unaryExpr.Operand;
+      } else return Expression.Negate(arg);
+    }
+
+    protected override Expression VisitUnary(UnaryExpression node) {
+      if (node.NodeType == ExpressionType.Negate) {
+        Factors.AddRange(CollectFactors(node.Operand).Select(Negate));
+        return node;
+      } else if (node.NodeType == ExpressionType.UnaryPlus) {
+        return base.Visit(node.Operand);
+      } else throw new NotSupportedException();
     }
 
     private Expression Inverse(Expression expr) {
