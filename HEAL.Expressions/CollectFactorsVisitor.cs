@@ -41,7 +41,9 @@ namespace HEAL.Expressions {
 
     protected override Expression VisitUnary(UnaryExpression node) {
       if (node.NodeType == ExpressionType.Negate) {
-        Factors.AddRange(CollectFactors(node.Operand).Select(Negate));
+        var f = CollectFactors(node.Operand);
+        Factors.Add(Negate(f.First()));
+        Factors.AddRange(f.Skip(1));
         return node;
       } else if (node.NodeType == ExpressionType.UnaryPlus) {
         return base.Visit(node.Operand);
