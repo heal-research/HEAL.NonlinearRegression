@@ -33,16 +33,15 @@ namespace HEAL.Expressions {
         return Expression.Constant(-(double)constExpr.Value);
       } else if (arg is UnaryExpression unaryExpr && unaryExpr.NodeType == ExpressionType.Negate) {
         return unaryExpr.Operand;
-      } else return Expression.Negate(arg); // handling of parameters useful here?
+      } else return Expression.Negate(arg);
     }
 
     protected override Expression VisitUnary(UnaryExpression node) {
       if (node.NodeType == ExpressionType.Negate) {
-        var terms = CollectTerms(node.Operand);
-        Terms.AddRange(terms.Select(t => Negate(t)));
+        Terms.AddRange(CollectTerms(node.Operand).Select(Negate));
         return node;
       } else if (node.NodeType == ExpressionType.UnaryPlus) {
-        return base.Visit(node);
+        return base.Visit(node.Operand);
       } else throw new NotSupportedException();
     }
 

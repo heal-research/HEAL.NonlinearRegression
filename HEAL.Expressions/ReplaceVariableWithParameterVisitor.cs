@@ -1,8 +1,8 @@
-using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 
 namespace HEAL.Expressions {
+  // for analysis of variable impacts
   public class ReplaceVariableWithParameterVisitor : ExpressionVisitor {
     private readonly double replVal;
     private readonly int varIdx;

@@ -1,10 +1,8 @@
-using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Linq;
 using System.Linq.Expressions;
 
 namespace HEAL.Expressions {
+  // TODO
   // for each non-linear unary function creates a new expression where this function is replaced by id
   // To analyse if unary functions can be removed without loss in accuracy.
   // Additionally, for checking nested functions tanh(tanh(tanh())). 
@@ -40,7 +38,7 @@ namespace HEAL.Expressions {
       reducedExpressions = new List<Expression<T>>();
       foreach (var expr in exprs) {
         var done = new HashSet<Expression>();
-        bool newExprGenerated = false;
+        bool newExprGenerated;
         do {
           var visitor = new NestedFunctionsVisitor(done);
           var newExpr = (Expression<T>)visitor.Visit(expr);

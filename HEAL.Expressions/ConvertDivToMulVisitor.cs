@@ -1,6 +1,5 @@
 using System;
 using System.Linq.Expressions;
-using System.Runtime.InteropServices.ComTypes;
 
 namespace HEAL.Expressions {
   /// <summary>

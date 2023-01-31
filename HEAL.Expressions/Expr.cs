@@ -8,9 +8,25 @@ using Type = System.Type;
 
 // TODO:
 // - refactor visitors (move into folder?)
-// - fold constants visitor
+// - extract patterns in txt files and read patterns as Expressions with a separate parser. Match the patterns against the expression tree
+//   -> this is to simplify the pattern matching / expression simplification code
+//   -> patterns can be build step by step by replacing one visitor at a time
+//   -> pattern sets need to be grouped. E.g. there is a separate group of patterns to fold constants, take derivative, ...
+
 
 namespace HEAL.Expressions {
+  public class ParameterizedExpression {
+    public readonly Expression<Expr.ParametricFunction> expr;
+    public readonly ParameterExpression p;
+    public readonly double[] pValues;
+
+    public ParameterizedExpression(Expression<Expr.ParametricFunction>  expr, ParameterExpression p, double[] pValues) {
+      this.expr = expr;
+      this.p = p;
+      this.pValues = pValues;
+    }
+  }
+
   public static class Expr {
     public delegate double ParametricFunction(double[] theta, double[] x);
 
@@ -217,7 +233,7 @@ namespace HEAL.Expressions {
         // Console.WriteLine(expressions[i + 1]);
       }
 
-      expressions[expressions.Length - 1] = fVar; // result of the block is the result of the last expression
+      expressions[^1] = fVar; // result of the block is the result of the last expression
 
       var res = Expression.Lambda<ParametricGradientFunction>(
         Expression.Block(
@@ -244,10 +260,9 @@ namespace HEAL.Expressions {
         }
       }
 
-      var statements = new List<Expression>();
-      // Console.WriteLine(expr.Body);
-
-      statements.Add(Expression.Assign(fVar, expr.Body));
+      var statements = new List<Expression> {
+        Expression.Assign(fVar, expr.Body)
+      };
 
       // diagonal elements of Hessian
       for (int i = 0; i < numParam; i++) {
@@ -283,9 +298,9 @@ namespace HEAL.Expressions {
         H[i] = Derive(Derive(expr, i), i);
       }
 
-      var statements = new List<Expression>();
-
-      statements.Add(Expression.Assign(fVar, expr.Body));
+      var statements = new List<Expression> {
+        Expression.Assign(fVar, expr.Body)
+      };
 
       // diagonal elements of Hessian
       for (int i = 0; i < numParam; i++) {
@@ -343,17 +358,26 @@ namespace HEAL.Expressions {
       expr = (Expression<ParametricFunction>)ConvertSubToAddVisitor.Convert(ConvertDivToMulVisitor.Convert(expr));
       expr = (Expression<ParametricFunction>)RotateBinaryExpressionsVisitor.Rotate(expr);
       // Console.WriteLine($"Rotated: {expr}");
-      expr = ArrangeParametersRightVisitor.Execute(expr, theta, parameterValues);
+
+      // TODO use parameterizedExpression in all visitors
+
+      var parameterizedExpr = ArrangeParametersRightVisitor.Execute(new ParameterizedExpression(expr, theta, parameterValues));
       // Console.WriteLine($"Rearranged: {expr}");
 
-      expr = LiftLinearParametersVisitor.LiftParameters(expr, theta, parameterValues, out parameterValues);
-      expr = LowerNegationVisitor.LowerNegation(expr, theta, parameterValues, out parameterValues);
-      expr = LiftParametersVisitor.LiftParameters(expr, theta, parameterValues, out parameterValues);
+      parameterizedExpr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr);
+      // expr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr.expr, parameterizedExpr.p, parameterizedExpr.pValues, out var newPValues);
+      // parameterizedExpr = new ParameterizedExpression(expr, parameterizedExpr.p, newPValues);
+      parameterizedExpr = LowerNegationVisitor.LowerNegation(parameterizedExpr);
 
-      expr = (Expression<ParametricFunction>)FoldParametersVisitor.FoldParameters(expr, theta, parameterValues, out newParameterValues);
+      parameterizedExpr = LiftParametersVisitor.LiftParameters(parameterizedExpr);
 
-      expr = ExpandProductsVisitor.Expand(expr, theta, newParameterValues, out newParameterValues);
+      parameterizedExpr = FoldParametersVisitor.FoldParameters(parameterizedExpr);
+      parameterizedExpr = ExpandProductsVisitor.Expand(parameterizedExpr);
       // Console.WriteLine($"Folded parameters: {newExpr}");
+      
+      // deconstruct expression for the following visitors
+      expr = parameterizedExpr.expr;
+      newParameterValues = parameterizedExpr.pValues;
 
       expr = FoldConstants(expr);
       expr = (Expression<ParametricFunction>)SimplifyDivisionVisitor.Simplify(expr);

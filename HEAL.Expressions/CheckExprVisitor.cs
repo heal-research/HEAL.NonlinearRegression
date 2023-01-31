@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -13,7 +12,6 @@ namespace HEAL.Expressions {
   public class CheckExprVisitor : ExpressionVisitor {
     private readonly ParameterExpression x;
     private readonly ParameterExpression theta;
-    private readonly HashSet<int> usedParameters = new HashSet<int>();
 
     private static readonly MethodInfo[] SupportedMethods = new[] {
       typeof(Math).GetMethod("Abs", new [] {typeof(double)}),
@@ -76,14 +74,7 @@ namespace HEAL.Expressions {
       var left = node.Left;
       // only theta and x allowed
       if(left != theta && left != x) throw new NotSupportedException($"other variables than theta and x are not allowed {left}");
-      if (!(node.Right is ConstantExpression right)) throw new NotSupportedException($"array index must be constant {node.Right}");
-      if (left == theta) {
-        // check that each element from theta is referenced only once
-        var idx = (int)right.Value;
-        if (usedParameters.Contains(idx))
-          throw new NotSupportedException($"each element of theta must occur only once (theta[{idx}])");
-        usedParameters.Add(idx);
-      }
+      if (!(node.Right is ConstantExpression)) throw new NotSupportedException($"array index must be constant {node.Right}");
       return true;
     }
     

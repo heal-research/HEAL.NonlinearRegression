@@ -1,7 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Data.Common;
+using System.Linq;
+using System;
 using System.Linq.Expressions;
-using System.Text;
 
 namespace HEAL.Expressions {
   internal static class ExpressionExtrensions {
@@ -10,6 +10,7 @@ namespace HEAL.Expressions {
       nodeType = expr.NodeType;
       operand = expr.Operand;
     }
+
     public static void Deconstruct(this BinaryExpression expr, out ExpressionType nodeType, out Expression left, out Expression right) {
       nodeType = expr.NodeType;
       left = expr.Left;
@@ -18,12 +19,6 @@ namespace HEAL.Expressions {
 
     public static void Deconstruct(this ConstantExpression expr, out object val) {
       val = expr.Value;
-    }
-
-    public static void test() {
-      List<(Expression,Expression)> bla = new List<(Expression,Expression)>() {
-        ( (Expression<Func<double,double>>)((double x) =>  0.0 + x), (Expression<Func<double,double>>)((double x) =>  0.0 + x))
-      };
     }
   }
 }

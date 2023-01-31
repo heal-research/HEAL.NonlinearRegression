@@ -266,8 +266,8 @@ namespace HEAL.NonlinearRegression.Console {
 
         Simplify(parametricExpr, p, varNames, out simplifiedExpr, out var newP);
 
-        System.Console.WriteLine(simplifiedExpr);
-        System.Console.WriteLine($"theta: {string.Join(",", newP.Select(pi => pi.ToString()))}");
+        // System.Console.WriteLine(simplifiedExpr);
+        // System.Console.WriteLine($"theta: {string.Join(",", newP.Select(pi => pi.ToString()))}");
 
         System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
       }

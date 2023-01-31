@@ -4,4 +4,9 @@
         <TargetFramework>netstandard2.1</TargetFramework>
     </PropertyGroup>
 
+    <ItemGroup>
+      <Compile Remove="ExpandProductsVisitor - Copy.cs" />
+      <Compile Remove="LiftLinearParametersVisitor - Copy.cs" />
+    </ItemGroup>
+
 </Project>

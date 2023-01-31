@@ -2,6 +2,7 @@
 using System;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Numerics;
 
 namespace HEAL.NonlinearRegression {
   public static class MinimumDescriptionLength {
@@ -37,9 +38,10 @@ namespace HEAL.NonlinearRegression {
       // this assumes that parameters are at the optimum
       var m = y.Length;
       var SSR = y.Zip(yPred, (yi, ypi) => Math.Pow(yi - ypi, 2)).Sum();
-      var s2 = SSR / m; // optimal value for s2 in the likelihood function for the maximum likelihood parameter estimate
+      var s2 = SSR / m; // optimal value for s2 in the likelihood function for the maximum likelihood parameter estimate. s2 is assumed to be fixed
+      return -m / 2 * Math.Log(2 * Math.PI) - m / 2 * Math.Log(s2) - SSR / (2.0 * s2);
       // return -m / 2.0 * Math.Log(2 * Math.PI) - m / 2.0 * Math.Log(s2) - m / 2.0;
-      return -m / 2.0 * (Math.Log(2 * Math.PI) + Math.Log(s2) + 1);
+      // return -m / 2.0 * (Math.Log(2 * Math.PI) + Math.Log(s2) + 1);
     }
 
     // diag(I) for the normal log likelihood
@@ -48,7 +50,9 @@ namespace HEAL.NonlinearRegression {
       var hess = Expr.HessianDiag(modelExpr, n).Compile();
       var grad = Expr.Gradient(modelExpr, n).Compile();
 
-      
+      var SSR = y.Zip(yPred, (yi, ypi) => Math.Pow(yi - ypi, 2)).Sum();
+      var s2 = SSR / yPred.Length; // estimated error variance
+
       var fimDiag = new double[n]; // diagonal of Fisher information matrix of log likelihood
       var hDiagModel = new double[n]; // hessian of the model
       var gradModel = new double[n]; // gradient of the model
@@ -56,11 +60,11 @@ namespace HEAL.NonlinearRegression {
       var xi = new double[d];
       for (int r = 0; r < y.Length; r++) {
         Buffer.BlockCopy(X, r * d * sizeof(double), xi, 0, d * sizeof(double)); // copy one row
-        var res = yPred[r] - y[r];
+        var res = y[r] - yPred[r];
         hess(paramEst, xi, hDiagModel);
         grad(paramEst, xi, gradModel);
         for (int pIdx = 0; pIdx < n; pIdx++) {
-          fimDiag[pIdx] -= res * hDiagModel[pIdx] - gradModel[pIdx] * gradModel[pIdx]; // FIM is negative Hessian
+          fimDiag[pIdx] += (res * hDiagModel[pIdx] + gradModel[pIdx] * gradModel[pIdx]) / s2; // FIM is negative Hessian
         }
       }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
@@ -6,41 +7,41 @@ using System.Linq.Expressions;
 namespace HEAL.Expressions {
   public class ArrangeParametersRightVisitor : ExpressionVisitor {
     private readonly ParameterExpression p;
-    private readonly double[] pValues;
+    private readonly List<double> pValues;
 
-    private ArrangeParametersRightVisitor(ParameterExpression p, double[] pValues) {
-      this.p = p;
-      this.pValues = pValues;
+    private ArrangeParametersRightVisitor(ParameterizedExpression expr) {
+      this.p = expr.p;
+      this.pValues = expr.pValues.ToList();
     }
 
     // pValues is updated
-    public static Expression<Expr.ParametricFunction> Execute(Expression<Expr.ParametricFunction> expr,
-      ParameterExpression p, double[] pValues) {
-
-      return (Expression<Expr.ParametricFunction>)(new ArrangeParametersRightVisitor(p, pValues)).Visit(expr);
+    public static ParameterizedExpression Execute(ParameterizedExpression expr) {
+      var v = new ArrangeParametersRightVisitor(expr);
+      var newExpr = (Expression<Expr.ParametricFunction>)v.Visit(expr.expr);
+      return new ParameterizedExpression(newExpr, v.p, v.pValues.ToArray());
     }
 
     protected override Expression VisitBinary(BinaryExpression node) {
       var left = Visit(node.Left);
       var right = Visit(node.Right);
-      var leftIsParam = IsParam(left, out var leftParam, out var leftIdx);
-      var rightIsParam = IsParam(right, out var rightParam, out var rightIdx);
+      var leftIsParam = IsParam(left, out var _, out var leftIdx);
+      var rightIsParam = IsParam(right, out var _, out var rightIdx);
       BinaryExpression leftBinary = left as BinaryExpression;
 
       if (leftIsParam && rightIsParam) {
         // fold directly
         switch (node.NodeType) {
           case ExpressionType.Add: {
-              pValues[leftIdx] += pValues[rightIdx]; return leftParam;
+              return NewParam(pValues[leftIdx] + pValues[rightIdx]);
             }
           case ExpressionType.Subtract: {
-              pValues[leftIdx] -= pValues[rightIdx]; return leftParam;
+              return NewParam(pValues[leftIdx] - pValues[rightIdx]);
             }
           case ExpressionType.Multiply: {
-              pValues[leftIdx] *= pValues[rightIdx]; return leftParam;
+              return NewParam(pValues[leftIdx] * pValues[rightIdx]);
             }
           case ExpressionType.Divide: {
-              pValues[leftIdx] /= pValues[rightIdx]; return leftParam;
+              return NewParam(pValues[leftIdx] / pValues[rightIdx]);
             }
           default: throw new NotSupportedException($"{node}");
         }
@@ -65,12 +66,10 @@ namespace HEAL.Expressions {
         // if param is on the right, prefer add over sub and mul over div
         switch (node.NodeType) {
           case ExpressionType.Subtract: {
-              pValues[rightIdx] *= -1;
-              return Expression.Add(left, right);
+              return Expression.Add(left, NewParam(pValues[rightIdx] * -1));
             }
           case ExpressionType.Divide: {
-              pValues[rightIdx] = 1.0 / pValues[rightIdx];
-              return Expression.Multiply(left, right);
+              return Expression.Multiply(left, NewParam(1.0 / pValues[rightIdx]));
             }
           default: return node.Update(left, null, right);
         }
@@ -87,6 +86,7 @@ namespace HEAL.Expressions {
     }
 
 
+    
     /*
     // fold unary operations on parameters
     protected override Expression VisitUnary(UnaryExpression node) {
@@ -102,14 +102,15 @@ namespace HEAL.Expressions {
       } else return node.Update(operand);
     }
     */
+    
+    
     protected override Expression VisitUnary(UnaryExpression node) {
       var operand = Visit(node.Operand);
       switch ((node, operand)) {
         case ( { NodeType: ExpressionType.Negate },
               BinaryExpression(ExpressionType.ArrayIndex, _, ConstantExpression(_) constExpr) binExpr)
         when binExpr.Left == p: {
-            pValues[(int)constExpr.Value] *= -1;
-            return binExpr;
+            return NewParam(pValues[(int)constExpr.Value] * -1);
           }
         case ( { NodeType: ExpressionType.UnaryPlus }, _): {
             return operand;
@@ -117,7 +118,6 @@ namespace HEAL.Expressions {
         default: return node.Update(operand);
       }
     }
-
 
     // fold methods that only depend on one or multiple parameters
     protected override Expression VisitMethodCall(MethodCallExpression node) {
@@ -138,14 +138,16 @@ namespace HEAL.Expressions {
           newVal = (double)node.Method.Invoke(node.Object, paramValues);
         }
 
-        IsParam(args[0], out var arrIdxExpr, out var paramIdx);
-        pValues[paramIdx] = newVal; // update value of first parameter
-
-        return arrIdxExpr; // return first parameter instead of methodCall
+        return NewParam(newVal);
       } else {
         // non-linear function
         return node.Update(node.Object, args);
       }
+    }
+
+    private Expression NewParam(double value) {
+      pValues.Add(value);
+      return Expression.ArrayIndex(p, Expression.Constant(pValues.Count - 1));
     }
 
     private bool IsParam(Expression expr, out BinaryExpression arrayIdxExpr, out int paramIdx) {

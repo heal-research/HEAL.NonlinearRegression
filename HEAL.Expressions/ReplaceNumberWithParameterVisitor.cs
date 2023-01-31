@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq.Expressions;
 
 namespace HEAL.Expressions {
   internal class ReplaceNumberWithParameterVisitor : ExpressionVisitor {
-    private ParameterExpression theta;
+    private readonly ParameterExpression theta;
     public List<double> paramValues = new List<double>();
     public double[] ParameterValues => paramValues.ToArray();
 

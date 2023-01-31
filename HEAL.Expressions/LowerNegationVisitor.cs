@@ -30,11 +30,10 @@ namespace HEAL.Expressions {
       this.thetaValues = thetaValues.ToList();
     }
 
-    public static Expression<ParametricFunction> LowerNegation(Expression<ParametricFunction> expr, ParameterExpression theta, double[] thetaValues, out double[] newThetaValues) {
-      var v = new LowerNegationVisitor(theta, thetaValues);
-      var newExpr = (Expression<ParametricFunction>)v.Visit(expr);
-      newThetaValues = v.thetaValues.ToArray();
-      return newExpr;
+    public static ParameterizedExpression LowerNegation(ParameterizedExpression expr) {
+      var v = new LowerNegationVisitor(expr.p, expr.pValues);
+      var newExpr = (Expression<ParametricFunction>)v.Visit(expr.expr);
+      return new ParameterizedExpression(newExpr, expr.p, v.thetaValues.ToArray());
     }
 
     protected override Expression VisitUnary(UnaryExpression node) {
@@ -57,8 +56,7 @@ namespace HEAL.Expressions {
               return binOpd.Update(left, null, Visit(Expression.Negate(right))); // default: negate right
             }
           } else if (IsParameter(binOpd)) {
-            thetaValues[ParameterIndex(binOpd)] = -ParameterValue(binOpd);
-            return binOpd;
+            return NewParam(-ParameterValue(binOpd));
           }
         } else if (opd is MethodCallExpression methodCall) {
           if (methodCall.Method.Name == "Sin" || methodCall.Method.Name == "Cbrt") {
@@ -74,6 +72,11 @@ namespace HEAL.Expressions {
       return node.Update(opd);
     }
 
+
+    private Expression NewParam(double val) {
+      thetaValues.Add(val);
+      return Expression.ArrayIndex(theta, Expression.Constant(thetaValues.Count - 1));
+    }
 
     private double ParameterValue(Expression expr) {
       return thetaValues[ParameterIndex(expr)];

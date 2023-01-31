@@ -71,7 +71,7 @@ namespace HEAL.NonlinearRegression.Console.Tests {
         var gi = new double[p.Length]; // buffer for gradient calculation for each row
         var xi = new double[1];
         for (int r = 0; r < y.Length; r++) {
-          var res = yPred[r] - y[r];
+          var res = y[r] - yPred[r];
 
           negLogLik += 0.5 / (hErr[r] * hErr[r]) * res * res; // dropped some terms from the likelihood
 
@@ -81,7 +81,7 @@ namespace HEAL.NonlinearRegression.Console.Tests {
 
           for (int k = 0; k < p.Length; k++)
             for (int l = 0; l < p.Length; l++) {
-              H[k, l] += (res * Hi[k, l] - gi[k] * gi[l]); // / (hErr[r] * hErr[r]); // full Hessian
+              H[k, l] += (res * Hi[k, l] - gi[k] * gi[l]) / (hErr[r] * hErr[r]); // full Hessian
             }
         }
 

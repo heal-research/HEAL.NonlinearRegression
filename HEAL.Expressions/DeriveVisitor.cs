@@ -4,7 +4,6 @@ using System.Linq.Expressions;
 using System.Reflection;
 
 namespace HEAL.Expressions {
-  // TODO: use the fact that parameters occur only once to speedup code / simplify derived expressions
   public class DeriveVisitor : ExpressionVisitor {
     private readonly int dxIdx;
     private readonly ParameterExpression param;
@@ -49,9 +48,9 @@ namespace HEAL.Expressions {
 
         case ExpressionType.ArrayIndex: {
             if (node.Left == param) {
-              var firstIndex = node.Right;
-              if (firstIndex.NodeType == ExpressionType.Constant) {
-                var idx = (int)((ConstantExpression)firstIndex).Value;
+              var index = node.Right;
+              if (index.NodeType == ExpressionType.Constant) {
+                var idx = (int)((ConstantExpression)index).Value;
                 if (idx == dxIdx) return Expression.Constant(1.0);
                 else return Expression.Constant(0.0);
               } else throw new NotSupportedException("only constant indices for parameter are allowed");

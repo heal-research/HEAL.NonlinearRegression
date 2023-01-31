@@ -20,12 +20,11 @@ namespace HEAL.Expressions {
       this.thetaValues = thetaValues.ToList();
     }
 
-    public static Expression<ParametricFunction> Expand(Expression<ParametricFunction> expr, ParameterExpression theta, double[] thetaValues, out double[] newThetaValues) {
-      var v = new ExpandProductsVisitor(theta, (double[])thetaValues.Clone());
-      var newExpr = (Expression<ParametricFunction>)v.Visit(expr);
+    public static ParameterizedExpression Expand(ParameterizedExpression expr) {
+      var v = new ExpandProductsVisitor(expr.p, expr.pValues);
+      var newExpr = (Expression<ParametricFunction>)v.Visit(expr.expr);
 
-      newThetaValues = v.thetaValues.ToArray();
-      return newExpr;
+      return new ParameterizedExpression(newExpr, v.theta, v.thetaValues.ToArray());
     }
 
     protected override Expression VisitBinary(BinaryExpression node) {
@@ -35,49 +34,25 @@ namespace HEAL.Expressions {
         var leftTerms = CollectTermsVisitor.CollectTerms(left).ToArray();
         var rightParamCount = CountParametersVisitor.Count(right, theta);
         if (rightParamCount == 0) {
-          // -> multiply into each left term
-          var result = Expression.Multiply(leftTerms.First(), right);
-          foreach (var lt in leftTerms.Skip(1)) {
-            result = Expression.Add(result, Expression.Multiply(lt, right));
-          }
-          return result;
-        } else if (IsParameter(right)) {
-          // right is only a parameter
-          Expression sumOfTermsWithScaling = null;
-          Expression sumOfTermsWithoutScaling = null;
-          var rightIndex = ParameterIndex(right);
-          var p0 = thetaValues[rightIndex];
-          foreach (var lt in leftTerms) {
-            if (HasScalingParameter(lt)) {
-              thetaValues[ParameterIndex(FindScalingParameter(lt))] *= p0;
-              if (sumOfTermsWithScaling == null) sumOfTermsWithScaling = lt;
-              else sumOfTermsWithScaling = Expression.Add(sumOfTermsWithScaling, lt);
-            } else {
-              // left term has no scaling parameter
-              if (sumOfTermsWithoutScaling == null) sumOfTermsWithoutScaling = lt;
-              else sumOfTermsWithoutScaling = Expression.Add(sumOfTermsWithoutScaling, lt);
-            }
-          }
-          if (sumOfTermsWithoutScaling == null) return sumOfTermsWithScaling;
-          else if (sumOfTermsWithScaling == null) return Expression.Multiply(sumOfTermsWithoutScaling, right);
-          else return Expression.Add(sumOfTermsWithScaling, Expression.Multiply(sumOfTermsWithoutScaling, right));
+          // -> there are no parameters in right factor. We may multiply right into each left term because we do not duplicate parameters
+          return leftTerms.Select(lt => Expression.Multiply(lt, right)).Aggregate(Expression.Add);
         } else if (rightParamCount == 1 && HasScalingParameter(right)) {
-          // a single scaling parameter
+          // right has a single scaling parameter
           // -> multiply into each left term with a scaling parameter and explicitly multiply to sum of remaining terms without scaling parameters
-          // if there is only a single term remaining we can include it with the other terms
           Expression sumOfTermsWithScaling = null;
           Expression sumOfTermsWithoutScaling = null;
           var rightFactors = CollectFactorsVisitor.CollectFactors(right).ToArray();
-          var rightScalingFactors = rightFactors.Where(IsParameter);
-          var remainingFactors = rightFactors.Except(rightScalingFactors);
-          var rightWithoutScaling = remainingFactors.Aggregate(Expression.Multiply);
-          var p0 = rightScalingFactors.Aggregate(1.0, (prod, f) => prod * thetaValues[ParameterIndex(f)]);
+          var p0 = rightFactors.Where(IsParameter).Aggregate(1.0, (prod, f) => prod * ParameterValue(f));
+
+          var remainingFactors = rightFactors.Where(f=>!IsParameter(f));
+          Expression rightWithoutScaling = null;
+          if(remainingFactors.Any()) rightWithoutScaling = remainingFactors.Aggregate(Expression.Multiply);
 
           foreach (var lt in leftTerms) {
             if (HasScalingParameter(lt)) {
-              thetaValues[ParameterIndex(FindScalingParameter(lt))] *= p0;
-              if (sumOfTermsWithScaling == null) sumOfTermsWithScaling = Expression.Multiply(lt, rightWithoutScaling);
-              else sumOfTermsWithScaling = Expression.Add(sumOfTermsWithScaling, Expression.Multiply(lt, rightWithoutScaling));
+              var lt_right = rightWithoutScaling != null ? Expression.Multiply(lt, rightWithoutScaling) : lt;
+              if (sumOfTermsWithScaling == null) sumOfTermsWithScaling = ScaleTerm(lt_right, p0);
+              else sumOfTermsWithScaling = Expression.Add(sumOfTermsWithScaling, ScaleTerm(lt_right, p0));
             } else {
               // left term has no scaling parameter
               if (sumOfTermsWithoutScaling == null) sumOfTermsWithoutScaling = lt;
@@ -87,18 +62,32 @@ namespace HEAL.Expressions {
 
           if (sumOfTermsWithoutScaling == null) return sumOfTermsWithScaling;
           else if (sumOfTermsWithScaling == null) return Expression.Multiply(sumOfTermsWithoutScaling, right);
-          else return Expression.Add(sumOfTermsWithScaling, Expression.Multiply(sumOfTermsWithoutScaling, right));
+          else return Expression.Add(sumOfTermsWithScaling, Expression.Multiply(sumOfTermsWithoutScaling, right)); // right is used only once
         }
       }
       return node.Update(left, null, right);
     }
 
-    private Expression CreateParameter(double p0) {
-      var paramExpr = Expression.ArrayIndex(theta, Expression.Constant(thetaValues.Count));
-      thetaValues.Add(p0);
-      return paramExpr;
-    }
 
+    private Expression ScaleTerm(Expression expr, double scale) {
+      // return expr;
+      if (scale == 1.0) return expr; // nothing to do
+      // TODO handle x * 0.0?
+      
+      var factors = CollectFactorsVisitor.CollectFactors(expr);
+      // product of parameter values
+      var currentScalingFactor = factors.Where(IsParameter).Aggregate(1.0, (agg, f) => agg * ParameterValue(f)); // fold product
+      var otherFactors = factors.Where(f => !IsParameter(f));
+      if (otherFactors.Count() == factors.Count()) throw new InvalidProgramException(); // we must have at least one scaling parameter
+      if (otherFactors.Any())
+        return Expression.Multiply(otherFactors.Aggregate(Expression.Multiply), NewParam(scale * currentScalingFactor));
+      else
+        return NewParam(scale * currentScalingFactor);
+    }
+    private Expression NewParam(double value) {
+      thetaValues.Add(value);
+      return Expression.ArrayIndex(theta, Expression.Constant(thetaValues.Count - 1));
+    }
     private Expression FindScalingParameter(Expression expr) {
       var factors = CollectFactorsVisitor.CollectFactors(expr);
       return factors.FirstOrDefault(IsParameter);
@@ -109,6 +98,9 @@ namespace HEAL.Expressions {
       return (int)((ConstantExpression)binExpr.Right).Value;
     }
 
+    private double ParameterValue(Expression expr) {
+      return thetaValues[ParameterIndex(expr)];
+    }
 
     private bool HasScalingParameter(Expression expr) {
       return FindScalingParameter(expr) != null;
