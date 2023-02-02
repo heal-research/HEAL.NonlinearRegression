@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using CommandLine;
 using HEAL.Expressions;
@@ -34,7 +35,7 @@ namespace HEAL.NonlinearRegression.Console {
 
     public static void Main(string[] args) {
       System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
-      var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, SimplifyOptions, NestedModelsOptions,
+      var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, SimplifyOptions, NestedModelsOptions, PruneOptions,
         SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, EvalMDLOptions, PairwiseProfileOptions, ProfileOptions,
         RankDeterminationOptions>(args)
         .WithParsed<PredictOptions>(options => Predict(options))
@@ -43,6 +44,7 @@ namespace HEAL.NonlinearRegression.Console {
         .WithParsed<EvalMDLOptions>(options => EvaluateMDL(options))
         .WithParsed<SimplifyOptions>(options => Simplify(options))
         .WithParsed<NestedModelsOptions>(options => GenerateNestedModels(options))
+        .WithParsed<PruneOptions>(options => Prune(options))
         .WithParsed<SubtreeImportanceOptions>(options => SubtreeImportance(options))
         .WithParsed<CrossValidationOptions>(options => CrossValidate(options))
         .WithParsed<VariableImpactOptions>(options => CalculateVariableImpacts(options))
@@ -62,7 +64,7 @@ namespace HEAL.NonlinearRegression.Console {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
         var nls = new NonlinearRegression();
-        nls.Fit(p, parametricExpr, trainX, trainY);
+        nls.Fit(p, parametricExpr, trainX, trainY, options.MaxIterations);
 
         if (nls.OptReport.Success) {
           System.Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
@@ -264,7 +266,7 @@ namespace HEAL.NonlinearRegression.Console {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
         Expression<Expr.ParametricFunction> simplifiedExpr;
 
-        Simplify(parametricExpr, p, varNames, out simplifiedExpr, out var newP);
+        Simplify(parametricExpr, p, out simplifiedExpr, out var newP);
 
         // System.Console.WriteLine(simplifiedExpr);
         // System.Console.WriteLine($"theta: {string.Join(",", newP.Select(pi => pi.ToString()))}");
@@ -273,11 +275,11 @@ namespace HEAL.NonlinearRegression.Console {
       }
     }
 
-    private static void Simplify(Expression<Expr.ParametricFunction> parametricExpr, double[] p, string[] varNames, out Expression<Expr.ParametricFunction> simplifiedExpr, out double[] newP) {
+    private static void Simplify(Expression<Expr.ParametricFunction> parametricExpr, double[] p, out Expression<Expr.ParametricFunction> simplifiedExpr, out double[] newP) {
       simplifiedExpr = Expr.FoldParameters(parametricExpr, p, out newP);
       var newSimplifiedStr = simplifiedExpr.ToString();
       var exprSet = new HashSet<string>();
-      // simplify until no change (TODO: this shouldn't be necessary if a visitors are implemented carefully)
+      // simplify until no change (TODO: this shouldn't be necessary if visitors are implemented carefully)
       do {
         exprSet.Add(newSimplifiedStr);
         simplifiedExpr = Expr.FoldParameters(simplifiedExpr, newP, out newP);
@@ -304,12 +306,13 @@ namespace HEAL.NonlinearRegression.Console {
 
       Split(x, y, trainStart, trainEnd, testStart, testEnd, out var trainX, out var trainY, out var testX, out var testY);
 
+
       foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
         // calculate ref stats for full model
         var nlr = new NonlinearRegression();
-        nlr.Fit(p, parametricExpr, trainX, trainY);
+        nlr.Fit(p, parametricExpr, trainX, trainY, options.MaxIterations);
         var refStats = nlr.Statistics;
 
         var allModels = new List<Tuple<Expression<Expr.ParametricFunction>, double[]>>();
@@ -322,10 +325,10 @@ namespace HEAL.NonlinearRegression.Console {
 
           (parametricExpr, p) = modelQueue.Dequeue();
           allModels.Add(Tuple.Create(parametricExpr, p));
-          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, (double[])p.Clone(), options.Verbose);
+          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, (double[])p.Clone(), options.MaxIterations, options.Verbose);
 
-          // order by SSRfactor and use the best as an alternative (if it has delta AICc < 5.0)
-          var alternative = impacts.OrderBy(tup => tup.Item2).Where(tup => tup.Item3 < 5.0).FirstOrDefault();
+          // order by SSRfactor and use the best as an alternative (if it has delta AICc < deltaAIC)
+          var alternative = impacts.OrderBy(tup => tup.Item2).Where(tup => tup.Item3 < options.DeltaAIC).FirstOrDefault();
           if (alternative != null) {
             var ssrFactor = alternative.Item2;
             var deltaAICc = alternative.Item3;
@@ -334,21 +337,6 @@ namespace HEAL.NonlinearRegression.Console {
             System.Console.Error.WriteLine($"New model {reducedParam.Length} {ssrFactor:e4} {deltaAICc:e4} {reducedExpr}");
             modelQueue.Enqueue(Tuple.Create(reducedExpr, reducedParam));
           }
-
-          // foreach (var tup in impacts) {
-          //   var paramIdx = tup.Item1;
-          //   var ssrFactor = tup.Item2;
-          //   var deltaAICc = tup.Item3;
-          //   var reducedExpr = tup.Item4;
-          //   var reducedParam = tup.Item5;
-          //   // TODO make CLI parameter
-          //   if (deltaAICc < 5.0) {
-          //     // System.Console.Write(".");
-          //     System.Console.WriteLine($"New model {reducedParam.Length} {ssrFactor:e4} {deltaAICc:e4} {reducedExpr.ToString()}");
-          //     if (modelQueue.All(tup => tup.Item1.ToString() != reducedExpr.ToString()))
-          //       modelQueue.Enqueue(Tuple.Create(reducedExpr, reducedParam));
-          //   }
-          // }
         }
         System.Console.WriteLine();
         System.Console.WriteLine($"SSR_Factor,numPar,RMSE_tr,RMSE_te,RMSE_cv,RMSE_cv_std,AICc,dAICc,BIC,dBIC,Model");
@@ -366,12 +354,86 @@ namespace HEAL.NonlinearRegression.Console {
           var cvrmseMean = double.NaN;
           var cvrmseStd = double.NaN;
           try {
-            var cvrmse = CrossValidate(parametricExpr, p, trainX, trainY, folds: 3);
+            var cvrmse = CrossValidate(parametricExpr, p, trainX, trainY, folds: 5);
             cvrmseMean = cvrmse.Average();
             cvrmseStd = Math.Sqrt(Util.Variance(cvrmse.ToArray()));
           } catch (Exception) { }
           System.Console.WriteLine($"{stats.SSR / refStats.SSR:e4},{stats.n},{rmseTrain:e4},{rmseTest:e4},{cvrmseMean:e4},{cvrmseStd:e4},{stats.AICc:e4},{stats.AICc - refStats.AICc:e4},{stats.BIC:e4},{stats.BIC - refStats.BIC:e4},{Expr.ToString(parametricExpr, varNames, p)}");
         }
+      }
+    }
+
+    // similar to generate nested models but returns only a single model
+    private static void Prune(PruneOptions options) {
+      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
+
+      // default is full dataset
+      var trainStart = 0;
+      var trainEnd = y.Length - 1;
+      var testStart = 0;
+      var testEnd = y.Length - 1;
+      if (options.TrainingRange != null) {
+        var toks = options.TrainingRange.Split(":");
+        trainStart = int.Parse(toks[0]);
+        trainEnd = int.Parse(toks[1]);
+        testStart = trainEnd + 1;
+        testEnd = y.Length - 1;
+      }
+
+      Split(x, y, trainStart, trainEnd, testStart, testEnd, out var trainX, out var trainY, out var testX, out var testY);
+
+
+      foreach (var model in GetModels(options.Model)) {
+        GenerateExpression(model, varNames, out var parametricExpr, out var param);
+
+        // calculate ref stats for full model
+        var nlr = new NonlinearRegression();
+        nlr.Fit(param, parametricExpr, trainX, trainY, options.MaxIterations);
+        var refStats = nlr.Statistics;
+
+        var allModels = new List<Tuple<Expression<Expr.ParametricFunction>, double[]>>();
+        var modelQueue = new Queue<Tuple<Expression<Expr.ParametricFunction>, double[]>>();
+        modelQueue.Enqueue(Tuple.Create(parametricExpr, (double[])param.Clone()));
+
+        while (modelQueue.Any()) {
+
+          (parametricExpr, param) = modelQueue.Dequeue();
+          allModels.Add(Tuple.Create(parametricExpr, param));
+          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, (double[])param.Clone(), options.MaxIterations, options.Verbose);
+
+          // order by SSRfactor and use the best as an alternative (if it has delta AICc < deltaAIC)
+          var alternative = impacts.OrderBy(tup => tup.Item2).Where(tup => tup.Item3 < options.DeltaAIC).FirstOrDefault();
+          if (alternative != null) {
+            var ssrFactor = alternative.Item2;
+            var deltaAICc = alternative.Item3;
+            var reducedExpr = alternative.Item4;
+            var reducedParam = alternative.Item5;
+            System.Console.Error.WriteLine($"New model {reducedParam.Length} {ssrFactor:e4} {deltaAICc:e4} {reducedExpr}");
+            modelQueue.Enqueue(Tuple.Create(reducedExpr, reducedParam));
+          }
+        }
+
+        // find smallest model 
+        var bestModel = parametricExpr;
+        var bestNumParam = refStats.n;
+        var bestAICc = refStats.AICc;
+        var bestParam = param;
+
+        foreach (var subModel in allModels) {
+          (parametricExpr, param) = subModel;
+
+          // eval all models
+          nlr = new NonlinearRegression();
+          nlr.SetModel(param, parametricExpr, trainX, trainY);
+          var stats = nlr.Statistics;
+          if(stats.AICc - refStats.AICc< options.DeltaAIC && stats.n <= bestNumParam) {
+            bestModel = parametricExpr;
+            bestNumParam = param.Length;
+            bestAICc = stats.AICc;
+            bestParam = param;
+          }
+        }
+        System.Console.WriteLine($"deltaAICc: {bestAICc- refStats.AICc}, deltaN: {bestNumParam - refStats.n}, {Expr.ToString(bestModel, varNames, bestParam)}");
       }
     }
 
@@ -645,6 +707,8 @@ namespace HEAL.NonlinearRegression.Console {
 
     [Verb("fit", HelpText = "Fit a model using a dataset.")]
     public class FitOptions : OptionsBase {
+      [Option("maxIter", Required = false, HelpText = "The maximum number of Levenberg-Marquardt iterations.", Default = 10000)]
+      public int MaxIterations { get; set; }
     }
 
     [Verb("evaluate", HelpText = "Evaluate a model on a dataset without fitting.")]
@@ -706,6 +770,36 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("verbose", Required = false, HelpText = "Produced more detailed output.")]
       public bool Verbose { get; set; }
+      [Option("deltaAIC", Required=false, HelpText = "The maximum deltaAIC that is still accepted (e.g. 3.0)", Default = 3.0)]
+      public double DeltaAIC { get; set; }
+
+      [Option("maxIter", Required = false, HelpText = "The maximum number of Levenberg-Marquardt iterations.", Default = 10000)]
+      public int MaxIterations { get; set; }
+
+    }
+
+    [Verb("prune", HelpText = "Prune model by removing parameters")]
+    public class PruneOptions {
+      [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
+      public string Dataset { get; set; }
+
+      [Option('t', "target", Required = true, HelpText = "Target variable name.")]
+      public string Target { get; set; }
+
+      [Option('m', "model", Required = true, HelpText = "The model in infix form as produced by Operon.")]
+      public string Model { get; set; }
+
+      [Option("train", Required = false, HelpText = "The training range <firstRow>:<lastRow> in the dataset (inclusive).")]
+      public string TrainingRange { get; set; }
+
+      [Option("verbose", Required = false, HelpText = "Produced more detailed output.")]
+      public bool Verbose { get; set; }
+      [Option("deltaAIC", Required = false, HelpText = "The maximum deltaAIC that is still accepted (e.g. 3.0)", Default = 3.0)]
+      public double DeltaAIC { get; set; }
+
+      [Option("maxIter", Required = false, HelpText = "The maximum number of Levenberg-Marquardt iterations.", Default = 10000)]
+      public int MaxIterations { get; set; }
+
     }
 
     [Verb("subtrees", HelpText = "Subtree importance")]
