@@ -64,7 +64,7 @@ namespace HEAL.NonlinearRegression {
         Console.WriteLine();
 
         Console.WriteLine("Nested models (set parameters zero) (SSR ratio)");
-        ModelAnalysis.NestedModelLiklihoodRatios(symbProb.ModelExpr, symbProb.X, symbProb.y, symbProb.ThetaStart);
+        ModelAnalysis.NestedModelLiklihoodRatios(symbProb.ModelExpr, symbProb.X, symbProb.y, symbProb.ThetaStart, maxIterations: 10000);
       }
 
 

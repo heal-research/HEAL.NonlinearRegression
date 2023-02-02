@@ -178,7 +178,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Log(p[0] * x[0] + p[1] * x[1]);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Log(((p[0] * x[0]) + (1 * x[1]))) + p[1])", expr.ToString());
         Assert.AreEqual(2.0 / 3.0, newTheta[0]);
         Assert.AreEqual(Math.Log(3.0), newTheta[1]);
@@ -186,7 +186,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Log(p[0] * x[0] + p[1]);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Log(((p[0] * x[0]) + 1)) + p[1])", expr.ToString());
         Assert.AreEqual(2.0 / 3.0, newTheta[0]);
         Assert.AreEqual(Math.Log(3.0), newTheta[1]);
@@ -194,7 +194,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Log(p[0] * x[0] - p[1]);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Log(((p[0] * x[0]) - 1)) + p[1])", expr.ToString());
         Assert.AreEqual(2.0 / 3.0, newTheta[0]);
         Assert.AreEqual(Math.Log(3.0), newTheta[1]);
@@ -202,7 +202,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Log(p[0] * x[0] + p[1] + 3);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => Log((((p[0] * x[0]) + p[1]) + 3))", expr.ToString()); // no change
         Assert.AreEqual(2.0, newTheta[0]);
         Assert.AreEqual(3.0, newTheta[1]);
@@ -210,7 +210,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Sqrt(p[0] * x[0] + p[1] * x[1]);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Sqrt(((p[0] * x[0]) + (1 * x[1]))) * p[1])", expr.ToString());
         Assert.AreEqual(2.0 / 3.0, newTheta[0]);
         Assert.AreEqual(Math.Sqrt(3.0), newTheta[1]);
@@ -218,14 +218,14 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Sqrt(Math.Sqrt(p[0] * x[0]));
         var theta = new double[] { 2.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Sqrt((Sqrt((1 * x[0])) * 1)) * p[0])", expr.ToString());
         Assert.AreEqual(Math.Sqrt(Math.Sqrt(2.0)), newTheta[0]);
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Sqrt(x[0] * p[0] + p[1] * x[0]);
         var theta = new double[] { 2.0, -2.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr =LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Sqrt(((x[0] * 1) + (-1 * x[0]))) * p[0])", expr.ToString());
         Assert.AreEqual(Math.Sqrt(2.0), newTheta[0]);
       }
@@ -233,14 +233,14 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Sqrt(Math.Sqrt((x[0] * x[0]) * p[0]));
         var theta = new double[] { 2.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Sqrt((Sqrt(((x[0] * x[0]) * 1)) * 1)) * p[0])", expr.ToString());
         Assert.AreEqual(Math.Sqrt(Math.Sqrt(2.0)), newTheta[0]);
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Sqrt(Math.Sqrt(p[0] * x[0]) + Math.Sqrt(p[1] * x[1]));
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Sqrt(((Sqrt((1 * x[0])) * p[0]) + (Sqrt((1 * x[1])) * 1))) * p[1])", expr.ToString());
         Assert.AreEqual(Math.Sqrt(2.0) / Math.Sqrt(3.0), newTheta[0]);
         Assert.AreEqual(Math.Sqrt(Math.Sqrt(3.0)), newTheta[1]);
@@ -248,7 +248,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Cbrt(p[0] * x[0] + p[1] * x[1]);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Cbrt(((p[0] * x[0]) + (1 * x[1]))) * p[1])", expr.ToString());
         Assert.AreEqual(2.0 / 3.0, newTheta[0]);
         Assert.AreEqual(Math.Cbrt(3.0), newTheta[1]);
@@ -256,7 +256,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Pow(p[0] * x[0] + p[1] * x[1], 2);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Pow(((p[0] * x[0]) + (1 * x[1])), 2) * p[1])", expr.ToString());
         Assert.AreEqual(2.0 / 3.0, newTheta[0]);
         Assert.AreEqual(9.0, newTheta[1]);
@@ -264,7 +264,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Pow(p[0] * x[0] + p[1] * x[1], 3);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Pow(((p[0] * x[0]) + (1 * x[1])), 3) * p[1])", expr.ToString());
         Assert.AreEqual(2.0 / 3.0, newTheta[0]);
         Assert.AreEqual(27.0, newTheta[1]);
@@ -272,7 +272,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Exp(p[0] * x[0] + p[1]);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Exp(((p[0] * x[0]) + 0)) * p[1])", expr.ToString());
         Assert.AreEqual(2.0, newTheta[0]);
         Assert.AreEqual(Math.Exp(3.0), newTheta[1]);
@@ -280,7 +280,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] / (p[1] * x[0] + p[2]);
         var theta = new double[] { 2.0, 3.0, 4.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => ((1 / ((1 * x[0]) + p[0])) * p[1])", expr.ToString());
         Assert.AreEqual(4.0 / 3.0, newTheta[0]);
         Assert.AreEqual(2.0 / 3.0, newTheta[1]);
@@ -288,7 +288,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] / (p[1] * x[0] + p[2] * x[1]);
         var theta = new double[] { 2.0, 3.0, 4.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => ((1 / ((1 * x[0]) + (p[0] * x[1]))) * p[1])", expr.ToString());
         Assert.AreEqual(4.0 / 3.0, newTheta[0]);
         Assert.AreEqual(2.0 / 3.0, newTheta[1]);
@@ -296,7 +296,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Sin(p[0] * x[0] + p[1]);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => Sin(((p[0] * x[0]) + p[1]))", expr.ToString());      // no change
         Assert.AreEqual(2.0, newTheta[0]);
         Assert.AreEqual(3.0, newTheta[1]);
@@ -304,7 +304,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Cos(p[0] * x[0] + p[1]);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => Cos(((p[0] * x[0]) + p[1]))", expr.ToString());      // no change
         Assert.AreEqual(2.0, newTheta[0]);
         Assert.AreEqual(3.0, newTheta[1]);
@@ -312,7 +312,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Tanh(p[0] * x[0] + p[1]);
         var theta = new double[] { 2.0, 3.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => Tanh(((p[0] * x[0]) + p[1]))", expr.ToString());      // no change
         Assert.AreEqual(2.0, newTheta[0]);
         Assert.AreEqual(3.0, newTheta[1]);
@@ -321,7 +321,7 @@ namespace HEAL.Expressions.Tests {
         // lift out of negation
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] * x[0] + -(p[1] * x[1] + p[2]);
         var theta = new double[] { 2.0, 3.0, 4.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => ((p[0] * x[0]) + (((p[1] * x[1]) + 1) * p[2]))", expr.ToString());
         Assert.AreEqual(2.0, newTheta[0]);
         Assert.AreEqual(3.0 / 4.0, newTheta[1]);
@@ -330,7 +330,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] * x[0] - (Math.Log(p[1] * x[1]) - Math.Log(p[2] * x[2]));
         var theta = new double[] { 2.0, 3.0, 4.0 };
-        var expr = LiftParametersVisitor.LiftParameters(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LiftParameters(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => ((p[0] * x[0]) - ((Log((1 * x[1])) + p[1]) - (Log((1 * x[2])) + p[2])))", expr.ToString());
         Assert.AreEqual(2.0, newTheta[0]);
         Assert.AreEqual(Math.Log(3.0), newTheta[1]);
@@ -338,19 +338,25 @@ namespace HEAL.Expressions.Tests {
       }
     }
 
+    private static Expression<Expr.ParametricFunction> LiftParameters(Expression<Expr.ParametricFunction> f, double[] theta, out double[] newTheta) {
+      var expr = LiftParametersVisitor.LiftParameters(new ParameterizedExpression(f, f.Parameters[0], theta));
+      newTheta = expr.pValues;
+      return expr.expr;
+    }
+
     [Test]
     public void LowerNegation() {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => -(p[0]);
         var theta = new double[] { 2.0, 3.0, 4.0 };
-        var expr = LowerNegationVisitor.LowerNegation(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LowerNegation(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => p[0]", expr.ToString());
         Assert.AreEqual(-2.0, newTheta[0]);
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => -(x[0] * p[0] + p[1] * x[0]);
         var theta = new double[] { 2.0, 3.0, 4.0 };
-        var expr = LowerNegationVisitor.LowerNegation(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LowerNegation(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => ((x[0] * p[0]) + (x[0] * p[1]))", expr.ToString());
         Assert.AreEqual(-2.0, newTheta[0]);
         Assert.AreEqual(-3.0, newTheta[1]);
@@ -358,7 +364,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => -(x[0] * p[0] * -(p[1] * x[0]));
         var theta = new double[] { 2.0, 3.0, 4.0 };
-        var expr = LowerNegationVisitor.LowerNegation(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LowerNegation(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => ((x[0] * p[0]) * (x[0] * p[1]))", expr.ToString());
         Assert.AreEqual(2.0, newTheta[0]);
         Assert.AreEqual(3.0, newTheta[1]);
@@ -366,24 +372,30 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => -(Math.Sin(p[0]));
         var theta = new double[] { 2.0, 3.0, 4.0 };
-        var expr = LowerNegationVisitor.LowerNegation(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LowerNegation(f,  theta, out var newTheta);
         Assert.AreEqual("(p, x) => Sin(p[0])", expr.ToString());
         Assert.AreEqual(-2.0, newTheta[0]);
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => -(Math.Cbrt(p[0]));
         var theta = new double[] { 2.0, 3.0, 4.0 };
-        var expr = LowerNegationVisitor.LowerNegation(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LowerNegation(f, theta, out var newTheta);
         Assert.AreEqual("(p, x) => Cbrt(p[0])", expr.ToString());
         Assert.AreEqual(-2.0, newTheta[0]);
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => -(Math.Cos(p[0]));
         var theta = new double[] { 2.0, 3.0, 4.0 };
-        var expr = LowerNegationVisitor.LowerNegation(f, f.Parameters[0], theta, out var newTheta);
+        var expr = LowerNegation(f, theta, out var newTheta);
         Assert.AreEqual("(p, x) => Sin((p[0] + -1.5707963267948966))", expr.ToString());
         Assert.AreEqual(-2.0, newTheta[0]);
       }
+    }
+
+    private static Expression<Expr.ParametricFunction> LowerNegation(Expression<Expr.ParametricFunction> f, double[] theta, out double[] newTheta) {
+      var expr = LowerNegationVisitor.LowerNegation(new ParameterizedExpression(f, f.Parameters[0], theta));
+      newTheta = expr.pValues;
+      return expr.expr;
     }
 
     [Test]
@@ -687,7 +699,7 @@ namespace HEAL.Expressions.Tests {
       }
     }
 
-    private void CompileAndRun(Expression<Expr.ParametricFunction> expr) {
+    private static void CompileAndRun(Expression<Expr.ParametricFunction> expr) {
       int N = 10;
       var X = new double[N, 3];
       var f = new double[N];
@@ -695,7 +707,7 @@ namespace HEAL.Expressions.Tests {
       Expr.Broadcast(expr).Compile()(t, X, f);
     }
 
-    private void CompileAndRunHessian(Expression<Expr.ParametricFunction> expr) {
+    private static void CompileAndRunHessian(Expression<Expr.ParametricFunction> expr) {
       var x = new double[3];
       var t = new double[5] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       var h = new double[5, 5];
@@ -703,7 +715,7 @@ namespace HEAL.Expressions.Tests {
       hessian.Compile()(t, x, h);
     }
 
-    private void CompileAndRunJacobian(Expression<Expr.ParametricGradientFunction> expr) {
+    private static void CompileAndRunJacobian(Expression<Expr.ParametricGradientFunction> expr) {
       int N = 10;
       var X = new double[N, 3];
       var f = new double[N];
