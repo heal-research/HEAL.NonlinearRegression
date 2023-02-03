@@ -108,7 +108,7 @@ namespace HEAL.NonlinearRegression.Console.Tests {
         // code length T2: function complexity = k log n + sum_j log(c_j)
         // code length T3: parameter complexity = 2.53
         // total code length: 16.39
-        var mdl = MinimumDescriptionLength.MDL(expr, p, y, x, numNodes, numSymbols, constants);
+        var mdl = MinimumDescriptionLength.MDL(expr, p, y, x);
         System.Console.WriteLine($"{model} LogLik: {stats.LogLikelihood} MDL: {mdl} DoF: {p.Length} NumNodes: {Expr.NumberOfNodes(expr)} num constants: {Expr.CollectConstants(expr).Length}");
       }
     }

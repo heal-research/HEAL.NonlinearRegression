@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 using HEAL.Expressions;
 
 namespace HEAL.NonlinearRegression {
+  // TODO:
+  // - Impact calculation for variables, parameters, and sub-trees should be unified (it is always a manipulation of the expression and refitting afterwards)
+  // - Pruning should search over all possible simplifying manipulations of trees (removal of sub-trees, removal of parameters, removal of non-linear functions...)
   public static class ModelAnalysis {
     /// <summary>
     /// Replaces all references to a variable in the model by a parameter. Re-fits the model and returns the increase in R²
@@ -123,20 +126,24 @@ namespace HEAL.NonlinearRegression {
 
       var nlr = new NonlinearRegression();
       nlr.Fit(p, expr, X, y, maxIterations);
+
       var stats0 = nlr.Statistics;
+      if (stats0 == null) return Enumerable.Empty<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>(); // cannot fit the expression
+
       p = stats0.paramEst;
       var impacts = new List<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>();
 
-      var fullAIC = nlr.Statistics.AICc;
-      var fullBIC = nlr.Statistics.BIC;
+      var fullAIC = stats0.AICc;
+      var fullBIC = stats0.BIC;
       if (verbose) {
         Console.WriteLine(expr.Body);
         Console.WriteLine($"theta: {string.Join(", ", p.Select(p => p.ToString("e2")))}");
-        Console.WriteLine($"Full model SSR: {nlr.Statistics.SSR,-11:e4}, MSE: {nlr.Statistics.SSR / nlr.Statistics.m,-11:e4}, AICc: {fullAIC,-11:f1} BIC: {fullBIC,-11:f1}");
+        Console.WriteLine($"Full model SSR: {stats0.SSR,-11:e4}, MSE: {stats0.SSR / stats0.m,-11:e4}, AICc: {fullAIC,-11:f1} BIC: {fullBIC,-11:f1}");
         Console.WriteLine($"p{"idx",-5} {"val",-11} {"SSR_factor",-11} {"deltaDoF",-6} {"deltaSSR",-11} {"s2Extra":e3} {"fRatio",-11} {"p value",10} {"deltaAICc"} {"deltaBIC"}");
       }
 
 
+      // for(int paramIdx = 0; paramIdx<p.Length;paramIdx++) { 
       Parallel.For(0, p.Length, (paramIdx) => {
         var v = new ReplaceParameterWithZeroVisitor(pParam, paramIdx);
         var reducedExpression = (Expression<Expr.ParametricFunction>)v.Visit(expr);
@@ -185,7 +192,8 @@ namespace HEAL.NonlinearRegression {
           // Console.WriteLine($"Exception {e.Message} for {reducedExpression}");
         }
         // yield return Tuple.Create(impact, (Expression)reducedExpression);
-      });
+      }
+      );
 
       return impacts; // TODO improve interface
     }

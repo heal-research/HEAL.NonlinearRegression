@@ -2,13 +2,13 @@
 using System;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Numerics;
+
 
 namespace HEAL.NonlinearRegression {
   public static class MinimumDescriptionLength {
     // as described in https://arxiv.org/abs/2211.11461
     // Deaglan J. Bartlett, Harry Desmond, Pedro G. Ferreira, Exhaustive Symbolic Regression, 2022
-    public static double MDL(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double[] y, double[,] x, int numNodes, int numSymbols, double[] constants) {
+    public static double MDL(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double[] y, double[,] x) {
       // total description length:
       // L(D) = L(D|H) + L(H)
 
@@ -23,11 +23,15 @@ namespace HEAL.NonlinearRegression {
 
       // L(D) = -log(L(theta)) + k log n - p/2 log 3
       //        + sum_j (1/2 log I_ii + log |theta_i| )
-
+      int numNodes = Expr.NumberOfNodes(modelExpr);
+      var constants = Expr.CollectConstants(modelExpr);
+      var numSymbols = Expr.CollectSymbols(modelExpr).Distinct().Count();
       int numParam = paramEst.Length;
       var yPred = new double[y.Length];
       Expr.Broadcast(modelExpr).Compile()(paramEst, x, yPred);
       var FIdiag = FisherInformationDiag(x, y, yPred, modelExpr, paramEst);
+      
+      // TODO: for negative constants and negative parameters we would need to account for an unary sign in the expression
       return -LogLikelihood(y, yPred)
         + numNodes * Math.Log(numSymbols) + constants.Sum(ci => Math.Log(Math.Abs(ci)))
         - numParam / 2.0 * Math.Log(3.0)

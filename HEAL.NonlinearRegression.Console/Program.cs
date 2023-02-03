@@ -5,6 +5,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System.Transactions;
 using CommandLine;
 using HEAL.Expressions;
 using HEAL.Expressions.Parser;
@@ -36,12 +37,12 @@ namespace HEAL.NonlinearRegression.Console {
     public static void Main(string[] args) {
       System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
       var parserResult = Parser.Default.ParseArguments<PredictOptions, FitOptions, SimplifyOptions, NestedModelsOptions, PruneOptions,
-        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, EvalMDLOptions, PairwiseProfileOptions, ProfileOptions,
+        SubtreeImportanceOptions, CrossValidationOptions, VariableImpactOptions, EvalOptions, PairwiseProfileOptions, ProfileOptions,
         RankDeterminationOptions>(args)
         .WithParsed<PredictOptions>(options => Predict(options))
         .WithParsed<FitOptions>(options => Fit(options))
         .WithParsed<EvalOptions>(options => Evaluate(options))
-        .WithParsed<EvalMDLOptions>(options => EvaluateMDL(options))
+        // .WithParsed<EvalMDLOptions>(options => EvaluateMDL(options))
         .WithParsed<SimplifyOptions>(options => Simplify(options))
         .WithParsed<NestedModelsOptions>(options => GenerateNestedModels(options))
         .WithParsed<PruneOptions>(options => Prune(options))
@@ -113,6 +114,7 @@ namespace HEAL.NonlinearRegression.Console {
       }
     }
 
+    /*
     public static void EvaluateMDL(EvalMDLOptions options) {
       ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
 
@@ -130,10 +132,11 @@ namespace HEAL.NonlinearRegression.Console {
       foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
-        var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, x, Expr.NumberOfNodes(parametricExpr), options.NumSymbols, Expr.CollectConstants(parametricExpr));
+        var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, x);
         System.Console.WriteLine($"MDL: {mdl} DoF: {p.Length}");
       }
     }
+    */
 
     public static double EvaluateSSR(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y, out double[] yPred) {
       var func = Expr.Broadcast(parametricExpr).Compile();
@@ -382,24 +385,28 @@ namespace HEAL.NonlinearRegression.Console {
 
       Split(x, y, trainStart, trainEnd, testStart, testEnd, out var trainX, out var trainY, out var testX, out var testY);
 
-
       foreach (var model in GetModels(options.Model)) {
-        GenerateExpression(model, varNames, out var parametricExpr, out var param);
+        GenerateExpression(model, varNames, out var origExpr, out var origParam);
 
         // calculate ref stats for full model
         var nlr = new NonlinearRegression();
-        nlr.Fit(param, parametricExpr, trainX, trainY, options.MaxIterations);
+        nlr.Fit(origParam, origExpr, trainX, trainY, options.MaxIterations);
         var refStats = nlr.Statistics;
+        if (refStats == null) {
+          // could not fit expression
+          System.Console.WriteLine($"deltaAICc: {double.NaN}, deltaN: {double.NaN}, {Expr.ToString(origExpr, varNames, origParam)}");
+          continue;
+        }
 
         var allModels = new List<Tuple<Expression<Expr.ParametricFunction>, double[]>>();
         var modelQueue = new Queue<Tuple<Expression<Expr.ParametricFunction>, double[]>>();
-        modelQueue.Enqueue(Tuple.Create(parametricExpr, (double[])param.Clone()));
+        modelQueue.Enqueue(Tuple.Create(origExpr, (double[])origParam.Clone()));
 
         while (modelQueue.Any()) {
 
-          (parametricExpr, param) = modelQueue.Dequeue();
-          allModels.Add(Tuple.Create(parametricExpr, param));
-          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, trainX, trainY, (double[])param.Clone(), options.MaxIterations, options.Verbose);
+          (var expr, var param) = modelQueue.Dequeue();
+          allModels.Add(Tuple.Create(expr, param));
+          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(expr, trainX, trainY, (double[])param.Clone(), options.MaxIterations, options.Verbose);
 
           // order by SSRfactor and use the best as an alternative (if it has delta AICc < deltaAIC)
           var alternative = impacts.OrderBy(tup => tup.Item2).Where(tup => tup.Item3 < options.DeltaAIC).FirstOrDefault();
@@ -414,20 +421,20 @@ namespace HEAL.NonlinearRegression.Console {
         }
 
         // find smallest model 
-        var bestModel = parametricExpr;
+        var bestModel = origExpr;
+        var bestParam = origParam;
         var bestNumParam = refStats.n;
         var bestAICc = refStats.AICc;
-        var bestParam = param;
 
         foreach (var subModel in allModels) {
-          (parametricExpr, param) = subModel;
+          (var expr, var param) = subModel;
 
           // eval all models
           nlr = new NonlinearRegression();
-          nlr.SetModel(param, parametricExpr, trainX, trainY);
+          nlr.SetModel(param, expr, trainX, trainY);
           var stats = nlr.Statistics;
           if(stats.AICc - refStats.AICc< options.DeltaAIC && stats.n <= bestNumParam) {
-            bestModel = parametricExpr;
+            bestModel = expr;
             bestNumParam = param.Length;
             bestAICc = stats.AICc;
             bestParam = param;
@@ -727,6 +734,7 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
 
+    /*
     [Verb("mdl", HelpText = "Evaluate the minimum description length of a model on a dataset without fitting.")]
     public class EvalMDLOptions {
       [Option('d', "dataset", Required = true, HelpText = "Filename with dataset in csv format.")]
@@ -740,10 +748,8 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("range", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive).")]
       public string Range { get; set; }
-
-      [Option("numSymbols", Required = false, HelpText = "The number of allowed symbols in expressions (count each operator, function, and variable).")]
-      public int NumSymbols { get; set; }
     }
+    */
 
     [Verb("simplify", HelpText = "Remove redundant parameters.")]
     public class SimplifyOptions {

@@ -16,18 +16,19 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    internal Function func;
-    internal Jacobian jacobian;
-    internal double[,] x;
-    internal double[] y;
+    internal Function? func;
+    internal Jacobian? jacobian;
+    internal Expression<Expr.ParametricFunction>? modelExpr;
+    internal double[,]? x;
+    internal double[]? y;
 
     // results
-    private double[] paramEst;
+    private double[]? paramEst;
 
     public double[]? ParamEst { get { return paramEst?.Clone() as double[]; } }
 
-    public OptimizationReport OptReport { get; private set; }
-    public LeastSquaresStatistics Statistics { get; private set; }
+    public OptimizationReport? OptReport { get; private set; }
+    public LeastSquaresStatistics? Statistics { get; private set; }
 
     public NonlinearRegression() { }
     
@@ -53,7 +54,9 @@ namespace HEAL.NonlinearRegression {
       
       
       var _jac = Expr.Jacobian(expr, p.Length).Compile();
-      void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac); 
+      void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
+
+      this.modelExpr = expr;
 
       Fit(p, func, jac, x, y, maxIterations, scale, stepMax, callback);
     }
@@ -213,17 +216,19 @@ namespace HEAL.NonlinearRegression {
     }
 
     private void WriteStatistics(TextWriter writer) {
+      var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, y, x);
+      writer.WriteLine($"SSR: {Statistics.SSR:e4} s: {Statistics.s:e4} AICc: {Statistics.AICc:f1} BIC: {Statistics.BIC:f1} MDL: {mdl:f1}");
       var p = ParamEst;
       var se = Statistics.paramStdError;
-      Statistics.GetParameterIntervals(0.05, out var seLow, out var seHigh);
-      writer.WriteLine($"SSR: {Statistics.SSR:e4} s: {Statistics.s:e4} AICc: {Statistics.AICc:f1} BIC: {Statistics.BIC:f1}");
-      writer.WriteLine($"{"Para"} {"Estimate",14}  {"Std. error",14} {"z Score",11} {"Lower",14} {"Upper",14} Correlation matrix");
-      for (int i = 0; i < Statistics.n; i++) {
-        var j = Enumerable.Range(0, i + 1);
-        writer.WriteLine($"{i,5} {p[i],14:e4} {se[i],14:e4} {p[i] / se[i],11:e2} {seLow[i],14:e4} {seHigh[i],14:e4} {string.Join(" ", j.Select(ji => Statistics.correlation[i, ji].ToString("f2")))}");
+      if (se != null) {
+        Statistics.GetParameterIntervals(0.05, out var seLow, out var seHigh);
+        writer.WriteLine($"{"Para"} {"Estimate",14}  {"Std. error",14} {"z Score",11} {"Lower",14} {"Upper",14} Correlation matrix");
+        for (int i = 0; i < Statistics.n; i++) {
+          var j = Enumerable.Range(0, i + 1);
+          writer.WriteLine($"{i,5} {p[i],14:e4} {se[i],14:e4} {p[i] / se[i],11:e2} {seLow[i],14:e4} {seHigh[i],14:e4} {string.Join(" ", j.Select(ji => Statistics.correlation[i, ji].ToString("f2")))}");
+        }
+        writer.WriteLine();
       }
-      writer.WriteLine();
-
     }
 
     #region helper

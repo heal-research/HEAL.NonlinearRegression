@@ -448,5 +448,9 @@ namespace HEAL.Expressions {
     public static double[] CollectConstants(Expression<ParametricFunction> parametricExpr) {
       return CollectConstantsVisitor.CollectConstants(parametricExpr);
     }
+
+    public static IEnumerable<string> CollectSymbols(Expression<ParametricFunction> parametricExpr) {
+      return CollectSymbolsVisitor.CollectSymbols(parametricExpr, parametricExpr.Parameters[0]);
+    }
   }
 }

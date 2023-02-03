@@ -40,7 +40,7 @@ namespace HEAL.Expressions.Parser {
     // G(Expr):
     // Expr      = Term { ('+' | '-') Term
     // Term      = Fact { ('*' | '/') Fact) }
-    // Fact      = ['+' | '-' ]
+    // Fact      = { '+' | '-' }
     //             (ident | constant | parameter
     //              | '(' Expr ')'
     //              | ident ParamList                           // function call
@@ -79,9 +79,9 @@ namespace HEAL.Expressions.Parser {
 
     private Expression Fact() {
       Expression expr;
-      var negate = false;
-      if (Sy == TokenEnum.Minus || Sy == TokenEnum.Plus) {
-        negate = Sy == TokenEnum.Minus;
+      var sign = 1.0;
+      while (Sy == TokenEnum.Minus || Sy == TokenEnum.Plus) {
+        if (Sy == TokenEnum.Minus) sign = -sign;
         NextSy();
       }
 
@@ -122,14 +122,14 @@ namespace HEAL.Expressions.Parser {
         default: throw new FormatException($"Unexpected symbol {Sy} " + scanner.ErrorContext);
       }
 
+      // in Python sign binds stronger than exponent
+      // -x**3  = (-x)**3
+      if (sign == -1.0) expr = Expression.Negate(expr);
       // optionally parse power with exponent
-      // in Python exponent binds stronger than sign
-      // -x**3  = -(x**3)
       if (Sy == TokenEnum.Pow) {
         NextSy();
         expr = Expression.Call(functions["pow"], expr, Fact());
       }
-      if (negate) expr = Expression.Negate(expr);
       return expr;
     }
 
