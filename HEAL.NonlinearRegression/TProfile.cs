@@ -216,6 +216,7 @@ namespace HEAL.NonlinearRegression {
 
     public static void GetPredictionIntervals(double[,] x, NonlinearRegression nls, out double[] low, out double[] high, double alpha = 0.05, bool includeNoise = false) {
       var m = x.GetLength(0); // the points for which we calculate the prediction interval
+      var trainRows = nls.Statistics.m;
       var n = nls.Statistics.n; // number of parameters
       var d = x.GetLength(1); // number of features
 
@@ -269,16 +270,23 @@ namespace HEAL.NonlinearRegression {
             theta[k] = profile.Item2[outputParamIdx][k]; // profile of function output parameter
           }
           alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
-          var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
-          var f = alglib.invfdistribution(n, m - n, alpha);
+          // we only calculate pointwise intervals
+          var t = alglib.invstudenttdistribution(trainRows - d, 1 - alpha / 2);
           var s = nls.Statistics.s;
-          if (m == 1) {
-            _low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
-            _high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
-          } else {
-            _low[i] = alglib.spline1dcalc(tau2theta, -f) - (includeNoise ? t * s : 0.0);
-            _high[i] = alglib.spline1dcalc(tau2theta, f) + (includeNoise ? t * s : 0.0);
-          }
+          _low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
+          _high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
+
+          // old code for pointwise and simultaneuous intervals
+          // var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
+          // var f = alglib.invfdistribution(n, m - n, alpha);
+          // var s = nls.Statistics.s;
+          // if (m == 1) {
+          //   _low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
+          //   _high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
+          // } else {
+          //   _low[i] = alglib.spline1dcalc(tau2theta, -f) - (includeNoise ? t * s : 0.0);
+          //   _high[i] = alglib.spline1dcalc(tau2theta, f) + (includeNoise ? t * s : 0.0);
+          // }
         });
       // cannot manipulate low and high output parameters directly in parallel.for
       low = (double[])_low.Clone();

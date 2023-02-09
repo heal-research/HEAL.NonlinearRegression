@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 
 namespace HEAL.NonlinearRegression {
   public class LeastSquaresStatistics {
@@ -120,23 +121,23 @@ namespace HEAL.NonlinearRegression {
 
 
     public void GetPredictionIntervals(Jacobian jacobian, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high, bool includeNoise = false) {
-      int m = x.GetLength(0);
-      low = new double[m];
-      high = new double[m];
-      resStdError = new double[m];
+      int numRows = x.GetLength(0);
+      low = new double[numRows];
+      high = new double[numRows];
+      resStdError = new double[numRows];
 
-      var yPred = new double[m];
-      var J = new double[m, n];
+      var yPred = new double[numRows];
+      var J = new double[numRows, n];
       jacobian(paramEst, x, yPred, J); // jacobian for x
 
       // 1-alpha approximate inference interval for the expected response
       // (1.37), page 23
-      var J_invR = new double[m, n];
-      alglib.rmatrixgemm(m, n, n, 1.0, J, 0, 0, 0, invR, 0, 0, 0, 0.0, ref J_invR, 0, 0); // Use invR from trainX because it captures the correlation
+      var J_invR = new double[numRows, n];
+      alglib.rmatrixgemm(numRows, n, n, 1.0, J, 0, 0, 0, invR, 0, 0, 0, 0.0, ref J_invR, 0, 0); // Use invR from trainX because it captures the correlation
                                                                                           // and uncertainty of parameters based on the training set.
 
       // s * || J_invR ||
-      for (int i = 0; i < m; i++) {
+      for (int i = 0; i < numRows; i++) {
         resStdError[i] = 0.0;
         for (int j = 0; j < n; j++) {
           resStdError[i] += J_invR[i, j] * J_invR[i, j];
@@ -146,21 +147,30 @@ namespace HEAL.NonlinearRegression {
       }
 
       // https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
-      var f = alglib.invfdistribution(n, m - n, alpha);
-      var t = alglib.invstudenttdistribution(m - n, 1 - alpha / 2);
+      var f = alglib.invfdistribution(n, this.m - n, alpha);
+      var t = alglib.invstudenttdistribution(this.m - n, 1 - alpha / 2);
 
       var noiseStdDev = includeNoise ? s : 0.0;
-      if (m == 1) {
-        // point-wise interval
-        low[0] = yPred[0] - (resStdError[0] + noiseStdDev) * t;
-        high[0] = yPred[0] + (resStdError[0] + noiseStdDev) * t;
-      } else {
-        // simultaneous interval (band)
-        for (int i = 0; i < m; i++) {
-          low[i] = yPred[i] - resStdError[i] * Math.Sqrt(n * f) - t * noiseStdDev; // not sure if t or f should be used for the noise part
-          high[i] = yPred[i] + resStdError[i] * Math.Sqrt(n * f) + t * noiseStdDev;
-        }
+
+      // Console.WriteLine($"noiseStdDev: {noiseStdDev} f: {f}, Math.Sqrt(n * f) {Math.Sqrt(n * f)} t: {t}");
+
+      //   // point-wise interval
+      for (int i = 0; i < numRows; i++) {
+        low[i] = yPred[i] - (resStdError[i] + noiseStdDev) * t;
+        high[i] = yPred[i] + (resStdError[i] + noiseStdDev) * t;
       }
+      // old code to calculate pointwise and simultaneous intervals
+      // if (m == 1) {
+      //   // point-wise interval
+      //   low[0] = yPred[0] - (resStdError[0] + noiseStdDev) * t;
+      //   high[0] = yPred[0] + (resStdError[0] + noiseStdDev) * t;
+      // } else {
+      //   // simultaneous interval (band)
+      //   for (int i = 0; i < m; i++) {
+      //     low[i] = yPred[i] - (resStdError[i] + noiseStdDev)* Math.Sqrt(n * f); // not sure if t or sqrt(n*f) should be used for the noise part
+      //     high[i] = yPred[i] + (resStdError[i] + noiseStdDev) * Math.Sqrt(n * f);
+      //   }
+      // }
     }
 
 
