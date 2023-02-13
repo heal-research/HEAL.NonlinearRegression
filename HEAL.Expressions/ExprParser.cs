@@ -124,7 +124,9 @@ namespace HEAL.Expressions.Parser {
 
       // in Python sign binds stronger than exponent
       // -x**3  = (-x)**3
-      if (sign == -1.0) expr = Expression.Negate(expr);
+      if (sign == -1.0) {
+        expr = Negate(expr);
+      }
       // optionally parse power with exponent
       if (Sy == TokenEnum.Pow) {
         NextSy();
@@ -133,6 +135,16 @@ namespace HEAL.Expressions.Parser {
       return expr;
     }
 
+    private Expression Negate(Expression expr) {
+      if (expr is BinaryExpression binExpr && binExpr.Left == parameterSymbol) {
+        parameterValues[(int)((ConstantExpression)binExpr.Right).Value] *= -1;
+        return expr;
+      } else if(expr is ConstantExpression constExpr) {
+        return Expression.Constant(-(double)constExpr.Value);
+      } else {
+        return Expression.Negate(expr);
+      }
+    }
 
     private Expression MakeParameter(double val) {
       var idx = parameterValues.Count;
