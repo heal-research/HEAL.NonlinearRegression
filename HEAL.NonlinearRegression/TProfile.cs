@@ -294,6 +294,7 @@ namespace HEAL.NonlinearRegression {
     }
 
     // the Jacobian of an offset parameter (f(x) = g(x) + p) is 1
+    // TODO: this should be changed to work directly with the expression instead of the Jacobian
     private static int FindOffsetParameterIndex(double[] theta, double[,] x, Jacobian jacobian) {
       var m = x.GetLength(0);
       var d = theta.Length;
@@ -318,6 +319,7 @@ namespace HEAL.NonlinearRegression {
     }
 
     // the Jacobian of a scaling parameter (f(x) = g(x) * p) is g(x),
+    // TODO: this should be changed to work directly with the expression instead of the Jacobian
     private static int FindScalingParameterIndex(double[] theta, double[,] x, double[] fx, Jacobian jacobian) {
       var m = x.GetLength(0);
       var d = theta.Length;
@@ -331,7 +333,8 @@ namespace HEAL.NonlinearRegression {
         var isMatch = true;
         int i = 0;
         while (i < m && isMatch) {
-          isMatch = jac[i, colIdx] * theta[colIdx] == fx[i];
+          var rel = jac[i, colIdx] * theta[colIdx] / fx[i];
+          isMatch = (rel <= 1+rel/1e6 && rel >= 1-rel/1e6);
           i++;
         }
         if (i >= m) res = colIdx; // found
