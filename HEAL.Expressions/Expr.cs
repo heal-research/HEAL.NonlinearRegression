@@ -452,5 +452,16 @@ namespace HEAL.Expressions {
     public static IEnumerable<string> CollectSymbols(Expression<ParametricFunction> parametricExpr) {
       return CollectSymbolsVisitor.CollectSymbols(parametricExpr, parametricExpr.Parameters[0]);
     }
+
+    // returns k if expression has structure f(x) + p_k and p is the vector of parameters
+    public static int FindOffsetParameterIndex(Expression<ParametricFunction> expr) {
+      return FindOffsetParameterVisitor.FindOffsetParameter(expr.Body, expr.Parameters[0]);
+    }
+
+
+    // returns k if expression has structure f(x) * p_k and p is the vector of parameters
+    public static int FindScalingParameterIndex(Expression<ParametricFunction> expr) {
+      return FindScalingParameterVisitor.FindScalingParameter(expr.Body, expr.Parameters[0]);
+    }
   }
 }

@@ -1,6 +1,8 @@
-﻿using System;
+﻿using HEAL.Expressions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 
 namespace HEAL.NonlinearRegression {
@@ -215,27 +217,41 @@ namespace HEAL.NonlinearRegression {
     }
 
     public static void GetPredictionIntervals(double[,] x, NonlinearRegression nls, out double[] low, out double[] high, double alpha = 0.05, bool includeNoise = false) {
-      var m = x.GetLength(0); // the points for which we calculate the prediction interval
+      var predRows = x.GetLength(0); // the points for which we calculate the prediction interval
       var trainRows = nls.Statistics.m;
       var n = nls.Statistics.n; // number of parameters
       var d = x.GetLength(1); // number of features
 
-      var _low = new double[m];
-      var _high = new double[m];
+      var _low = new double[predRows];
+      var _high = new double[predRows];
 
       // calc predicted values
-      var yPred = new double[m];
+      var yPred = new double[predRows];
       nls.func(nls.Statistics.paramEst, x, yPred);
 
-      var offsetIdx = FindOffsetParameterIndex(nls.ParamEst, nls.x, nls.jacobian); // returns -1 if there is no offset parameter
-      int scaleIdx = FindScalingParameterIndex(nls.ParamEst, nls.x, yPred, nls.jacobian);
+      var offsetIdx = Expr.FindOffsetParameterIndex(nls.modelExpr);
+      var scaleIdx = Expr.FindScalingParameterIndex(nls.modelExpr);
       if (offsetIdx == -1 && scaleIdx == -1) {
         throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
       }
-
+      
+      // we only calculate pointwise intervals
+      var t = alglib.invstudenttdistribution(trainRows - d, 1 - alpha / 2);
+      // old code for pointwise and simultaneuous intervals
+      // var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
+      // var f = alglib.invfdistribution(n, m - n, alpha);
+      // var s = nls.Statistics.s;
+      // if (m == 1) {
+      //   _low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
+      //   _high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
+      // } else {
+      //   _low[i] = alglib.spline1dcalc(tau2theta, -f) - (includeNoise ? t * s : 0.0);
+      //   _high[i] = alglib.spline1dcalc(tau2theta, f) + (includeNoise ? t * s : 0.0);
+      // }
+      var s = nls.Statistics.s;
 
       // prediction intervals for each point in x
-      Parallel.For(0, m,
+      Parallel.For(0, predRows,
         (i, loopState) => {
           // buffer
           // actually they are only needed once for the whole loop but with parallel for we need to make copies
@@ -260,7 +276,7 @@ namespace HEAL.NonlinearRegression {
           }
 
           paramEstExt[outputParamIdx] = yPred[i]; // function output parameter is prediction at point xi
-          var statisticsExt = new LeastSquaresStatistics(nls.Statistics.m, n, nls.Statistics.SSR, yPred, paramEstExt, jacExt, nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
+          var statisticsExt = new LeastSquaresStatistics(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt, jacExt, nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
 
           var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, outputParamIdx); // only for the function output parameter
 
@@ -270,77 +286,13 @@ namespace HEAL.NonlinearRegression {
             theta[k] = profile.Item2[outputParamIdx][k]; // profile of function output parameter
           }
           alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
-          // we only calculate pointwise intervals
-          var t = alglib.invstudenttdistribution(trainRows - d, 1 - alpha / 2);
-          var s = nls.Statistics.s;
           _low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
           _high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
-
-          // old code for pointwise and simultaneuous intervals
-          // var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
-          // var f = alglib.invfdistribution(n, m - n, alpha);
-          // var s = nls.Statistics.s;
-          // if (m == 1) {
-          //   _low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
-          //   _high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
-          // } else {
-          //   _low[i] = alglib.spline1dcalc(tau2theta, -f) - (includeNoise ? t * s : 0.0);
-          //   _high[i] = alglib.spline1dcalc(tau2theta, f) + (includeNoise ? t * s : 0.0);
-          // }
         });
+
       // cannot manipulate low and high output parameters directly in parallel.for
       low = (double[])_low.Clone();
       high = (double[])_high.Clone();
-    }
-
-    // the Jacobian of an offset parameter (f(x) = g(x) + p) is 1
-    // TODO: this should be changed to work directly with the expression instead of the Jacobian
-    private static int FindOffsetParameterIndex(double[] theta, double[,] x, Jacobian jacobian) {
-      var m = x.GetLength(0);
-      var d = theta.Length;
-      var f = new double[m];
-      var jac = new double[m, d];
-      jacobian(theta, x, f, jac);
-      // find a column of constant values (stops on first column found)
-      var res = -1;
-      int colIdx = 0;
-      while (colIdx < d && res == -1) {
-        var isConstant = true;
-        var firstVal = jac[0, colIdx];
-        int i = 1;
-        while (i < m && isConstant) {
-          isConstant = jac[i, colIdx] == firstVal;
-          i++;
-        }
-        if (i >= m) res = colIdx; // found
-        colIdx++;
-      }
-      return res;
-    }
-
-    // the Jacobian of a scaling parameter (f(x) = g(x) * p) is g(x),
-    // TODO: this should be changed to work directly with the expression instead of the Jacobian
-    private static int FindScalingParameterIndex(double[] theta, double[,] x, double[] fx, Jacobian jacobian) {
-      var m = x.GetLength(0);
-      var d = theta.Length;
-      var f = new double[m];
-      var jac = new double[m, d];
-      jacobian(theta, x, f, jac);
-      // find a column that is fx when multiplied with theta_i
-      var res = -1;
-      int colIdx = 0;
-      while (colIdx < d && res == -1) {
-        var isMatch = true;
-        int i = 0;
-        while (i < m && isMatch) {
-          var rel = jac[i, colIdx] * theta[colIdx] / fx[i];
-          isMatch = (rel <= 1+rel/1e6 && rel >= 1-rel/1e6);
-          i++;
-        }
-        if (i >= m) res = colIdx; // found
-        colIdx++;
-      }
-      return res;
     }
 
     private void PrepareSplinesForProfileSketches() {
