@@ -148,6 +148,7 @@ namespace HEAL.NonlinearRegression {
       int n = p.Length;
 
 
+      this.modelExpr = expr;
       var _func = Expr.Broadcast(expr).Compile();
       var _jac = Expr.Jacobian(expr, p.Length).Compile();
       this.func = (double[] p, double[,] X, double[] f) => _func(p, X, f);
