@@ -1,11 +1,14 @@
 using System;
 using System.Linq.Expressions;
+using System.Reflection;
 
 namespace HEAL.Expressions {
   /// <summary>
   /// Converts division to multiplication
   /// </summary>
   public class ConvertDivToMulVisitor : ExpressionVisitor {
+    private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
+
     public static Expression Convert(Expression expr) {
       var v = new ConvertDivToMulVisitor();
       return v.Visit(expr);
@@ -35,8 +38,10 @@ namespace HEAL.Expressions {
         // since this is recursive left must be 1.0
         if (!(binExpr.Left is ConstantExpression factorExpr) || (double)factorExpr.Value != 1.0) throw new InvalidProgramException();
         return binExpr.Right;
-      } // TODO handle parameters?
-      else {
+      } else if (expr is MethodCallExpression callExpr && callExpr.Method == exp) {
+        // 1 / exp(f(x)) == exp (-f(x))
+        return callExpr.Update(callExpr.Object, new[] { Expression.Negate(callExpr.Arguments[0]) });
+      } else {
         return Expression.Divide(Expression.Constant(1.0), expr);
       }
     }
