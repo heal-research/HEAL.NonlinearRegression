@@ -66,8 +66,8 @@ namespace HEAL.NonlinearRegression {
       var n = statistics.n;
 
 
-      const int kmax = 30;
-      const int step = 8;
+      const int kmax = 50;
+      const int step = 16;
       var tmax = Math.Sqrt(alglib.invfdistribution(n, m - n, 0.01)); // limit for t (use small alpha here), book page 302
 
       // buffers
@@ -79,7 +79,8 @@ namespace HEAL.NonlinearRegression {
       var p_cond = (double[])paramEst.Clone();
 
       alglib.minlmcreatevj(m, p_cond, out var state);
-      alglib.minlmsetcond(state, 0.0, maxits: 3000);
+      // alglib.minlmsetcond(state, 1e-9, 0);
+      alglib.minlmsetscale(state, paramStdError);
 
       var resFunc = Util.CreateResidualFunction(func, x, y);
       // adapted jacobian for fixed parameter
