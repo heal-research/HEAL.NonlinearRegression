@@ -8,7 +8,7 @@ namespace HEAL.NonlinearRegression {
   public static class MinimumDescriptionLength {
     // as described in https://arxiv.org/abs/2211.11461
     // Deaglan J. Bartlett, Harry Desmond, Pedro G. Ferreira, Exhaustive Symbolic Regression, 2022
-    public static double MDL(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double[] y, double[,] x) {
+    public static double MDL(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double[] y, double[,] x, bool approxHessian = false) {
       // total description length:
       // L(D) = L(D|H) + L(H)
 
@@ -29,7 +29,7 @@ namespace HEAL.NonlinearRegression {
       int numParam = paramEst.Length;
       var yPred = new double[y.Length];
       Expr.Broadcast(modelExpr).Compile()(paramEst, x, yPred);
-      var FIdiag = FisherInformationDiag(x, y, yPred, modelExpr, paramEst);
+      var FIdiag = FisherInformationDiag(x, y, yPred, modelExpr, paramEst, approxHessian);
       
       // TODO: for negative constants and negative parameters we would need to account for an unary sign in the expression
       return -LogLikelihood(y, yPred)
@@ -49,9 +49,12 @@ namespace HEAL.NonlinearRegression {
     }
 
     // diag(I) for the normal log likelihood
-    public static double[] FisherInformationDiag(double[,] X, double[] y, double[] yPred, Expression<Expr.ParametricFunction> modelExpr, double[] paramEst) {
+    public static double[] FisherInformationDiag(double[,] X, double[] y, double[] yPred, Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, bool approxHessian = false) {
       var n = paramEst.Length;
-      var hess = Expr.HessianDiag(modelExpr, n).Compile();
+      Expr.ParametricHessianDiagFunction hess = null;
+      if (!approxHessian) {
+        hess = Expr.HessianDiag(modelExpr, n).Compile();
+      }
       var grad = Expr.Gradient(modelExpr, n).Compile();
 
       var SSR = y.Zip(yPred, (yi, ypi) => Math.Pow(yi - ypi, 2)).Sum();
@@ -65,10 +68,10 @@ namespace HEAL.NonlinearRegression {
       for (int r = 0; r < y.Length; r++) {
         Buffer.BlockCopy(X, r * d * sizeof(double), xi, 0, d * sizeof(double)); // copy one row
         var res = y[r] - yPred[r];
-        hess(paramEst, xi, hDiagModel);
+        if(!approxHessian) hess(paramEst, xi, hDiagModel); // else hDiagModel = zeros
         grad(paramEst, xi, gradModel);
         for (int pIdx = 0; pIdx < n; pIdx++) {
-          fimDiag[pIdx] += (res * hDiagModel[pIdx] + gradModel[pIdx] * gradModel[pIdx]) / s2; // FIM is negative Hessian
+          fimDiag[pIdx] += (res * hDiagModel[pIdx] + gradModel[pIdx] * gradModel[pIdx]) / s2;
         }
       }
 

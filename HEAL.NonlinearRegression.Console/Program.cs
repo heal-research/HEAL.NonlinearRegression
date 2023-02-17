@@ -3,13 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using System.Transactions;
 using CommandLine;
 using HEAL.Expressions;
 using HEAL.Expressions.Parser;
-using Microsoft.CodeAnalysis;
 
 // TODO:
 //  'verbs' for different usages shown in Demo project (already implemented):
@@ -65,8 +62,12 @@ namespace HEAL.NonlinearRegression.Console {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
         var nls = new NonlinearRegression();
-        nls.Fit(p, parametricExpr, trainX, trainY, options.MaxIterations);
-
+        try {
+          nls.Fit(p, parametricExpr, trainX, trainY, options.MaxIterations);
+        } catch (Exception e) {
+          System.Console.WriteLine("There was a problem while fitting.");
+          continue;
+        }
         if (nls.OptReport.Success) {
           System.Console.WriteLine($"p_opt: {string.Join(" ", p.Select(pi => pi.ToString("e5")))}");
           System.Console.WriteLine($"{nls.OptReport}");
@@ -101,16 +102,23 @@ namespace HEAL.NonlinearRegression.Console {
       Split(x, y, start, end, start, end, out x, out y, out _, out _);
 
       foreach (var model in GetModels(options.Model)) {
-        GenerateExpression(model, varNames, out var parametricExpr, out var p);
+        try {
+          GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
-        var SSR = EvaluateSSR(parametricExpr, p, x, y, out var yPred);
-        var nmse = SSR / y.Length / Util.Variance(y);
+          var SSR = EvaluateSSR(parametricExpr, p, x, y, out var yPred);
+          var nmse = SSR / y.Length / Util.Variance(y);
 
-        var _jac = Expr.Jacobian(parametricExpr, p.Length).Compile();
-        void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
-        var stats = new LeastSquaresStatistics(y.Length, p.Length, SSR, yPred, p, jac, x);
+          var _jac = Expr.Jacobian(parametricExpr, p.Length).Compile();
+          void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
+          var stats = new LeastSquaresStatistics(y.Length, p.Length, SSR, yPred, p, jac, x);
 
-        System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {stats.LogLikelihood} AICc: {stats.AICc} BIC: {stats.BIC} DoF: {p.Length}");
+          var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, x, approxHessian: true);
+          var fullMdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, x, approxHessian: false);
+
+          System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {stats.LogLikelihood} AICc: {stats.AICc} BIC: {stats.BIC} MDL: {mdl} MDL (full): {fullMdl} DoF: {p.Length}");
+        } catch (Exception e) {
+          System.Console.WriteLine($"Could not evaluate model {model}");
+        }
       }
     }
 
@@ -210,13 +218,13 @@ namespace HEAL.NonlinearRegression.Console {
       Split(x, y, trainStart, trainEnd, trainStart, trainEnd, out var trainX, out var trainY, out _, out _);
 
       foreach (var model in GetModels(options.Model)) {
-        GenerateExpression(model, varNames, out var parametricExpr, out var p);
-
         try {
+          GenerateExpression(model, varNames, out var parametricExpr, out var p);
+
           var cvrmse = CrossValidate(parametricExpr, p, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed);
           System.Console.WriteLine($"CV RMSE mean: {cvrmse.Average():e4} stddev: {Math.Sqrt(Util.Variance(cvrmse.ToArray())):e4}");
         } catch (Exception e) {
-          System.Console.WriteLine($"Error in fitting");
+          System.Console.WriteLine($"Error in fitting model {model}");
         }
       }
     }
@@ -433,14 +441,14 @@ namespace HEAL.NonlinearRegression.Console {
           nlr = new NonlinearRegression();
           nlr.SetModel(param, expr, trainX, trainY);
           var stats = nlr.Statistics;
-          if(stats.AICc - refStats.AICc< options.DeltaAIC && stats.n <= bestNumParam) {
+          if (stats.AICc - refStats.AICc < options.DeltaAIC && stats.n <= bestNumParam) {
             bestModel = expr;
             bestNumParam = param.Length;
             bestAICc = stats.AICc;
             bestParam = param;
           }
         }
-        System.Console.WriteLine($"deltaAICc: {bestAICc- refStats.AICc}, deltaN: {bestNumParam - refStats.n}, {Expr.ToString(bestModel, varNames, bestParam)}");
+        System.Console.WriteLine($"deltaAICc: {bestAICc - refStats.AICc}, deltaN: {bestNumParam - refStats.n}, {Expr.ToString(bestModel, varNames, bestParam)}");
       }
     }
 
@@ -776,7 +784,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("verbose", Required = false, HelpText = "Produced more detailed output.")]
       public bool Verbose { get; set; }
-      [Option("deltaAIC", Required=false, HelpText = "The maximum deltaAIC that is still accepted (e.g. 3.0)", Default = 3.0)]
+      [Option("deltaAIC", Required = false, HelpText = "The maximum deltaAIC that is still accepted (e.g. 3.0)", Default = 3.0)]
       public double DeltaAIC { get; set; }
 
       [Option("maxIter", Required = false, HelpText = "The maximum number of Levenberg-Marquardt iterations.", Default = 10000)]
