@@ -36,7 +36,7 @@ namespace HEAL.NonlinearRegression {
       try {
         CalcParameterStatistics(jacobian, x);
       } catch (Exception e) {
-        System.Console.WriteLine($"Problem while calculating statistics. Prediction intervals will not work.");
+        System.Console.Error.WriteLine($"Problem while calculating statistics. Prediction intervals will not work.");
       }
     }
 
@@ -69,11 +69,11 @@ namespace HEAL.NonlinearRegression {
         // inverse of R
         alglib.rmatrixtrinverse(ref invR, isupper: true, out var info, out var invReport);
         if (info < 0) {
-          System.Console.WriteLine("Jacobian is not of full rank or contains NaN values");
+          System.Console.Error.WriteLine("Jacobian is not of full rank or contains NaN values");
           throw new InvalidOperationException("Cannot invert R");
         }
       } catch (alglib.alglibexception) {
-        System.Console.WriteLine("Jacobian is not of full rank or contains NaN values");
+        System.Console.Error.WriteLine("Jacobian is not of full rank or contains NaN values");
         throw;
       }
 
