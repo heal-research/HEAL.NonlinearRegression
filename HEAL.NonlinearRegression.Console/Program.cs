@@ -222,7 +222,8 @@ namespace HEAL.NonlinearRegression.Console {
           GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
           var cvrmse = CrossValidate(parametricExpr, p, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed);
-          System.Console.WriteLine($"CV RMSE mean: {cvrmse.Average():e4} stddev: {Math.Sqrt(Util.Variance(cvrmse.ToArray())):e4}");
+          var stddev = Math.Sqrt(Util.Variance(cvrmse.ToArray()));
+          System.Console.WriteLine($"CV RMSE mean: {cvrmse.Average():e4} stddev: {stddev:e4} se(RMSE mean): {stddev/Math.Sqrt(cvrmse.Count())}");
         } catch (Exception e) {
           System.Console.WriteLine($"Error in fitting model {model}");
         }
@@ -264,7 +265,7 @@ namespace HEAL.NonlinearRegression.Console {
           SSRtest += r * r;
         }
         lock (rmse) {
-          rmse.Add(Math.Sqrt(SSRtest / foldTestY.Length));
+          rmse.Add(Math.Sqrt(SSRtest / (foldTestY.Length)));
         }
       });
       return rmse;
