@@ -25,7 +25,7 @@ namespace HEAL.Expressions {
     protected override Expression VisitBinary(BinaryExpression node) {
       // do not recurse into array index expressions (do not count array indices)
       if (node.NodeType == ExpressionType.ArrayIndex)
-        if (node.Right == p) {
+        if (node.Left == p) {
           Symbols.Add("param");
           return node;
         } else {
