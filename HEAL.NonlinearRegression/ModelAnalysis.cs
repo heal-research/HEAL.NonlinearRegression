@@ -80,8 +80,11 @@ namespace HEAL.NonlinearRegression {
       var stats0 = nlr.Statistics;
       p = (double[])stats0.paramEst.Clone();
 
-      var fullAICc = nlr.Statistics.AICc;
-      var fullBIC = nlr.Statistics.BIC;
+      // we assume noiseSigma is the RMSE of the original model
+      var noiseSigma = stats0.s;
+
+      var fullAICc = ModelSelection.AICc(y, stats0.yPred, p.Length, noiseSigma);
+      var fullBIC = ModelSelection.AICc(y, stats0.yPred, p.Length, noiseSigma);
 
       var impacts = new Dictionary<Expression, double>();
 
@@ -100,7 +103,8 @@ namespace HEAL.NonlinearRegression {
 
         var impact = reducedStats.SSR / stats0.SSR;
 
-        yield return Tuple.Create(subExpr, impact, nlr.Statistics.AICc - fullAICc, nlr.Statistics.BIC - fullBIC);
+        yield return Tuple.Create(subExpr, impact, ModelSelection.AICc(y, reducedStats.yPred, p.Length, noiseSigma) - fullAICc,
+          ModelSelection.BIC(y, reducedStats.yPred, p.Length, noiseSigma) - fullBIC);
       }
     }
 
@@ -128,13 +132,14 @@ namespace HEAL.NonlinearRegression {
       nlr.Fit(p, expr, X, y, maxIterations);
 
       var stats0 = nlr.Statistics;
+      var noiseSigma = stats0.s;
       if (stats0 == null) return Enumerable.Empty<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>(); // cannot fit the expression
 
       p = stats0.paramEst;
       var impacts = new List<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>();
 
-      var fullAIC = stats0.AICc;
-      var fullBIC = stats0.BIC;
+      var fullAIC = ModelSelection.AICc(y, stats0.yPred, p.Length, noiseSigma);
+      var fullBIC = ModelSelection.BIC(y, stats0.yPred, p.Length, noiseSigma);
       if (verbose) {
         Console.WriteLine(expr.Body);
         Console.WriteLine($"theta: {string.Join(", ", p.Select(p => p.ToString("e2")))}");
@@ -182,10 +187,10 @@ namespace HEAL.NonlinearRegression {
           var f = alglib.fdistribution(deltaDoF, fullDoF, fRatio);
 
           if(verbose)
-            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1-f,-10:e3}, {nlr.Statistics.AICc - fullAIC,-11:f1} {nlr.Statistics.BIC - fullBIC,-11:f1}");
+            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1-f,-10:e3}, {ModelSelection.AICc(y, reducedStats.yPred, reducedStats.paramEst.Length, noiseSigma) - fullAIC,-11:f1} {ModelSelection.BIC(y, reducedStats.yPred, reducedStats.paramEst.Length, noiseSigma) - fullBIC,-11:f1}");
 
           lock (impacts) {
-            impacts.Add(Tuple.Create(paramIdx, ssrFactor, nlr.Statistics.AICc - fullAIC, reducedExpression, newP));
+            impacts.Add(Tuple.Create(paramIdx, ssrFactor, ModelSelection.AICc(y, reducedStats.yPred, reducedStats.paramEst.Length, noiseSigma) - fullAIC, reducedExpression, newP));
           }
         }
         catch (Exception e) {

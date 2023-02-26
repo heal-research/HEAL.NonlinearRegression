@@ -107,15 +107,20 @@ namespace HEAL.NonlinearRegression.Console {
 
           var SSR = EvaluateSSR(parametricExpr, p, x, y, out var yPred);
           var nmse = SSR / y.Length / Util.Variance(y);
+          var noiseSigma = options.NoiseSigma ?? Math.Sqrt(SSR / y.Length); // use model RMSE as default
 
           var _jac = Expr.Jacobian(parametricExpr, p.Length).Compile();
           void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
           var stats = new LeastSquaresStatistics(y.Length, p.Length, SSR, yPred, p, jac, x);
 
-          var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, x, approxHessian: true);
-          var fullMdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, x, approxHessian: false);
+          var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, noiseSigma, x, approxHessian: true);
+          var freqMdl = MinimumDescriptionLength.MDLFreq(parametricExpr, p, y, noiseSigma, x, approxHessian: false);
+          
+          var logLik = ModelSelection.LogLikelihood(y, yPred, noiseSigma);
+          var aicc = ModelSelection.AICc(y, yPred, p.Length, noiseSigma);
+          var bic = ModelSelection.BIC(y, yPred, p.Length, noiseSigma);
 
-          System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {stats.LogLikelihood} AICc: {stats.AICc} BIC: {stats.BIC} MDL: {mdl} MDL (full): {fullMdl} DoF: {p.Length}");
+          System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {logLik} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
         } catch (Exception e) {
           System.Console.WriteLine($"Could not evaluate model {model}");
         }
@@ -176,7 +181,7 @@ namespace HEAL.NonlinearRegression.Console {
           nlr.Fit(p, parametricExpr, trainX, trainY);
         }
 
-        var predict = nlr.PredictWithIntervals(x, options.Interval, includeNoise: true); // TODO includeNoise as CLI option
+        var predict = nlr.PredictWithIntervals(x, options.Interval, includeNoise: !options.ExcludeNoise);
 
         // generate output for full dataset
         if (options.Interval == IntervalEnum.None) {
@@ -221,9 +226,9 @@ namespace HEAL.NonlinearRegression.Console {
         try {
           GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
-          var cvrmse = CrossValidate(parametricExpr, p, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed);
-          var stddev = Math.Sqrt(Util.Variance(cvrmse.ToArray()));
-          System.Console.WriteLine($"CV RMSE mean: {cvrmse.Average():e4} stddev: {stddev:e4} se(RMSE mean): {stddev/Math.Sqrt(cvrmse.Count())}");
+          var cvmse = CrossValidate(parametricExpr, p, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed);
+          var stddev = Math.Sqrt(Util.Variance(cvmse.ToArray()));
+          System.Console.WriteLine($"mean(MSE): {cvmse.Average():e4} stddev(MSE): {stddev:e4} se(MSE): {stddev/Math.Sqrt(cvmse.Count())}"); // Elements of Statistical Learning
         } catch (Exception e) {
           System.Console.WriteLine($"Error in fitting model {model}");
         }
@@ -244,7 +249,7 @@ namespace HEAL.NonlinearRegression.Console {
 
 
       var foldSize = (int)Math.Truncate((y.Length + 1) / (double)folds);
-      var rmse = new List<double>();
+      var mse = new List<double>();
       Parallel.For(0, folds, (f) => {
         var foldStart = f * foldSize;
         var foldEnd = (f + 1) * foldSize - 1;
@@ -264,11 +269,11 @@ namespace HEAL.NonlinearRegression.Console {
           var r = foldTestY[i] - foldPred[i];
           SSRtest += r * r;
         }
-        lock (rmse) {
-          rmse.Add(Math.Sqrt(SSRtest / (foldTestY.Length)));
+        lock (mse) {
+          mse.Add(SSRtest / foldTestY.Length);
         }
       });
-      return rmse;
+      return mse;
     }
 
     private static void Simplify(SimplifyOptions options) {
@@ -326,6 +331,9 @@ namespace HEAL.NonlinearRegression.Console {
         var nlr = new NonlinearRegression();
         nlr.Fit(p, parametricExpr, trainX, trainY, options.MaxIterations);
         var refStats = nlr.Statistics;
+        var noiseSigma = refStats.s;
+        var refAicc = ModelSelection.AICc(trainY, refStats.yPred, p.Length, noiseSigma);
+        var refBic = ModelSelection.BIC(trainY, refStats.yPred, p.Length, noiseSigma);
 
         var allModels = new List<Tuple<Expression<Expr.ParametricFunction>, double[]>>();
         var modelQueue = new Queue<Tuple<Expression<Expr.ParametricFunction>, double[]>>();
@@ -370,7 +378,9 @@ namespace HEAL.NonlinearRegression.Console {
             cvrmseMean = cvrmse.Average();
             cvrmseStd = Math.Sqrt(Util.Variance(cvrmse.ToArray()));
           } catch (Exception) { }
-          System.Console.WriteLine($"{stats.SSR / refStats.SSR:e4},{stats.n},{rmseTrain:e4},{rmseTest:e4},{cvrmseMean:e4},{cvrmseStd:e4},{stats.AICc:e4},{stats.AICc - refStats.AICc:e4},{stats.BIC:e4},{stats.BIC - refStats.BIC:e4},{Expr.ToString(parametricExpr, varNames, p)}");
+          var aicc = ModelSelection.AICc(trainY, stats.yPred, p.Length, rmseTrain);
+          var bic = ModelSelection.BIC(trainY, stats.yPred, p.Length, rmseTrain);
+          System.Console.WriteLine($"{stats.SSR / refStats.SSR:e4},{stats.n},{rmseTrain:e4},{rmseTest:e4},{cvrmseMean:e4},{cvrmseStd:e4},{aicc:e4},{aicc - refAicc:e4},{bic:e4},{bic - refBic:e4},{Expr.ToString(parametricExpr, varNames, p)}");
         }
       }
     }
@@ -401,6 +411,7 @@ namespace HEAL.NonlinearRegression.Console {
         var nlr = new NonlinearRegression();
         nlr.Fit(origParam, origExpr, trainX, trainY, options.MaxIterations);
         var refStats = nlr.Statistics;
+        var noiseSigma = refStats.s; // assume RMSE of original model for noiseSigma
         if (refStats == null) {
           // could not fit expression
           System.Console.WriteLine($"deltaAICc: {double.NaN}, deltaN: {double.NaN}, {Expr.ToString(origExpr, varNames, origParam)}");
@@ -433,7 +444,8 @@ namespace HEAL.NonlinearRegression.Console {
         var bestModel = origExpr;
         var bestParam = origParam;
         var bestNumParam = refStats.n;
-        var bestAICc = refStats.AICc;
+        var refAICc = ModelSelection.AICc(y, refStats.yPred, refStats.paramEst.Length, noiseSigma);
+        var bestAICc = refAICc;
 
         foreach (var subModel in allModels) {
           (var expr, var param) = subModel;
@@ -442,14 +454,15 @@ namespace HEAL.NonlinearRegression.Console {
           nlr = new NonlinearRegression();
           nlr.SetModel(param, expr, trainX, trainY);
           var stats = nlr.Statistics;
-          if (stats.AICc - refStats.AICc < options.DeltaAIC && stats.n <= bestNumParam) {
+          var aicc = ModelSelection.AICc(trainY, stats.yPred, param.Length, noiseSigma);
+          if (aicc - refAICc < options.DeltaAIC && stats.n <= bestNumParam) {
             bestModel = expr;
             bestNumParam = param.Length;
-            bestAICc = stats.AICc;
+            bestAICc = aicc;
             bestParam = param;
           }
         }
-        System.Console.WriteLine($"deltaAICc: {bestAICc - refStats.AICc}, deltaN: {bestNumParam - refStats.n}, {Expr.ToString(bestModel, varNames, bestParam)}");
+        System.Console.WriteLine($"deltaAICc: {bestAICc - refAICc}, deltaN: {bestNumParam - refStats.n}, {Expr.ToString(bestModel, varNames, bestParam)}");
       }
     }
 
@@ -719,6 +732,8 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("interval", Required = false, Default = IntervalEnum.LinearApproximation, HelpText = "Prediction interval type.")]
       public IntervalEnum Interval { get; set; }
+      [Option("excludeNoise", Required = false, HelpText ="Switch to exclude the noise term from the prediction interval.")]
+      public bool ExcludeNoise { get; set; }
     }
 
     [Verb("fit", HelpText = "Fit a model using a dataset.")]
@@ -740,6 +755,8 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("range", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive).")]
       public string Range { get; set; }
+      [Option("noiseSigma", Required = false, HelpText = "The standard deviation of noise in the target if it is known.")]
+      public double? NoiseSigma { get; set; }
     }
 
 

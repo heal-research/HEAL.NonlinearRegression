@@ -217,8 +217,11 @@ namespace HEAL.NonlinearRegression {
     }
 
     private void WriteStatistics(TextWriter writer) {
-      var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, y, x);
-      writer.WriteLine($"SSR: {Statistics.SSR:e4} s: {Statistics.s:e4} AICc: {Statistics.AICc:f1} BIC: {Statistics.BIC:f1} MDL: {mdl:f1}");
+      var noiseSigma = Statistics.s;
+      var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, y, noiseSigma, x);
+      var aicc = ModelSelection.AICc(y, Statistics.yPred, Statistics.n, noiseSigma);
+      var bic = ModelSelection.BIC(y, Statistics.yPred, Statistics.n, noiseSigma);
+      writer.WriteLine($"SSR: {Statistics.SSR:e4} s: {Statistics.s:e4} AICc: {aicc:f1} BIC: {bic:f1} MDL: {mdl:f1}");
       var p = ParamEst;
       var se = Statistics.paramStdError;
       if (se != null) {

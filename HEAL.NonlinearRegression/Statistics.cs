@@ -12,18 +12,6 @@ namespace HEAL.NonlinearRegression {
     public double[] paramStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
     public double[,] correlation { get; internal set; }// correlation matrix for parameters
 
-    public double LogLikelihood {
-      get {
-        // this is not the likelihood function but the maximum value of the likelihood function (assumes parameters are optimized to maximize likelihood)
-        var s2 = SSR / m; // optimal value for s2 in the likelihood function for the maximum likelihood parameter estimate
-        return -m / 2.0 * Math.Log(2 * Math.PI) - m / 2.0 * Math.Log(s2) - SSR / (2.0 * s2);
-      }
-    }
-
-    public double AIC => 2 * (n + 1) - 2 * LogLikelihood; // also count noise sigma as a parameter
-    public double AICc => AIC + 2 * (n + 1) * (n + 2) / (m - (n + 1) - 1); // sigma is counted as a parameter
-
-    public double BIC => (n + 1) * Math.Log(m) - 2 * LogLikelihood;
 
     private double[,] invR;
 

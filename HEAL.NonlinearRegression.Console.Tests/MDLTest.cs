@@ -99,17 +99,6 @@ namespace HEAL.NonlinearRegression.Console.Tests {
         var t2 = +numNodes * Math.Log(numSymbols) + constants.Sum(ci => Math.Log(Math.Abs(ci))); // function
         var t3 = -numParam / 2.0 * Math.Log(3.0) + Enumerable.Range(0, numParam).Sum(i => 0.5 * Math.Log(I[i, i]) + Math.Log(Math.Abs(stats.paramEst[i])));
         System.Console.WriteLine($"{model} nll: {t1} function: {t2} parameters: {t3}");
-
-
-
-        // expected results:
-        // complexity = number of nodes = 5
-        // code length T1: neg. log. likeihood = 8.36
-        // code length T2: function complexity = k log n + sum_j log(c_j)
-        // code length T3: parameter complexity = 2.53
-        // total code length: 16.39
-        var mdl = MinimumDescriptionLength.MDL(expr, p, y, x);
-        System.Console.WriteLine($"{model} LogLik: {stats.LogLikelihood} MDL: {mdl} DoF: {p.Length} NumNodes: {Expr.NumberOfNodes(expr)} num constants: {Expr.CollectConstants(expr).Length}");
       }
     }
   }
