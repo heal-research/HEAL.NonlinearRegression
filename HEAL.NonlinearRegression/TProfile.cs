@@ -58,13 +58,13 @@ namespace HEAL.NonlinearRegression {
     }
 
     public static Tuple<double[], double[][]> CalcTProfile(double[] y, double[,] x, LeastSquaresStatistics statistics, Function func, Jacobian jac, int pIdx) {
+      restart:
       var paramEst = statistics.paramEst;
       var paramStdError = statistics.paramStdError;
       var SSR = statistics.SSR;
       var s = statistics.s;
       var m = statistics.m;
       var n = statistics.n;
-
 
       const int kmax = 50;
       const int step = 16;
@@ -101,28 +101,38 @@ namespace HEAL.NonlinearRegression {
           alglib.minlmrestartfrom(state, p_cond);
           alglib.minlmoptimize(state, alglibResFunc, alglibResJacForFixed, null, null);
           alglib.minlmresults(state, out p_cond, out var report);
-          if (report.terminationtype < 0) throw new InvalidProgramException();
+          double tau_i;
+          if (report.terminationtype < 0) {
+            break; // no solution
+          } else {
 
-          jac(p_cond, x, yPred_cond, J); // get predicted values and Jacobian for calculation of z and v_p
+            jac(p_cond, x, yPred_cond, J); // get predicted values and Jacobian for calculation of z and v_p
 
-          var SSR_cond = 0.0; // S(,heta_p)
-          var zv = 0.0; // z^T v_p
+            var SSR_cond = 0.0; // S(theta_p)
+            var zv = 0.0; // z^T v_p
 
-          for (int i = 0; i < m; i++) {
-            var z = y[i] - yPred_cond[i];
-            SSR_cond += z * z;
-            zv += z * J[i, pIdx];
+            for (int i = 0; i < m; i++) {
+              var z = y[i] - yPred_cond[i];
+              SSR_cond += z * z;
+              zv += z * J[i, pIdx];
+            }
+
+            if (SSR_cond < SSR) {
+              System.Console.Error.WriteLine($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
+              SSR = SSR_cond;
+              statistics = new LeastSquaresStatistics(m, n, SSR_cond, yPred_cond, p_cond, jac, x);
+              goto restart;
+            }
+
+            tau_i = Math.Sign(delta) * Math.Sqrt(SSR_cond - SSR) / s;
+
+            invSlope = Math.Abs(tau_i * s * s / (paramStdError[pIdx] * zv));
+            tau.Add(tau_i);
+            M.Add((double[])p_cond.Clone());
+
+            invSlope = Math.Min(4.0, Math.Max(invSlope, 1.0 / 16));
           }
 
-          if (SSR_cond < SSR) throw new ArgumentException($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
-
-          var tau_i = Math.Sign(delta) * Math.Sqrt(SSR_cond - SSR) / s;
-
-          invSlope = Math.Abs(tau_i * s * s / (paramStdError[pIdx] * zv));
-          tau.Add(tau_i);
-          M.Add((double[])p_cond.Clone());
-
-          invSlope = Math.Min(4.0, Math.Max(invSlope, 1.0 / 16));
 
           if (Math.Abs(tau_i) > tmax) break;
         }
@@ -235,7 +245,7 @@ namespace HEAL.NonlinearRegression {
       if (offsetIdx == -1 && scaleIdx == -1) {
         throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
       }
-      
+
       // we only calculate pointwise intervals
       var t = alglib.invstudenttdistribution(trainRows - d, 1 - alpha / 2);
       // old code for pointwise and simultaneuous intervals
