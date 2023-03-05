@@ -41,6 +41,7 @@ namespace HEAL.NonlinearRegression {
       };
     }
 
+
     // takes function and re-parameterizes it so that f'(x0) == p[offsetParamIdx]
     // f'(x) = f(x,p[1..k]) - f(x0,p[1..k]) + p[offsetParamIdx]
     public static Function ReparameterizeFuncWithOffset(Function func, double[] x0, int offsetParamIdx) {
@@ -140,5 +141,49 @@ namespace HEAL.NonlinearRegression {
       }
       return SSR / x.Length;
     }
+
+    internal static alglib.ndimensional_grad CreateGaussianNegLogLikelihood(Jacobian modelJac, double[] y, double[,] X) {
+      return (double[] p, ref double f, double[] grad, object obj) => {
+        var m = y.Length;
+        var n = p.Length;
+        var yPred = new double[m];
+        var yJac = new double[m, n];
+        modelJac(p, X, yPred, yJac);
+
+        f = 0.0;
+        Array.Clear(grad, 0, n);
+        for (int i = 0; i < m; i++) {
+          var res = y[i] - yPred[i];
+          f += 0.5 * res * res;
+          for (int j = 0; j < n; j++) {
+            grad[j] += -0.5 * res * yJac[i, j];
+          }
+        }
+      };
+    }
+
+    internal static alglib.ndimensional_grad CreateBernoulliNegLogLikelihood(Jacobian modelJac, double[] y, double[,] X) {
+      return (double[] p, ref double f, double[] grad, object obj) => {
+        var m = y.Length;
+        var n = p.Length;
+        var yPred = new double[m];
+        var yJac = new double[m, n];
+        modelJac(p, X, yPred, yJac);
+
+        f = 0.0;
+        Array.Clear(grad, 0, n);
+        for (int i = 0; i < m; i++) {
+          if (y[i] != 0.0 && y[i] != 1.0) throw new ArgumentException("target variable must be binary (0/1) for Bernoulli likelihood");
+          var prob = 1.0 / (1 + Math.Exp(-yPred[i]));
+          f += -y[i] * Math.Log(prob) - (1 - y[i]) * Math.Log(1 - prob);
+
+          for (int j = 0; j < n; j++) {
+            var dProb = Math.Exp(yPred[i]) * yJac[i, j] / Math.Pow(Math.Exp(yPred[i]) + 1, 2);
+            grad[j] += -y[i] * dProb / prob - (1 - y[i]) * dProb / (1 - prob);
+          }
+        }
+      };
+    }
+
   }
 }

@@ -67,8 +67,8 @@ namespace HEAL.NonlinearRegression {
     /// Uses Levenberg-Marquardt algorithm.
     /// </summary>
     /// <param name="p">Initial values and optimized parameters on exit. Initial parameters are overwritten.</param>
-    /// <param name="func">The model function.</param>
-    /// <param name="jacobian">The Jacobian of func. The Action calculates the function values and the Jacobian</param>
+    /// <param name="modelFunc">The model function.</param>
+    /// <param name="modelJac">The Jacobian of func. The Action calculates the function values and the Jacobian</param>
     /// <param name="y">Target values</param>
     /// <param name="report">Report with fitting results and statistics</param>
     /// <param name="maxIterations"></param>
@@ -76,52 +76,70 @@ namespace HEAL.NonlinearRegression {
     /// <param name="stepMax">Optional parameter to limit the step size in Levenberg-Marquardt. Can be useful on quickly changing functions (e.g. exponentials).</param>
     /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
     /// <exception cref="InvalidProgramException"></exception>
-    public void Fit(double[] p, Function func, Jacobian jacobian, double[,] x, double[] y,
+    public void Fit(double[] p, Function modelFunc, Jacobian modelJac, double[,] x, double[] y,
         int maxIterations = 0, double[]? scale = null, double stepMax = 0.0, Func<double[], double, bool>? callback = null) {
 
-      this.func = func;
-      this.jacobian = jacobian;
+      this.func = modelFunc;
+      this.jacobian = modelJac;
       this.x = (double[,])x.Clone();
       this.y = (double[])y.Clone();
 
       int m = y.Length;
       int n = p.Length;
-      alglib.minlmcreatevj(m, p, out var state);
-      alglib.minlmsetcond(state, epsx: 0.0, maxIterations);
-      if (scale != null) alglib.minlmsetscale(state, scale);
-      if (stepMax > 0.0) alglib.minlmsetstpmax(state, stepMax);
 
-      var alglibResFunc = Util.CreateAlgibResidualFunction(Util.CreateResidualFunction(func, this.x, this.y));
-      var alglibResJac = Util.CreateAlgibResidualJacobian(Util.CreateResidualJacobian(jacobian, this.x, this.y));
+      #region Levenberg-Marquardt
+      var alglibResFunc = Util.CreateAlgibResidualFunction(Util.CreateResidualFunction(modelFunc, this.x, this.y));
+      var alglibResJac = Util.CreateAlgibResidualJacobian(Util.CreateResidualJacobian(modelJac, this.x, this.y));
+      // alglib.minlmcreatevj(m, p, out var state);
+      // alglib.minlmsetcond(state, epsx: 0.0, maxIterations);
+      // if (scale != null) alglib.minlmsetscale(state, scale);
+      // if (stepMax > 0.0) alglib.minlmsetstpmax(state, stepMax);
+
+
+      // void _rep(double[] x, double f, object o) {
+      //   if (callback != null && callback(x, f)) {
+      //     alglib.minlmrequesttermination(state);
+      //   }
+      // }
+      // //alglib.minlmoptguardgradient(state, 1e-6);
+      // alglib.minlmoptimize(state, alglibResFunc, alglibResJac, _rep, obj: null);
+      // alglib.minlmresults(state, out paramEst, out var rep);
+      // //alglib.minlmoptguardresults(state, out var optGuardReport);
+      // //if (optGuardReport.badgradsuspected) throw new InvalidProgramException();
+      #endregion
+
+      #region Conjugate Gradient
+      var alglibLikelihoodGrad = Util.CreateGaussianNegLogLikelihood(modelJac, y, x);
+      alglib.mincgcreate(p, out var state);
+      alglib.mincgsetcond(state, 0.0, 0.0, 0.0, maxIterations);
+      if (scale != null) alglib.mincgsetprecdiag(state, scale);
+      if (stepMax > 0.0) alglib.mincgsetstpmax(state, stepMax);
 
       void _rep(double[] x, double f, object o) {
         if (callback != null && callback(x, f)) {
-          alglib.minlmrequesttermination(state);
+          alglib.mincgrequesttermination(state);
         }
       }
-      //alglib.minlmoptguardgradient(state, 1e-6);
-      alglib.minlmoptimize(state, alglibResFunc, alglibResJac, _rep, obj: null);
-      alglib.minlmresults(state, out paramEst, out var rep);
-      //alglib.minlmoptguardresults(state, out var optGuardReport);
-      //if (optGuardReport.badgradsuspected) throw new InvalidProgramException();
+      alglib.mincgoptimize(state, alglibLikelihoodGrad, _rep, obj: null);
+      alglib.mincgresults(state, out paramEst, out var rep);
+      #endregion
 
       if (rep.terminationtype >= 0) {
         Array.Copy(paramEst, p, p.Length);
         // evaluate ypred and SSR
         var yPred = new double[m];
         var SSR = 0.0;
-        func(paramEst, x, yPred);
+        modelFunc(paramEst, x, yPred);
         for (int i = 0; i < yPred.Length; i++) {
           var r = y[i] - yPred[i];
           SSR += r * r;
         }
-        Statistics = new LeastSquaresStatistics(m, n, SSR, yPred, paramEst, jacobian, x);
+        Statistics = new LeastSquaresStatistics(m, n, SSR, yPred, paramEst, modelJac, x);
 
         OptReport = new OptimizationReport() {
           Success = true,
           Iterations = rep.iterationscount,
-          NumFuncEvals = rep.nfunc,
-          NumJacEvals = rep.njac,
+          NumFuncEvals = rep.nfev
         };
       } else {
         // error
@@ -129,8 +147,7 @@ namespace HEAL.NonlinearRegression {
         OptReport = new OptimizationReport() {
           Success = false,
           Iterations = rep.iterationscount,
-          NumFuncEvals = rep.nfunc,
-          NumJacEvals = rep.njac
+          NumFuncEvals = rep.nfev
         };
       }
     }
