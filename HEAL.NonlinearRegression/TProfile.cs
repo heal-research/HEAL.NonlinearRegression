@@ -57,8 +57,7 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    public static Tuple<double[], double[][]> CalcTProfile(double[] y, double[,] x, LeastSquaresStatistics statistics, Function func, Jacobian jac, int pIdx) {
-      restart:
+    public static Tuple<double[], double[][]> CalcTProfile(double[] y, double[,] x, LeastSquaresStatistics statistics, Function modelFunc, Jacobian modelJac, int pIdx) {
       var paramEst = statistics.paramEst;
       var paramStdError = statistics.paramStdError;
       var SSR = statistics.SSR;
@@ -66,8 +65,9 @@ namespace HEAL.NonlinearRegression {
       var m = statistics.m;
       var n = statistics.n;
 
-      const int kmax = 50;
-      const int step = 16;
+
+      const int kmax = 30;
+      const int step = 8;
       var tmax = Math.Sqrt(alglib.invfdistribution(n, m - n, 0.01)); // limit for t (use small alpha here), book page 302
 
       // buffers
@@ -78,16 +78,30 @@ namespace HEAL.NonlinearRegression {
       var delta = -paramStdError[pIdx] / step;
       var p_cond = (double[])paramEst.Clone();
 
-      alglib.minlmcreatevj(m, p_cond, out var state);
-      // alglib.minlmsetcond(state, 1e-9, 0);
-      alglib.minlmsetscale(state, paramStdError);
+      #region CG
+      alglib.mincgcreate(p_cond, out var state);
+      alglib.mincgsetscale(state, paramStdError);
+      var negLogLike = Util.CreateGaussianNegLogLikelihood(modelJac, y, x);
+      var negLogLikeFixed = Util.FixParameter(negLogLike, pIdx);
 
-      var resFunc = Util.CreateResidualFunction(func, x, y);
-      // adapted jacobian for fixed parameter
-      var resJacForFixed = Util.FixParameter(Util.CreateResidualJacobian(jac, x, y), pIdx);
+      var nllOpt = 0.0;
+      var tempGrad = new double[n];
+      negLogLike(paramEst, ref nllOpt, tempGrad, null); // calculate maximum likelihood
+      #endregion
 
-      var alglibResFunc = Util.CreateAlgibResidualFunction(resFunc);
-      var alglibResJacForFixed = Util.CreateAlgibResidualJacobian(resJacForFixed);
+
+      #region Levenberg-Marquard
+      // alglib.minlmcreatevj(m, p_cond, out var state);
+      // // alglib.minlmsetcond(state, 1e-9, 0);
+      // alglib.minlmsetscale(state, paramStdError);
+
+      // var resFunc = Util.CreateResidualFunction(modelFunc, x, y); // fix parameter not required here because it is fixed in the Jacobian -> parameter is unchanged
+      // // adapted jacobian for fixed parameter
+      // var resJacForFixed = Util.FixParameter(Util.CreateResidualJacobian(modelJac, x, y), pIdx);
+      // 
+      // var alglibResFunc = Util.CreateAlgibResidualFunction(resFunc);
+      // var alglibResJacForFixed = Util.CreateAlgibResidualJacobian(resJacForFixed);
+      #endregion
 
       do {
         var t = 0.0; // bug fix to pseudo-code in Bates and Watts
@@ -98,41 +112,68 @@ namespace HEAL.NonlinearRegression {
 
           // minimize
           p_cond[pIdx] = curP;
-          alglib.minlmrestartfrom(state, p_cond);
-          alglib.minlmoptimize(state, alglibResFunc, alglibResJacForFixed, null, null);
-          alglib.minlmresults(state, out p_cond, out var report);
-          double tau_i;
-          if (report.terminationtype < 0) {
-            break; // no solution
-          } else {
 
-            jac(p_cond, x, yPred_cond, J); // get predicted values and Jacobian for calculation of z and v_p
+          #region LM / Gaussian
+          // alglib.minlmrestartfrom(state, p_cond);
+          // alglib.minlmoptimize(state, alglibResFunc, alglibResJacForFixed, null, null);
+          // alglib.minlmresults(state, out p_cond, out var report);
+          // if (report.terminationtype < 0) throw new InvalidProgramException();
+          // 
+          // jac(p_cond, x, yPred_cond, J); // get predicted values and Jacobian for calculation of z and v_p
+          // 
+          // var SSR_cond = 0.0; // S(,heta_p)
+          // var zv = 0.0; // z^T v_p
+          // 
+          // for (int i = 0; i < m; i++) {
+          //   var z = y[i] - yPred_cond[i];
+          //   SSR_cond += z * z;
+          //   zv += z * J[i, pIdx];
+          // }
+          // 
+          // if (SSR_cond < SSR) throw new ArgumentException($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
+          // 
+          // var tau_i = Math.Sign(delta) * Math.Sqrt(SSR_cond - SSR) / s;
+          // 
+          // invSlope = Math.Abs(tau_i * s * s / (paramStdError[pIdx] * zv));
+          #endregion
 
-            var SSR_cond = 0.0; // S(theta_p)
-            var zv = 0.0; // z^T v_p
+          #region CG Gaussian
+          alglib.mincgrestartfrom(state, p_cond);
+          alglib.mincgoptimize(state, negLogLikeFixed, rep: null, obj: null);
+          alglib.mincgresults(state, out p_cond, out var report);
+          if (report.terminationtype < 0) throw new InvalidProgramException();
 
-            for (int i = 0; i < m; i++) {
-              var z = y[i] - yPred_cond[i];
-              SSR_cond += z * z;
-              zv += z * J[i, pIdx];
-            }
+          double nll = 0.0;
+          var grad = new double[n];
+          negLogLike(p_cond, ref nll, grad, null);
+          var zv = grad[pIdx];
+          
 
-            if (SSR_cond < SSR) {
-              System.Console.Error.WriteLine($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
-              SSR = SSR_cond;
-              statistics = new LeastSquaresStatistics(m, n, SSR_cond, yPred_cond, p_cond, jac, x);
-              goto restart;
-            }
+          // modelJac(p_cond, x, yPred_cond, J); // get predicted values and Jacobian for calculation of z and v_p
+          // 
+          // var SSR_cond = 0.0; // S(,heta_p)
+          // var zv = 0.0; // z^T v_p
+          // 
+          // for (int i = 0; i < m; i++) {
+          //   var z = y[i] - yPred_cond[i];
+          //   SSR_cond += z * z;
+          //   zv += z * J[i, pIdx];
+          // }
 
-            tau_i = Math.Sign(delta) * Math.Sqrt(SSR_cond - SSR) / s;
+          // if (SSR_cond < SSR) throw new ArgumentException($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
 
-            invSlope = Math.Abs(tau_i * s * s / (paramStdError[pIdx] * zv));
-            tau.Add(tau_i);
-            M.Add((double[])p_cond.Clone());
 
-            invSlope = Math.Min(4.0, Math.Max(invSlope, 1.0 / 16));
-          }
 
+          var tau_i = Math.Sign(delta) * Math.Sqrt(nll - nllOpt) / s;
+
+          invSlope = Math.Abs(tau_i * s * s / (paramStdError[pIdx] * zv));
+          #endregion
+
+
+          tau.Add(tau_i);
+          M.Add((double[])p_cond.Clone());
+
+          invSlope = Math.Min(4.0, Math.Max(invSlope, 1.0 / 16));
 
           if (Math.Abs(tau_i) > tmax) break;
         }
@@ -262,7 +303,7 @@ namespace HEAL.NonlinearRegression {
       var s = nls.Statistics.s;
 
       // prediction intervals for each point in x
-      Parallel.For(0, predRows,
+      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 1 },
         (i, loopState) => {
           // buffer
           // actually they are only needed once for the whole loop but with parallel for we need to make copies

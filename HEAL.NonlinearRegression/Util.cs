@@ -29,6 +29,12 @@ namespace HEAL.NonlinearRegression {
         }
       };
     }
+    public static alglib.ndimensional_grad FixParameter(alglib.ndimensional_grad fgrad, int pIdx) {
+      return (double[] p, ref double f, double[] grad, object obj) => {
+        fgrad(p, ref f, grad, obj);
+        grad[pIdx] = 0.0;  // gradient of fixed parameter is zero
+      };
+    }
 
     public static alglib.ndimensional_fvec CreateAlgibResidualFunction(ResidualFunction func) {
       return (double[] p, double[] f, object o) => {
