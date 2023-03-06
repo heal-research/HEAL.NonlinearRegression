@@ -57,8 +57,8 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    public static Tuple<double[], double[][]> CalcTProfile(double[] y, double[,] x, LeastSquaresStatistics statistics, Function func, Jacobian jac, int pIdx) {
-      restart:
+    public static Tuple<double[], double[][]> CalcTProfile(double[] y, double[,] x, LeastSquaresStatistics statistics, Function func, Jacobian jac, int pIdx, double alpha = 0.05) {
+    restart:
       var paramEst = statistics.paramEst;
       var paramStdError = statistics.paramStdError;
       var SSR = statistics.SSR;
@@ -66,9 +66,9 @@ namespace HEAL.NonlinearRegression {
       var m = statistics.m;
       var n = statistics.n;
 
-      const int kmax = 50;
-      const int step = 16;
-      var tmax = Math.Sqrt(alglib.invfdistribution(n, m - n, 0.01)); // limit for t (use small alpha here), book page 302
+      const int kmax = 300;
+      const int step = 8;
+      var tmax = alglib.invstudenttdistribution(m - n, 1 - alpha / 2); // Math.Sqrt(alglib.invfdistribution(n, m - n, 0.01)); // limit for t (use small alpha here), book page 302
 
       // buffers
       var yPred_cond = new double[m];
@@ -76,9 +76,8 @@ namespace HEAL.NonlinearRegression {
       var tau = new List<double>();
       var M = new List<double[]>();
       var delta = -paramStdError[pIdx] / step;
-      var p_cond = (double[])paramEst.Clone();
 
-      alglib.minlmcreatevj(m, p_cond, out var state);
+      alglib.minlmcreatevj(m, paramEst, out var state);
       // alglib.minlmsetcond(state, 1e-9, 0);
       alglib.minlmsetscale(state, paramStdError);
 
@@ -92,6 +91,7 @@ namespace HEAL.NonlinearRegression {
       do {
         var t = 0.0; // bug fix to pseudo-code in Bates and Watts
         var invSlope = 1.0;
+        var p_cond = (double[])paramEst.Clone();
         for (int k = 0; k < kmax; k++) {
           t = t + invSlope;
           var curP = paramEst[pIdx] + delta * t;
@@ -289,7 +289,7 @@ namespace HEAL.NonlinearRegression {
           paramEstExt[outputParamIdx] = yPred[i]; // function output parameter is prediction at point xi
           var statisticsExt = new LeastSquaresStatistics(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt, jacExt, nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
 
-          var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, outputParamIdx); // only for the function output parameter
+          var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, outputParamIdx, alpha); // only for the function output parameter
 
           var tau = profile.Item1;
           var theta = new double[tau.Length];
@@ -297,8 +297,10 @@ namespace HEAL.NonlinearRegression {
             theta[k] = profile.Item2[outputParamIdx][k]; // profile of function output parameter
           }
           alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
-          _low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
-          _high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
+          if (tau.Min() > -t) _low[i] = double.NaN;
+          else _low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
+          if (tau.Max() < t) _high[i] = double.NaN;
+          else _high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
         });
 
       // cannot manipulate low and high output parameters directly in parallel.for
