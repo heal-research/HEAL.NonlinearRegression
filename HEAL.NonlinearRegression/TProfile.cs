@@ -79,9 +79,10 @@ namespace HEAL.NonlinearRegression {
 
       #region CG
       alglib.mincgcreate(paramEst, out var state);
-      alglib.mincgsetscale(state, paramStdError);
-      var negLogLike = Util.CreateGaussianNegLogLikelihood(modelJac, y, x);
-      var negLogLikeFixed = Util.FixParameter(negLogLike, pIdx);
+      alglib.mincgsetcond(state, 0.0, 0.0, 0.0, 0);
+      // alglib.mincgsetscale(state, paramStdError);
+      alglib.mincgoptguardgradient(state, 1e-8);
+      var negLogLike = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, s);
 
       var nllOpt = 0.0;
       var tempGrad = new double[n];
@@ -112,6 +113,7 @@ namespace HEAL.NonlinearRegression {
 
           // minimize
           p_cond[pIdx] = curP;
+          var negLogLikeFixed = Util.FixParameter(negLogLike, pIdx, curP);
 
           #region LM / Gaussian
           // alglib.minlmrestartfrom(state, p_cond);
@@ -141,13 +143,14 @@ namespace HEAL.NonlinearRegression {
           alglib.mincgrestartfrom(state, p_cond);
           alglib.mincgoptimize(state, negLogLikeFixed, rep: null, obj: null);
           alglib.mincgresults(state, out p_cond, out var report);
-          if (report.terminationtype < 0) throw new InvalidProgramException();
+          alglib.mincgoptguardresults(state, out var optGuardRep);
+          if (report.terminationtype < 0) throw new InvalidProgramException(); // TODO: use likelihood of mean model
 
           double nll = 0.0;
           var grad = new double[n];
           negLogLike(p_cond, ref nll, grad, null);
           var zv = grad[pIdx];
-          
+
 
           // modelJac(p_cond, x, yPred_cond, J); // get predicted values and Jacobian for calculation of z and v_p
           // 
@@ -162,9 +165,12 @@ namespace HEAL.NonlinearRegression {
 
           // if (SSR_cond < SSR) throw new ArgumentException($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
 
+          if (nll < nllOpt) {
+            System.Console.Error.WriteLine($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
+            goto restart;
+          }
 
-
-          var tau_i = Math.Sign(delta) * Math.Sqrt(nll - nllOpt) / s;
+          var tau_i = Math.Sign(delta) * Math.Sqrt(nll - nllOpt);
 
           invSlope = Math.Abs(tau_i * s * s / (paramStdError[pIdx] * zv));
           #endregion

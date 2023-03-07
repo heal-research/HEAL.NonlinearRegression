@@ -29,8 +29,9 @@ namespace HEAL.NonlinearRegression {
         }
       };
     }
-    public static alglib.ndimensional_grad FixParameter(alglib.ndimensional_grad funcGrad, int idx) {
+    public static alglib.ndimensional_grad FixParameter(alglib.ndimensional_grad funcGrad, int idx, double fixedVal) {
       return (double[] p, ref double func, double[] grad, object obj) => {
+        p[idx] = fixedVal;
         funcGrad(p, ref func, grad, obj);
         grad[idx] = 0.0; // derivative of fixed parameter is zero
       };
@@ -138,7 +139,7 @@ namespace HEAL.NonlinearRegression {
     }
 
 
-    internal static alglib.ndimensional_grad CreateGaussianNegLogLikelihood(Jacobian modelJac, double[] y, double[,] X) {
+    internal static alglib.ndimensional_grad CreateGaussianNegLogLikelihood(Jacobian modelJac, double[] y, double[,] X, double sErr) {
       return (double[] p, ref double f, double[] grad, object obj) => {
         var m = y.Length;
         var n = p.Length;
@@ -150,9 +151,9 @@ namespace HEAL.NonlinearRegression {
         Array.Clear(grad, 0, n);
         for (int i = 0; i < m; i++) {
           var res = y[i] - yPred[i];
-          f += 0.5 * res * res;
+          f += 0.5 * res * res / (sErr * sErr);
           for (int j = 0; j < n; j++) {
-            grad[j] += -0.5 * res * yJac[i, j];
+            grad[j] += -res * yJac[i, j] / (sErr * sErr);
           }
         }
       };

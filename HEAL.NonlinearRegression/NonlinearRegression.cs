@@ -109,7 +109,7 @@ namespace HEAL.NonlinearRegression {
       #endregion
 
       #region Conjugate Gradient
-      var alglibLikelihoodGrad = Util.CreateGaussianNegLogLikelihood(modelJac, y, x);
+      var alglibLikelihoodGrad = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, sErr: 1.0); // sErr has no influence for the optimization
       // var alglibLikelihoodGrad = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
       alglib.mincgcreate(p, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, maxIterations);
