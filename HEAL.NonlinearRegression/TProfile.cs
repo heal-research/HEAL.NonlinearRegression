@@ -67,7 +67,7 @@ namespace HEAL.NonlinearRegression {
       var n = statistics.n;
 
       const int kmax = 300;
-      const int step = 8;
+      const int step = 16;
       var tmax = alglib.invstudenttdistribution(m - n, 1 - alpha / 2); // Math.Sqrt(alglib.invfdistribution(n, m - n, 0.01)); // limit for t (use small alpha here), book page 302
 
       // buffers
@@ -170,9 +170,9 @@ namespace HEAL.NonlinearRegression {
             goto restart;
           }
 
-          var tau_i = Math.Sign(delta) * Math.Sqrt(nll - nllOpt);
+          var tau_i = Math.Sign(delta) * (nll - nllOpt);
 
-          invSlope = Math.Abs(tau_i * s * s / (paramStdError[pIdx] * zv));
+          invSlope = Math.Abs(tau_i / (paramStdError[pIdx] * zv));
           #endregion
 
 
@@ -294,9 +294,9 @@ namespace HEAL.NonlinearRegression {
       }
 
       // we only calculate pointwise intervals
-      var t = alglib.invstudenttdistribution(trainRows - d, 1 - alpha / 2);
+      var t = alglib.invstudenttdistribution(trainRows - n, 1 - alpha / 2);
       // old code for pointwise and simultaneuous intervals
-      // var t = alglib.invstudenttdistribution(m - d, 1 - alpha / 2);
+      // var t = alglib.invstudenttdistribution(m - n, 1 - alpha / 2);
       // var f = alglib.invfdistribution(n, m - n, alpha);
       // var s = nls.Statistics.s;
       // if (m == 1) {
