@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Linq;
+using System.Runtime.InteropServices;
+
 namespace HEAL.NonlinearRegression {
   public static class Util {
     public static ResidualFunction CreateResidualFunction(Function func, double[,] x, double[] y) {
@@ -176,7 +178,7 @@ namespace HEAL.NonlinearRegression {
 
           for (int j = 0; j < n; j++) {
             var dProb = Math.Exp(yPred[i]) * yJac[i, j] / Math.Pow(Math.Exp(yPred[i]) + 1, 2);
-            grad[j] += -y[i] * dProb / prob - (1 - y[i]) * dProb / (1 - prob);
+            grad[j] += -((y[i] - prob) * dProb) / ((1-prob) * prob);
           }
         }
       };
