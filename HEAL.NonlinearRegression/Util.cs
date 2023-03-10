@@ -173,13 +173,20 @@ namespace HEAL.NonlinearRegression {
         Array.Clear(grad, 0, n);
         for (int i = 0; i < m; i++) {
           if (y[i] != 0.0 && y[i] != 1.0) throw new ArgumentException("target variable must be binary (0/1) for Bernoulli likelihood");
-          var prob = 1.0 / (1 + Math.Exp(-yPred[i]));
-          f += -y[i] * Math.Log(prob) - (1 - y[i]) * Math.Log(1 - prob);
-
-          for (int j = 0; j < n; j++) {
-            var dProb = Math.Exp(yPred[i]) * yJac[i, j] / Math.Pow(Math.Exp(yPred[i]) + 1, 2);
-            grad[j] += -((y[i] - prob) * dProb) / ((1-prob) * prob);
+          var yPredLimited = Math.Min(15, Math.Max(-15, yPred[i])); // to prevent numeric problems
+          var prob = 1.0 / (1 + Math.Exp(-yPredLimited));
+          if (y[i] == 1) {
+            f += -Math.Log(prob);
+          } else {
+            // y[i]==0
+            f += -Math.Log(1 - prob);
           }
+          if (yPred[i] <= 15 && yPred[i] >= -15) {
+            for (int j = 0; j < n; j++) {
+              var dProb = Math.Exp(yPred[i]) * yJac[i, j] / Math.Pow(Math.Exp(yPred[i]) + 1, 2);
+              grad[j] += -((y[i] - prob) * dProb) / ((1 - prob) * prob);
+            }
+          } // else grad = zero
         }
       };
     }
