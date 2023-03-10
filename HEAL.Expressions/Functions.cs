@@ -9,5 +9,17 @@ namespace HEAL.Expressions {
     public static double AQ(double a, double b) {
       return a / Math.Sqrt(1 + b * b);
     }
+
+    // uses a threshold to prevent numeric problems
+    public static double Logistic(double x) {
+      var xLim = Math.Max(-15, Math.Min(15, x));
+      return 1.0 / (1 + Math.Exp(-xLim));
+    }
+
+    // use same threshold as above
+    public static double LogisticPrime(double x) {
+      if (x > 15 || x < -15) return 0.0;
+      else return Math.Exp(x) / Math.Pow(Math.Exp(x) + 1, 2);
+    }
   }
 }
