@@ -77,16 +77,18 @@ namespace HEAL.NonlinearRegression {
       var M = new List<double[]>();
       var delta = -paramStdError[pIdx] / step;
 
+      // var negLogLike = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, s);
+      var negLogLike = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
+      var nllOpt = 0.0;
+      var tempGrad = new double[n];
+      negLogLike(paramEst, ref nllOpt, tempGrad, null); // calculate maximum likelihood
+
       #region CG
       alglib.mincgcreate(paramEst, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, 0);
       // alglib.mincgsetscale(state, paramStdError);
       alglib.mincgoptguardgradient(state, 1e-8);
-      var negLogLike = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, s);
 
-      var nllOpt = 0.0;
-      var tempGrad = new double[n];
-      negLogLike(paramEst, ref nllOpt, tempGrad, null); // calculate maximum likelihood
       #endregion
 
 
@@ -144,7 +146,7 @@ namespace HEAL.NonlinearRegression {
           alglib.mincgoptimize(state, negLogLikeFixed, rep: null, obj: null);
           alglib.mincgresults(state, out p_cond, out var report);
           alglib.mincgoptguardresults(state, out var optGuardRep);
-          if (report.terminationtype < 0) throw new InvalidProgramException(); // TODO: use likelihood of mean model
+          if (report.terminationtype < 0) break;
 
           double nll = 0.0;
           var grad = new double[n];
@@ -287,11 +289,11 @@ namespace HEAL.NonlinearRegression {
       var yPred = new double[predRows];
       nls.func(nls.Statistics.paramEst, x, yPred);
 
-      var offsetIdx = Expr.FindOffsetParameterIndex(nls.modelExpr);
-      var scaleIdx = Expr.FindScalingParameterIndex(nls.modelExpr);
-      if (offsetIdx == -1 && scaleIdx == -1) {
-        throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
-      }
+      // var offsetIdx = Expr.FindOffsetParameterIndex(nls.modelExpr);
+      // var scaleIdx = Expr.FindScalingParameterIndex(nls.modelExpr);
+      // if (offsetIdx == -1 && scaleIdx == -1) {
+      //   throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
+      // }
 
       // we only calculate pointwise intervals
       var t = alglib.invstudenttdistribution(trainRows - n, 1 - alpha / 2);
@@ -309,7 +311,7 @@ namespace HEAL.NonlinearRegression {
       var s = nls.Statistics.s;
 
       // prediction intervals for each point in x
-      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 1 },
+      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
         (i, loopState) => {
           // buffer
           // actually they are only needed once for the whole loop but with parallel for we need to make copies
@@ -318,25 +320,38 @@ namespace HEAL.NonlinearRegression {
           var xi = new double[d];
 
           Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
-          Function funcExt;
-          Jacobian jacExt;
-          int outputParamIdx;
-          if (offsetIdx > 0) {
-            funcExt = Util.ReparameterizeFuncWithOffset(nls.func, xi, offsetIdx);
-            jacExt = Util.ReparameterizeJacobianWithOffset(nls.jacobian, xi, offsetIdx);
-            outputParamIdx = offsetIdx;
-          } else if (scaleIdx > 0) {
-            funcExt = Util.ReparameterizeFuncWithScale(nls.func, xi, scaleIdx);
-            jacExt = Util.ReparameterizeJacobianWithScale(nls.jacobian, xi, scaleIdx);
-            outputParamIdx = scaleIdx;
-          } else {
-            throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
-          }
+          #region old reparameterization
+          // Function funcExt;
+          // Jacobian jacExt;
+          // int outputParamIdx;
+          // if (offsetIdx > 0) {
+          //   funcExt = Util.ReparameterizeFuncWithOffset(nls.func, xi, offsetIdx);
+          //   jacExt = Util.ReparameterizeJacobianWithOffset(nls.jacobian, xi, offsetIdx);
+          //   outputParamIdx = offsetIdx;
+          // } else if (scaleIdx > 0) {
+          //   funcExt = Util.ReparameterizeFuncWithScale(nls.func, xi, scaleIdx);
+          //   jacExt = Util.ReparameterizeJacobianWithScale(nls.jacobian, xi, scaleIdx);
+          //   outputParamIdx = scaleIdx;
+          // } else {
+          //   throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
+          // }
 
-          paramEstExt[outputParamIdx] = yPred[i]; // function output parameter is prediction at point xi
-          var statisticsExt = new LeastSquaresStatistics(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt, jacExt, nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
+          // paramEstExt[outputParamIdx] = yPred[i]; // function output parameter is prediction at point xi
+          #endregion 
+          var reparameterizedModel = Expr.ReparameterizeExpr(nls.modelExpr, xi, out var outputParamIdx);
+          paramEstExt[outputParamIdx] = yPred[i];
 
-          var profile = CalcTProfile(nls.y, nls.x, statisticsExt, funcExt, jacExt, outputParamIdx, alpha); // only for the function output parameter
+          var _func = Expr.Broadcast(reparameterizedModel).Compile();
+          void modelFunc(double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible 
+
+
+          var _jac = Expr.Jacobian(reparameterizedModel, n).Compile();
+          void modelJac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
+
+
+          var statisticsExt = new LeastSquaresStatistics(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt, modelJac, nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
+
+          var profile = CalcTProfile(nls.y, nls.x, statisticsExt, modelFunc, modelJac, outputParamIdx, alpha); // only for the function output parameter
 
           var tau = profile.Item1;
           var theta = new double[tau.Length];

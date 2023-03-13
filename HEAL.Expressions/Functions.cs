@@ -21,5 +21,14 @@ namespace HEAL.Expressions {
       if (x > 15 || x < -15) return 0.0;
       else return Math.Exp(x) / Math.Pow(Math.Exp(x) + 1, 2);
     }
+
+    public static double InvLogistic(double p) {
+      return -Math.Log(1 / p - 1);
+    }
+
+    public static double InvLogisticPrime(double p) {
+      return 1.0 / (p - p * p);
+    }
+
   }
 }

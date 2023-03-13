@@ -88,8 +88,8 @@ namespace HEAL.NonlinearRegression {
       int n = p.Length;
 
       #region Levenberg-Marquardt
-      var alglibResFunc = Util.CreateAlgibResidualFunction(Util.CreateResidualFunction(modelFunc, this.x, this.y));
-      var alglibResJac = Util.CreateAlgibResidualJacobian(Util.CreateResidualJacobian(modelJac, this.x, this.y));
+      // var alglibResFunc = Util.CreateAlgibResidualFunction(Util.CreateResidualFunction(modelFunc, this.x, this.y));
+      // var alglibResJac = Util.CreateAlgibResidualJacobian(Util.CreateResidualJacobian(modelJac, this.x, this.y));
       // alglib.minlmcreatevj(m, p, out var state);
       // alglib.minlmsetcond(state, epsx: 0.0, maxIterations);
       // if (scale != null) alglib.minlmsetscale(state, scale);
@@ -109,8 +109,8 @@ namespace HEAL.NonlinearRegression {
       #endregion
 
       #region Conjugate Gradient
-      var alglibLikelihoodGrad = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, sErr: 1.0); // sErr has no influence for the optimization
-      // var alglibLikelihoodGrad = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
+      // var alglibLikelihoodGrad = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, sErr: 1.0); // sErr has no influence for the optimization
+      var alglibLikelihoodGrad = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
       alglib.mincgcreate(p, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, maxIterations);
       if (scale != null) alglib.mincgsetprecdiag(state, scale);
@@ -236,7 +236,7 @@ namespace HEAL.NonlinearRegression {
 
     private void WriteStatistics(TextWriter writer) {
       var noiseSigma = Statistics.s;
-      var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, y, noiseSigma, x);
+      var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, y, noiseSigma, x, approxHessian: true);
       var aicc = ModelSelection.AICc(y, Statistics.yPred, Statistics.n, noiseSigma);
       var bic = ModelSelection.BIC(y, Statistics.yPred, Statistics.n, noiseSigma);
       writer.WriteLine($"SSR: {Statistics.SSR:e4} s: {Statistics.s:e4} AICc: {aicc:f1} BIC: {bic:f1} MDL: {mdl:f1}");
