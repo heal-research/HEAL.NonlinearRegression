@@ -160,6 +160,28 @@ namespace HEAL.NonlinearRegression {
         }
       };
     }
+    internal static Hessian CreateGaussianNegLogLikelihoodHessian(Jacobian modelJac, double[] y, double[,] X, double sErr) {
+      // only an approximation for the MLE
+      return (double[] p, double[,] x, double[] f, double[,] hess) => {
+        var m = y.Length;
+        var n = p.Length;
+        var yPred = new double[m];
+        var yJac = new double[m, n];
+        modelJac(p, X, yPred, yJac);
+
+        Array.Clear(f, 0, m);
+        Array.Clear(hess, 0, n*n);
+        for (int i = 0; i < m; i++) {
+          var res = y[i] - yPred[i];
+          f[i] += 0.5 * res * res / (sErr * sErr);
+          for (int j = 0; j < n; j++) {
+            for(int k=0;k<n;k++) {
+              hess[j, k] += yJac[i, j] * yJac[i, k] / (sErr * sErr);
+            }
+          }
+        }
+      };
+    }
 
     internal static alglib.ndimensional_grad CreateBernoulliNegLogLikelihood(Jacobian modelJac, double[] y, double[,] X) {
       return (double[] p, ref double f, double[] grad, object obj) => {

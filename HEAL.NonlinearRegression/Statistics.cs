@@ -31,13 +31,11 @@ namespace HEAL.NonlinearRegression {
     // TODO
     // - Studentized residuals
     // - t-profile confidence intervals for parameters
-    // - output for gnuplot
 
     // Douglas Bates and Donald Watts, Nonlinear Regression and Its Applications, John Wiley and Sons, 1988
     // Appendix A3.2
     // Linear approximation for parameter and inference intervals.
     // Exact for linear models. Good approximation for nonlinear models when parameters are close to linear.
-    // Check t profiles and pairwise profile plots for deviation from linearity.
     private void CalcParameterStatistics(Jacobian jacobian, double[,] x) {
       int m = x.GetLength(0);
       var pOpt = paramEst;
