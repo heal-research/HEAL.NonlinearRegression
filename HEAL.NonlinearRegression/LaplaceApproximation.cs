@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.ExceptionServices;
 
 namespace HEAL.NonlinearRegression {
   public class LaplaceApproximation {
@@ -12,7 +13,7 @@ namespace HEAL.NonlinearRegression {
     public double[,] correlation { get; internal set; }// correlation matrix for parameters
 
 
-    private double[,] invR;
+    private double[,] invH;
 
     public LaplaceApproximation(int m, int n, double SSR, double[] yPred, double[] paramEst, Hessian negLogLikeHessian, double[,] x) {
       this.m = m;
@@ -32,15 +33,19 @@ namespace HEAL.NonlinearRegression {
       var pOpt = paramEst;
 
       var yPred = new double[m];
-      var H = new double[n, n];
+      var U = new double[n, n];
+      negLogLikeHessian(pOpt, x, yPred, U); // Hessian is symmetric positive definite in pOpt
       double[,] invH;
-      negLogLikeHessian(pOpt, x, yPred, H); // Hessian is symmetric positive definite in pOpt
-
       try {
-
-        alglib.spdmatrixcholesky(ref H, n, isupper: true); // probably we need to clear the lower part of H
-        alglib.spdmatrixcholeskyinverse(ref H, out var info, out var rep);
-        invH = H; H = null; // rename 
+        // clear lower part of Hessian (required by alglib.cholesky)
+        for (int i = 0; i < n; i++) {
+          for (int j = i + 1; j < n; j++) {
+            U[j, i] = 0.0;
+          }
+        }
+        alglib.spdmatrixcholesky(ref U, n, isupper: true); // probably we need to clear the lower part of H
+        alglib.spdmatrixcholeskyinverse(ref U, n, isupper: true, out var info, out var rep, null);
+        invH = U; U = null; // rename 
 
         // invH is the covariance matrix
 
@@ -53,21 +58,22 @@ namespace HEAL.NonlinearRegression {
         throw;
       }
 
+      // extract U^-1 into diag(|u1|,|u2|, ...|up|) L where L has unit length rows
       var se = new double[n];
+      var C = new double[n, n];
       for (int i = 0; i < n; i++) {
-        se[i] = Math.Sqrt(invH[i, i]);  // standard errors are diagonal of covariance matrix
+        se[i] = Math.Sqrt(invH[i, i]);
       }
 
-      paramStdError = se;
-
-
-      // form correlation matrix LL^T
-      this.correlation = new double[n, n];
-      for(int i=0;i<n;i++) {
-        for(int j=0;j<n;j++) {
-          this.correlation[i, j] = invH[i, j] / (se[i] * se[j]);
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+          C[i, j] = invH[j, i] / se[i] / se[j];
+          if (i != j) C[j, i] = C[i, j];
         }
       }
+
+      correlation = C;
+      paramStdError = se;
     }
 
     public void GetParameterIntervals(double alpha, out double[] low, out double[] high) {
