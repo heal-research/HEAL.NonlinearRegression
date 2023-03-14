@@ -100,26 +100,31 @@ namespace HEAL.NonlinearRegression {
       // 
       // 1-alpha approximate inference interval for the expected response
       // // (1.37), page 23
-      // s * sqrt(J H^-1 J')
+
+      
 
       for (int i = 0; i < numRows; i++) {
         resStdError[i] = 0.0;
+        var row = new double[n];
         for (int j = 0; j < n; j++) {
-          for (int k = 0; k < n; k++) {
-            resStdError[i] += J[i, k] * invH[j, k] * J[i, k];
+          for (int k = j; k < n; k++) {
+            row[j] += invH[j, k] * J[i, k]; // only use upper triangle of invH!
           }
         }
-        resStdError[i] = s * Math.Sqrt(resStdError[i]);
+        for (int j = 0; j < n; j++) {
+          resStdError[i] += J[i, j] * row[j];
+        }
+        resStdError[i] = s* Math.Sqrt(resStdError[i]);
       }
       // 
       // // https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
       var f = alglib.invfdistribution(n, this.m - n, alpha);
       var t = alglib.invstudenttdistribution(this.m - n, 1 - alpha / 2);
-      
+
       var noiseStdDev = includeNoise ? s : 0.0;
-      
+
       // Console.WriteLine($"noiseStdDev: {noiseStdDev} f: {f}, Math.Sqrt(n * f) {Math.Sqrt(n * f)} t: {t}");
-      
+
       //   // point-wise interval
       for (int i = 0; i < numRows; i++) {
         low[i] = yPred[i] - (resStdError[i] + noiseStdDev) * t;
