@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Runtime.ExceptionServices;
 
 namespace HEAL.NonlinearRegression {
@@ -37,17 +38,10 @@ namespace HEAL.NonlinearRegression {
       negLogLikeHessian(pOpt, x, yPred, U); // Hessian is symmetric positive definite in pOpt
       double[,] invH;
       try {
-        // clear lower part of Hessian (required by alglib.cholesky)
-        for (int i = 0; i < n; i++) {
-          for (int j = i + 1; j < n; j++) {
-            U[j, i] = 0.0;
-          }
-        }
-        alglib.spdmatrixcholesky(ref U, n, isupper: true); // probably we need to clear the lower part of H
-        alglib.spdmatrixcholeskyinverse(ref U, n, isupper: true, out var info, out var rep, null);
+        alglib.spdmatrixcholesky(ref U, n, isupper: true);
+        alglib.spdmatrixcholeskyinverse(ref U, n, isupper: true, out var info, out var rep, null); // calculates (U^T U) ^-1 = H^-1
         invH = U; U = null; // rename 
 
-        // invH is the covariance matrix
 
         // if (info < 0) {
         //   System.Console.Error.WriteLine("Jacobian is not of full rank or contains NaN values");
@@ -58,7 +52,8 @@ namespace HEAL.NonlinearRegression {
         throw;
       }
 
-      // extract U^-1 into diag(|u1|,|u2|, ...|up|) L where L has unit length rows
+      // invH is the covariance matrix
+      // se is diagonal of covariance matrix
       var se = new double[n];
       var C = new double[n, n];
       for (int i = 0; i < n; i++) {
@@ -73,7 +68,7 @@ namespace HEAL.NonlinearRegression {
       }
 
       correlation = C;
-      paramStdError = se;
+      paramStdError = se.Select(sei => sei * s).ToArray(); // not sure why multiplication with s is needed here (should be contained within invH already)
     }
 
     public void GetParameterIntervals(double alpha, out double[] low, out double[] high) {

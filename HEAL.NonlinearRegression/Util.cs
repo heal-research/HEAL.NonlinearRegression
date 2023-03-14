@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using System.Runtime.InteropServices;
 
 namespace HEAL.NonlinearRegression {
   public static class Util {
