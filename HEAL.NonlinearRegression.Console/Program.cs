@@ -111,7 +111,7 @@ namespace HEAL.NonlinearRegression.Console {
 
           var _jac = Expr.Jacobian(parametricExpr, p.Length).Compile();
           void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
-          var stats = new LeastSquaresStatistics(y.Length, p.Length, SSR, yPred, p, jac, x);
+          var stats = new LaplaceApproximation(y.Length, p.Length, SSR, yPred, p, jac, x);
 
           var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, noiseSigma, x, approxHessian: true);
           var freqMdl = MinimumDescriptionLength.MDLFreq(parametricExpr, p, y, noiseSigma, x, approxHessian: false);

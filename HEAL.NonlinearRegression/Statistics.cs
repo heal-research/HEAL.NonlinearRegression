@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Runtime.CompilerServices;
 
 namespace HEAL.NonlinearRegression {
   public class LeastSquaresStatistics {

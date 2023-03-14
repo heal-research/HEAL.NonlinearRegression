@@ -21,7 +21,7 @@ namespace HEAL.NonlinearRegression {
     // Calculate t-profiles for all parameters.
     // Bates and Watts, Appendix A3.5
 
-    public TProfile(double[] y, double[,] x, LeastSquaresStatistics statistics,
+    public TProfile(double[] y, double[,] x, LaplaceApproximation statistics,
       Function func,
       Jacobian jacobian) {
       this.paramEst = statistics.paramEst;
@@ -57,7 +57,7 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    public static Tuple<double[], double[][]> CalcTProfile(double[] y, double[,] x, LeastSquaresStatistics statistics, Function modelFunc, Jacobian modelJac, int pIdx, double alpha = 0.05) {
+    public static Tuple<double[], double[][]> CalcTProfile(double[] y, double[,] x, LaplaceApproximation statistics, Function modelFunc, Jacobian modelJac, int pIdx, double alpha = 0.05) {
     restart:
       var paramEst = statistics.paramEst;
       var paramStdError = statistics.paramStdError;
@@ -272,7 +272,7 @@ namespace HEAL.NonlinearRegression {
         tauq[i] = Math.Cos(ai - di / 2) * tauScale;
         p[i] = alglib.spline1dcalc(spline_tau2p[pIdx], taup[i]);
         q[i] = alglib.spline1dcalc(spline_tau2p[qIdx], tauq[i]);
-        // Console.WriteLine($"{tau_p} {tau_q} {theta_p} {theta_q}");          
+        // Console.WriteLine($"{tau_p} {tau_q} {theta_p} {theta_q}");
       }
     }
 
@@ -311,7 +311,7 @@ namespace HEAL.NonlinearRegression {
       var s = nls.Statistics.s;
 
       // prediction intervals for each point in x
-      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
+      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 1 },
         (i, loopState) => {
           // buffer
           // actually they are only needed once for the whole loop but with parallel for we need to make copies
@@ -349,7 +349,8 @@ namespace HEAL.NonlinearRegression {
           void modelJac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
 
-          var statisticsExt = new LeastSquaresStatistics(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt, modelJac, nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
+          var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt, 
+            Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, x, nls.Statistics.s), nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
 
           var profile = CalcTProfile(nls.y, nls.x, statisticsExt, modelFunc, modelJac, outputParamIdx, alpha); // only for the function output parameter
 

@@ -41,7 +41,7 @@ namespace HEAL.NonlinearRegression {
         alglib.spdmatrixcholesky(ref H, n, isupper: true); // probably we need to clear the lower part of H
         alglib.spdmatrixcholeskyinverse(ref H, out var info, out var rep);
         invH = H; H = null; // rename 
-        
+
         // invH is the covariance matrix
 
         // if (info < 0) {
@@ -59,6 +59,15 @@ namespace HEAL.NonlinearRegression {
       }
 
       paramStdError = se;
+
+
+      // form correlation matrix LL^T
+      this.correlation = new double[n, n];
+      for(int i=0;i<n;i++) {
+        for(int j=0;j<n;j++) {
+          this.correlation[i, j] = invH[i, j] / (se[i] * se[j]);
+        }
+      }
     }
 
     public void GetParameterIntervals(double alpha, out double[] low, out double[] high) {
