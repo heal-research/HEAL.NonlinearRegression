@@ -41,6 +41,12 @@ namespace HEAL.NonlinearRegression {
         alglib.spdmatrixcholesky(ref U, n, isupper: true);
         alglib.spdmatrixcholeskyinverse(ref U, n, isupper: true, out var info, out var rep, null); // calculates (U^T U) ^-1 = H^-1
         invH = U; U = null; // rename 
+        // fill up rest of invH because alglib only works on the upper triangle (prevents problems below)
+        for (int i = 0;i<n-1;i++) {
+          for(int j=i+1;j<n;j++) {
+            invH[j, i] = invH[i, j];
+          }
+        }
 
 
         // if (info < 0) {
@@ -61,7 +67,7 @@ namespace HEAL.NonlinearRegression {
       }
 
       for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
+        for (int j = i; j < n; j++) {
           C[i, j] = invH[j, i] / se[i] / se[j];
           if (i != j) C[j, i] = C[i, j];
         }
@@ -92,23 +98,16 @@ namespace HEAL.NonlinearRegression {
       high = new double[numRows];
       resStdError = new double[numRows];
 
-      // TODO (similar to above)
-
       var yPred = new double[numRows];
       var J = new double[numRows, n];
-      jacobian(paramEst, x, yPred, J); // jacobian for x
-      // 
-      // 1-alpha approximate inference interval for the expected response
-      // // (1.37), page 23
-
-      
+      jacobian(paramEst, x, yPred, J); // jacobian for the model
 
       for (int i = 0; i < numRows; i++) {
         resStdError[i] = 0.0;
         var row = new double[n];
         for (int j = 0; j < n; j++) {
-          for (int k = j; k < n; k++) {
-            row[j] += invH[j, k] * J[i, k]; // only use upper triangle of invH!
+          for (int k = 0; k < n; k++) {
+            row[j] += invH[j, k] * J[i, k];
           }
         }
         for (int j = 0; j < n; j++) {
