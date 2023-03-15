@@ -87,7 +87,7 @@ namespace HEAL.NonlinearRegression {
       alglib.mincgcreate(paramEst, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, 0);
       // alglib.mincgsetscale(state, paramStdError);
-      alglib.mincgoptguardgradient(state, 1e-8);
+      // alglib.mincgoptguardgradient(state, 1e-8);
 
       #endregion
 
@@ -145,7 +145,7 @@ namespace HEAL.NonlinearRegression {
           alglib.mincgrestartfrom(state, p_cond);
           alglib.mincgoptimize(state, negLogLikeFixed, rep: null, obj: null);
           alglib.mincgresults(state, out p_cond, out var report);
-          alglib.mincgoptguardresults(state, out var optGuardRep);
+          // alglib.mincgoptguardresults(state, out var optGuardRep);
           if (report.terminationtype < 0) break;
 
           double nll = 0.0;
@@ -311,7 +311,7 @@ namespace HEAL.NonlinearRegression {
       var s = nls.Statistics.s;
 
       // prediction intervals for each point in x
-      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 1 },
+      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
         (i, loopState) => {
           // buffer
           // actually they are only needed once for the whole loop but with parallel for we need to make copies
@@ -341,16 +341,18 @@ namespace HEAL.NonlinearRegression {
           var reparameterizedModel = Expr.ReparameterizeExpr(nls.modelExpr, xi, out var outputParamIdx);
           paramEstExt[outputParamIdx] = yPred[i];
 
+
+          // TODO compilation can be done outside of the loop if reparameterizedModel has x,x0,theta as parameters (needs new expression type)
           var _func = Expr.Broadcast(reparameterizedModel).Compile();
-          void modelFunc(double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible 
-
-
+          void modelFunc(double[] p, double[,] X, double[] f) => _func(p, X, f); // TODO wrapper only necessary because return values are incompatible 
           var _jac = Expr.Jacobian(reparameterizedModel, n).Compile();
           void modelJac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
 
-          var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt, 
-            Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, x, nls.Statistics.s), nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
+          // var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
+          //   Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, x, nls.Statistics.s), nls.x);
+          var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
+            Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, nls.y), nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
 
           var profile = CalcTProfile(nls.y, nls.x, statisticsExt, modelFunc, modelJac, outputParamIdx, alpha); // only for the function output parameter
 

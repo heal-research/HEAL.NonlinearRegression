@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.ExceptionServices;
 
 namespace HEAL.NonlinearRegression {
   public class LaplaceApproximation {
@@ -34,9 +32,9 @@ namespace HEAL.NonlinearRegression {
       int m = x.GetLength(0);
       var pOpt = paramEst;
 
-      var yPred = new double[m];
+      // var yPred = new double[m];
       var U = new double[n, n];
-      negLogLikeHessian(pOpt, x, yPred, U); // Hessian is symmetric positive definite in pOpt
+      negLogLikeHessian(pOpt, x, U); // Hessian is symmetric positive definite in pOpt
       try {
         alglib.spdmatrixcholesky(ref U, n, isupper: true);
         alglib.spdmatrixcholeskyinverse(ref U, n, isupper: true, out var info, out var rep, null); // calculates (U^T U) ^-1 = H^-1

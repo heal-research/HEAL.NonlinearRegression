@@ -159,20 +159,18 @@ namespace HEAL.NonlinearRegression {
         }
       };
     }
-    internal static Hessian CreateGaussianNegLogLikelihoodHessian(Jacobian modelJac, double[] y, double[,] X, double sErr) {
-      // only an approximation for the MLE
-      return (double[] p, double[,] x, double[] f, double[,] hess) => {
+    public static Hessian CreateGaussianNegLogLikelihoodHessian(Jacobian modelJac, double[] y, double sErr) {
+      return (double[] p, double[,] x, double[,] hess) => {
         var m = y.Length;
         var n = p.Length;
         var yPred = new double[m];
         var yJac = new double[m, n];
-        modelJac(p, X, yPred, yJac);
+        modelJac(p, x, yPred, yJac);
 
-        Array.Clear(f, 0, m);
         Array.Clear(hess, 0, n*n);
         for (int i = 0; i < m; i++) {
           var res = y[i] - yPred[i];
-          f[i] += 0.5 * res * res / (sErr * sErr);
+          // f[i] += 0.5 * res * res / (sErr * sErr);
           for (int j = 0; j < n; j++) {
             for(int k=0;k<n;k++) {
               hess[j, k] += yJac[i, j] * yJac[i, k] / (sErr * sErr);
@@ -202,6 +200,32 @@ namespace HEAL.NonlinearRegression {
           }
           for (int j = 0; j < n; j++) {
             grad[j] += -((y[i] - yPred[i]) * yJac[i, j]) / ((1 - yPred[i]) * yPred[i]);
+          }
+        }
+      };
+    }
+
+    public static Hessian CreateBernoulliNegLogLikelihoodHessian(Jacobian modelJac, double[] y) {
+      // approximation that ignores the Hessian of the model
+      return (double[] p, double[,] x, double[,] hess) => {
+        var m = y.Length;
+        var n = p.Length;
+        var yPred = new double[m];
+        var yJac = new double[m, n];
+        modelJac(p, x, yPred, yJac);
+
+        Array.Clear(hess, 0, n * n);
+        for (int i = 0; i < m; i++) {
+          var res = y[i] - yPred[i];
+          var s = 1 / ((1 - yPred[i]) * (1 - yPred[i]) * yPred[i] * yPred[i]);
+
+          for (int j = 0; j < n; j++) {
+            for (int k = 0; k < n; k++) {
+              var hessianTerm = 0.0;
+              // var hessianTerm = (yPred[i] - 1) * yPred[i] * res * modelHessian[j, k]; TODO: modelHessian
+              var gradientTerm = (-2.0 * y[i] * yPred[i] + yPred[i] * yPred[i] + y[i]) * yJac[i, j] * yJac[i, k];
+              hess[j, k] += s * (hessianTerm + gradientTerm);
+            }
           }
         }
       };

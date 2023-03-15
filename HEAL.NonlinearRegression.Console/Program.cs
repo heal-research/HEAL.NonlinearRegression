@@ -103,6 +103,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       foreach (var model in GetModels(options.Model)) {
         try {
+          // TODO: most of the result values are specific to Gaussian likelihood
           GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
           var SSR = EvaluateSSR(parametricExpr, p, x, y, out var yPred);
@@ -111,7 +112,8 @@ namespace HEAL.NonlinearRegression.Console {
 
           var _jac = Expr.Jacobian(parametricExpr, p.Length).Compile();
           void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
-          var stats = new LaplaceApproximation(y.Length, p.Length, SSR, yPred, p, jac, x);
+          var hessian = Util.CreateGaussianNegLogLikelihoodHessian(jac, y, noiseSigma);
+          var stats = new LaplaceApproximation(y.Length, p.Length, SSR, yPred, p, hessian, x);
 
           var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, noiseSigma, x, approxHessian: true);
           var freqMdl = MinimumDescriptionLength.MDLFreq(parametricExpr, p, y, noiseSigma, x, approxHessian: false);

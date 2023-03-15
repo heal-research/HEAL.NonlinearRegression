@@ -109,8 +109,8 @@ namespace HEAL.NonlinearRegression {
       #endregion
 
       #region Conjugate Gradient
-       var alglibLikelihoodGrad = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, sErr: 1.0); // sErr has no influence for the optimization
-      //var alglibLikelihoodGrad = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
+       // var alglibLikelihoodGrad = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, sErr: 1.0); // sErr has no influence for the optimization
+      var alglibLikelihoodGrad = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
       alglib.mincgcreate(p, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, maxIterations);
       if (scale != null) alglib.mincgsetprecdiag(state, scale);
@@ -135,7 +135,8 @@ namespace HEAL.NonlinearRegression {
           var r = y[i] - yPred[i];
           SSR += r * r;
         }
-        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateGaussianNegLogLikelihoodHessian(modelJac, y, x, 1.0), x);
+        // Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateGaussianNegLogLikelihoodHessian(modelJac, y, x, 1.0), x);
+        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, y), x);
 
         OptReport = new OptimizationReport() {
           Success = true,
@@ -183,7 +184,9 @@ namespace HEAL.NonlinearRegression {
         var r = y[i] - yPred[i];
         SSR += r * r;
       }
-      Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateGaussianNegLogLikelihoodHessian(jacobian, y, x, Math.Sqrt(SSR / (m - n))), x);
+      // Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateGaussianNegLogLikelihoodHessian(jacobian, y, x, Math.Sqrt(SSR / (m - n))), x);
+      Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateBernoulliNegLogLikelihoodHessian(jacobian, y), x);
+
     }
 
     public double[] Predict(double[,] x) {

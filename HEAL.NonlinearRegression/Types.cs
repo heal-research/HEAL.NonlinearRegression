@@ -33,9 +33,8 @@
   /// </summary>
   /// <param name="p">Vector of parameter values.</param>
   /// <param name="X">Matrix of input values</param>
-  /// <param name="f">Evaluation result f(p,X). f must be allocated by the caller.</param>
   /// <param name="jac">Evaluation result J(p,X). jac must be allocated by the caller.</param>
-  public delegate void Hessian(double[] p, double[,] X, double[] f, double[,] hess);
+  public delegate void Hessian(double[] p, double[,] X, double[,] hess);
 
   /// <summary>
   /// Delegate type for parametric residual functions
