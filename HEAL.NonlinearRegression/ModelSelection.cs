@@ -1,11 +1,11 @@
-﻿using HEAL.Expressions;
-using System;
+﻿using System;
 using System.Linq;
 
 
 namespace HEAL.NonlinearRegression {
   public static class ModelSelection {
     // TODO: parameter should be fitted nlr object?
+    // TODO: generalize AIC, AICc and BIC for general likelihoods
     public static double LogLikelihood(double[] y, double[] yPred, double noiseSigma) {
       if (y.Length != yPred.Length) throw new ArgumentException();
       var SSR = y.Zip(yPred, (y, yp) => (y - yp) * (y - yp)).Sum();

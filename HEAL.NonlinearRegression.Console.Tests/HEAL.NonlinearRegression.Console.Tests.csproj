@@ -20,10 +20,4 @@
     <ProjectReference Include="..\HEAL.NonlinearRegression.Console\HEAL.NonlinearRegression.Console.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="cosmicChronometer.csv">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
 </Project>

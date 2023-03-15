@@ -6,14 +6,18 @@ namespace HEAL.NonlinearRegression {
     public int m { get; internal set; } // number of observations
     public int n { get; internal set; } // number of parameters
     public double[] yPred { get; internal set; }
+    // should be replaced by deviance https://en.wikipedia.org/wiki/Deviance_(statistics)
     public double SSR { get; internal set; } // sum of squared residuals, S(θ) in Bates and Watts
+
+    // s is used within this class because we use a Normal distribution to approximate the likelihood peak at maximum likelihood
+    // outside of this class s should not be used
     public double s => Math.Sqrt(SSR / (m - n)); // s²: residual mean square or variance estimate based on m-n degrees of freedom 
     public double[] paramEst { get; internal set; } // estimated values for parameters θ
     public double[] paramStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
     public double[,] correlation { get; internal set; }// correlation matrix for parameters
 
 
-    private double[,] invH;
+    private double[,] invH; // covariance matrix for training set (required for prediction intervals)
 
     public LaplaceApproximation(int m, int n, double SSR, double[] yPred, double[] paramEst, Hessian negLogLikeHessian, double[,] x) {
       this.m = m;
@@ -36,24 +40,26 @@ namespace HEAL.NonlinearRegression {
       var U = new double[n, n];
       negLogLikeHessian(pOpt, x, U); // Hessian is symmetric positive definite in pOpt
       try {
-        alglib.spdmatrixcholesky(ref U, n, isupper: true);
-        alglib.spdmatrixcholeskyinverse(ref U, n, isupper: true, out var info, out var rep, null); // calculates (U^T U) ^-1 = H^-1
-        invH = U; U = null; // rename 
-        // fill up rest of invH because alglib only works on the upper triangle (prevents problems below)
-        for (int i = 0;i<n-1;i++) {
-          for(int j=i+1;j<n;j++) {
-            invH[j, i] = invH[i, j];
-          }
+        
+        if (alglib.spdmatrixcholesky(ref U, n, isupper: true) == false) {
+          throw new InvalidOperationException("Cannot decompose Hessian (not SDP?)");
         }
-
-
-        // if (info < 0) {
-        //   System.Console.Error.WriteLine("Jacobian is not of full rank or contains NaN values");
-        //   throw new InvalidOperationException("Cannot invert R");
-        // }
+        alglib.spdmatrixcholeskyinverse(ref U, n, isupper: true, out var info, out var rep, null); // calculates (U^T U) ^-1 = H^-1
+        if (info < 0) {
+          throw new InvalidOperationException("Cannot invert Hessian");
+        }
       } catch (alglib.alglibexception) {
-        System.Console.Error.WriteLine("LaplaceApproximation: Cannot invert Hessian of likelihood");
+        System.Console.Error.WriteLine("LaplaceApproximation: Cannot decompose or invert Hessian");
         throw;
+      }
+
+
+      invH = U; U = null; // rename 
+                          // fill up rest of invH because alglib only works on the upper triangle (prevents problems below)
+      for (int i = 0; i < n - 1; i++) {
+        for (int j = i + 1; j < n; j++) {
+          invH[j, i] = invH[i, j];
+        }
       }
 
       // invH is the covariance matrix
@@ -111,18 +117,16 @@ namespace HEAL.NonlinearRegression {
         for (int j = 0; j < n; j++) {
           resStdError[i] += J[i, j] * row[j];
         }
-        resStdError[i] = s* Math.Sqrt(resStdError[i]);
+        resStdError[i] = s * Math.Sqrt(resStdError[i]);
       }
-      // 
-      // // https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
-      var f = alglib.invfdistribution(n, this.m - n, alpha);
+
+      // https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
+      // var f = alglib.invfdistribution(n, this.m - n, alpha);
       var t = alglib.invstudenttdistribution(this.m - n, 1 - alpha / 2);
 
-      var noiseStdDev = includeNoise ? s : 0.0;
+      var noiseStdDev = includeNoise ? s : 0.0; // TODO noiseStdDev is not applicable for general likelihoods (specific to Gaussian)
 
-      // Console.WriteLine($"noiseStdDev: {noiseStdDev} f: {f}, Math.Sqrt(n * f) {Math.Sqrt(n * f)} t: {t}");
-
-      //   // point-wise interval
+      // point-wise interval
       for (int i = 0; i < numRows; i++) {
         low[i] = yPred[i] - (resStdError[i] + noiseStdDev) * t;
         high[i] = yPred[i] + (resStdError[i] + noiseStdDev) * t;

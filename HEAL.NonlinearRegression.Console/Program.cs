@@ -9,19 +9,16 @@ using HEAL.Expressions;
 using HEAL.Expressions.Parser;
 
 // TODO:
-//  'verbs' for different usages shown in Demo project (already implemented):
-//   - subtree importance and graphviz output
-//   - variable impacts
-//   - Generate comparison outputs for Puromycin and BOD for linear prediction intervals and compare to book (use Gnuplot)
-//   - Generate comparison outputs for pairwise profile plots and compare to book. (use Gnuplot)
-// 
-//  more ideas (not yet implemented)
+//   - Option to set likelihood function on the command line
+//   - Clean up expression code to provide functions with inverses and derivatives via mapping functions (no special handling of inverse functions and derivatives within visitors)
+//   - Implement likelihoods symbolically (on top of the model functions) to support autodiff for likelihood gradients and likelihood Hessians. They are now hard-coded.
+//   - Numerically stable implementation for Bernoulli likelihood (using log1p() ?)
+//   - Remove everything that is specific to Gaussian likelihoods (s, SSR) (in model analysis, impact calculation, model evaluation, ...) use deviance instead
 //   - alglib is GPL, should switch to .NET numerics (MIT) instead.
 //   - iterative pruning based on subtree impacts or likelihood ratios for nested models
 //   - variable impacts for combinations of variables (tuples, triples). Contributions to individual variables via Shapely values?
 //   - nested model analysis for combinations of parameters (for the case where a parameter can only be set to zero if another parameter is also set to zero)
 //   - If a range is specified (training, test) then only read the relevant rows of data
-//   - execute verbs for multiple models from file
 
 namespace HEAL.NonlinearRegression.Console {
   // Takes a dataset, target variable, and a model from the command line and runs NLR and calculates all statistics.
@@ -39,7 +36,6 @@ namespace HEAL.NonlinearRegression.Console {
         .WithParsed<PredictOptions>(options => Predict(options))
         .WithParsed<FitOptions>(options => Fit(options))
         .WithParsed<EvalOptions>(options => Evaluate(options))
-        // .WithParsed<EvalMDLOptions>(options => EvaluateMDL(options))
         .WithParsed<SimplifyOptions>(options => Simplify(options))
         .WithParsed<NestedModelsOptions>(options => GenerateNestedModels(options))
         .WithParsed<PruneOptions>(options => Prune(options))
@@ -128,30 +124,6 @@ namespace HEAL.NonlinearRegression.Console {
         }
       }
     }
-
-    /*
-    public static void EvaluateMDL(EvalMDLOptions options) {
-      ReadData(options.Dataset, options.Target, out var varNames, out var x, out var y);
-
-      // default is full dataset
-      var start = 0;
-      var end = y.Length - 1;
-      if (options.Range != null) {
-        var toks = options.Range.Split(":");
-        start = int.Parse(toks[0]);
-        end = int.Parse(toks[1]);
-      }
-
-      Split(x, y, start, end, start, end, out x, out y, out _, out _);
-
-      foreach (var model in GetModels(options.Model)) {
-        GenerateExpression(model, varNames, out var parametricExpr, out var p);
-
-        var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, x);
-        System.Console.WriteLine($"MDL: {mdl} DoF: {p.Length}");
-      }
-    }
-    */
 
     public static double EvaluateSSR(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y, out double[] yPred) {
       var func = Expr.Broadcast(parametricExpr).Compile();

@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Threading.Tasks;
 
 namespace HEAL.NonlinearRegression {
@@ -60,9 +59,7 @@ namespace HEAL.NonlinearRegression {
     public static Tuple<double[], double[][]> CalcTProfile(double[] y, double[,] x, LaplaceApproximation statistics, Function modelFunc, Jacobian modelJac, int pIdx, double alpha = 0.05) {
     restart:
       var paramEst = statistics.paramEst;
-      var paramStdError = statistics.paramStdError;
-      var SSR = statistics.SSR;
-      var s = statistics.s;
+      var paramStdError = statistics.paramStdError; // approximate value, only used for scaling and to determine initial step size
       var m = statistics.m;
       var n = statistics.n;
 
@@ -86,7 +83,7 @@ namespace HEAL.NonlinearRegression {
       #region CG
       alglib.mincgcreate(paramEst, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, 0);
-      // alglib.mincgsetscale(state, paramStdError);
+      alglib.mincgsetscale(state, paramStdError);
       // alglib.mincgoptguardgradient(state, 1e-8);
 
       #endregion
@@ -174,7 +171,7 @@ namespace HEAL.NonlinearRegression {
 
           var tau_i = Math.Sign(delta) * (nll - nllOpt);
 
-          invSlope = Math.Abs(tau_i / (paramStdError[pIdx] * zv));
+          invSlope = Math.Abs(tau_i / (paramStdError[pIdx] * zv)); // TODO: double-check this
           #endregion
 
 
