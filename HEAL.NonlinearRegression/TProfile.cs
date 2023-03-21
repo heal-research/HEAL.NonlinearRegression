@@ -86,8 +86,8 @@ namespace HEAL.NonlinearRegression {
       var M = new List<double[]>();
       var delta = -paramStdError[pIdx] / step;
 
-      var negLogLike = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, statistics.s); // TODO: should we use the noise_stdev here?
-      // var negLogLike = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
+      // var negLogLike = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, statistics.s); // TODO: should we use the noise_stdev here?
+      var negLogLike = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
       var nllOpt = 0.0;
       var tempGrad = new double[n];
       negLogLike(paramEst, ref nllOpt, tempGrad, null); // calculate maximum likelihood
@@ -335,7 +335,7 @@ namespace HEAL.NonlinearRegression {
       var s = nls.Statistics.s;
 
       // prediction intervals for each point in x
-      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 1 },
+      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
         (i, loopState) => {
           // buffer
           // actually they are only needed once for the whole loop but with parallel for we need to make copies
@@ -373,10 +373,10 @@ namespace HEAL.NonlinearRegression {
           void modelJac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
 
-          var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
-            Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, nls.Statistics.s), nls.x);
           // var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
-          //   Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, nls.y), nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
+          //   Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, nls.Statistics.s), nls.x);
+          var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
+             Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, nls.y), nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
 
           var profile = CalcTProfile(nls.y, nls.x, statisticsExt, modelFunc, modelJac, outputParamIdx, alpha); // only for the function output parameter
 
