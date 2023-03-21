@@ -51,7 +51,19 @@ namespace HEAL.Expressions {
       } else if (node.NodeType == ExpressionType.Subtract) {
         // TODO: similar to case for addition
         throw new NotSupportedException($"node type {node.Type} is not supported for reparameterization.");
-      } else throw new NotSupportedException($"node type {node.Type} is not supported for reparameterization.");
+      } else if (node.NodeType == ExpressionType.Multiply) {
+        if (IsParameter(node.Left)) {
+          this.outParamIdx = ParameterIndex(node.Left);
+          var g0 = ReplaceParameterWithNumberVisitor.Replace(node.Right, x, x0); // bind x to x0 values
+          return Expression.Multiply(node.Right, Expression.Divide(node.Left, g0));
+        } else if (IsParameter(node.Right)) {
+          this.outParamIdx = ParameterIndex(node.Right);
+          var g0 = ReplaceParameterWithNumberVisitor.Replace(node.Left, x, x0); // bind x to x0 values
+          return Expression.Multiply(node.Left, Expression.Divide(node.Right, g0));
+        } else {
+          return node.Update(Visit(node.Left), null, Visit(node.Right));
+        }
+      } else throw new NotSupportedException($"node type {node.NodeType} is not supported for reparameterization.");
     }
 
     protected override Expression VisitUnary(UnaryExpression node) {
