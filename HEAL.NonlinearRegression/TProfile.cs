@@ -184,7 +184,10 @@ namespace HEAL.NonlinearRegression {
           // TODO: statistics of the NLS model should provide these (based on the likelihoods)
           var deviance = nll;
           var devianceOriginal = nllOpt;
-          var dispersion = statistics.s*statistics.s; // TODO: this needs to be adjusted for different likelihoods
+
+          // In R: (Dispersion parameter for binomial family taken to be 1)
+          // var dispersion = statistics.s*statistics.s; // TODO: this needs to be adjusted for different likelihoods
+          var dispersion = 1.0;
 
           var tau_i = Math.Sign(delta) * Math.Sqrt((deviance - devianceOriginal) / dispersion);
 
