@@ -19,11 +19,13 @@ namespace HEAL.NonlinearRegression {
     internal Function? func;
     internal Jacobian? jacobian;
     internal Expression<Expr.ParametricFunction>? modelExpr;
+    public LikelihoodEnum LikelihoodType { get; private set; }
     internal double[,]? x;
     internal double[]? y;
 
     // results
     private double[]? paramEst;
+    public alglib.ndimensional_grad NegLogLikelihoodFunc { get; private set; }
 
     public double[]? ParamEst { get { return paramEst?.Clone() as double[]; } }
 
@@ -45,20 +47,35 @@ namespace HEAL.NonlinearRegression {
     /// <param name="stepMax">Optional parameter to limit the step size in Levenberg-Marquardt. Can be useful on quickly changing functions (e.g. exponentials).</param>
     /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
     /// <exception cref="InvalidProgramException"></exception>
-    public void Fit(double[] p, Expression<Expr.ParametricFunction> expr, double[,] x, double[] y,
+    public void Fit(double[] p, Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] x, double[] y,
       int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
       Func<double[], double, bool>? callback = null) {
       
       var _func = Expr.Broadcast(expr).Compile();
-      void func(double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible 
+      void modelFunc(double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible 
       
       
       var _jac = Expr.Jacobian(expr, p.Length).Compile();
-      void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
+      void modelJac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
       this.modelExpr = expr;
+      this.LikelihoodType = likelihood;
 
-      Fit(p, func, jac, x, y, maxIterations, scale, stepMax, callback);
+      this.NegLogLikelihoodFunc = null;
+      Hessian fisherInformation = null;
+      if (likelihood == LikelihoodEnum.Gaussian) {
+        // TODO should we use specified noise error here?
+        this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, sErr: 1.0); 
+        fisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJac, y, sErr: 1.0); 
+      } else if (likelihood == LikelihoodEnum.Bernoulli) {
+        this.NegLogLikelihoodFunc = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
+        fisherInformation = Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, y);
+      }
+
+      // TODO: required?
+      // this.func = modelFunc;
+      // this.jacobian = modelJac;
+      Fit(p, modelFunc, NegLogLikelihoodFunc, fisherInformation, x, y, maxIterations, scale, stepMax, callback);
     }
 
 
@@ -67,8 +84,6 @@ namespace HEAL.NonlinearRegression {
     /// Uses Levenberg-Marquardt algorithm.
     /// </summary>
     /// <param name="p">Initial values and optimized parameters on exit. Initial parameters are overwritten.</param>
-    /// <param name="modelFunc">The model function.</param>
-    /// <param name="modelJac">The Jacobian of func. The Action calculates the function values and the Jacobian</param>
     /// <param name="y">Target values</param>
     /// <param name="report">Report with fitting results and statistics</param>
     /// <param name="maxIterations"></param>
@@ -76,41 +91,16 @@ namespace HEAL.NonlinearRegression {
     /// <param name="stepMax">Optional parameter to limit the step size in Levenberg-Marquardt. Can be useful on quickly changing functions (e.g. exponentials).</param>
     /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
     /// <exception cref="InvalidProgramException"></exception>
-    public void Fit(double[] p, Function modelFunc, Jacobian modelJac, double[,] x, double[] y,
+    public void Fit(double[] p, Function modelFunc, alglib.ndimensional_grad logLikelihood, Hessian fisherInformation, double[,] x, double[] y,
         int maxIterations = 0, double[]? scale = null, double stepMax = 0.0, Func<double[], double, bool>? callback = null) {
 
-      this.func = modelFunc;
-      this.jacobian = modelJac;
       this.x = (double[,])x.Clone();
       this.y = (double[])y.Clone();
 
       int m = y.Length;
       int n = p.Length;
 
-      #region Levenberg-Marquardt
-      // var alglibResFunc = Util.CreateAlgibResidualFunction(Util.CreateResidualFunction(modelFunc, this.x, this.y));
-      // var alglibResJac = Util.CreateAlgibResidualJacobian(Util.CreateResidualJacobian(modelJac, this.x, this.y));
-      // alglib.minlmcreatevj(m, p, out var state);
-      // alglib.minlmsetcond(state, epsx: 0.0, maxIterations);
-      // if (scale != null) alglib.minlmsetscale(state, scale);
-      // if (stepMax > 0.0) alglib.minlmsetstpmax(state, stepMax);
-
-
-      // void _rep(double[] x, double f, object o) {
-      //   if (callback != null && callback(x, f)) {
-      //     alglib.minlmrequesttermination(state);
-      //   }
-      // }
-      // //alglib.minlmoptguardgradient(state, 1e-6);
-      // alglib.minlmoptimize(state, alglibResFunc, alglibResJac, _rep, obj: null);
-      // alglib.minlmresults(state, out paramEst, out var rep);
-      // //alglib.minlmoptguardresults(state, out var optGuardReport);
-      // //if (optGuardReport.badgradsuspected) throw new InvalidProgramException();
-      #endregion
-
       #region Conjugate Gradient
-       // var alglibLikelihoodGrad = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, sErr: 1.0); // sErr has no influence for the optimization
-      var alglibLikelihoodGrad = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
       alglib.mincgcreate(p, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, maxIterations);
       if (scale != null) alglib.mincgsetprecdiag(state, scale);
@@ -121,12 +111,13 @@ namespace HEAL.NonlinearRegression {
           alglib.mincgrequesttermination(state);
         }
       }
-      alglib.mincgoptimize(state, alglibLikelihoodGrad, _rep, obj: null);
+      alglib.mincgoptimize(state, logLikelihood, _rep, obj: null);
       alglib.mincgresults(state, out paramEst, out var rep);
       #endregion
 
       if (rep.terminationtype >= 0) {
         Array.Copy(paramEst, p, p.Length);
+        // TODO: modelFunc is only required for SSR calculation but this is probably not necessary for LaplaceApproximation
         // evaluate ypred and SSR
         var yPred = new double[m];
         var SSR = 0.0;
@@ -135,8 +126,7 @@ namespace HEAL.NonlinearRegression {
           var r = y[i] - yPred[i];
           SSR += r * r;
         }
-        // Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateGaussianNegLogLikelihoodHessian(modelJac, y, 1.0), x);
-        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, y), x);
+        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, fisherInformation, x);
 
         OptReport = new OptimizationReport() {
           Success = true,
@@ -162,7 +152,7 @@ namespace HEAL.NonlinearRegression {
     /// <param name="parametricExpr"></param>
     /// <param name="trainX"></param>
     /// <param name="trainY"></param>
-    public void SetModel(double[] p, Expression<Expr.ParametricFunction> expr, double[,] x, double[] y) {
+    public void SetModel(double[] p, Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] x, double[] y) {
       var m = y.Length;
       int n = p.Length;
 
@@ -184,9 +174,13 @@ namespace HEAL.NonlinearRegression {
         var r = y[i] - yPred[i];
         SSR += r * r;
       }
-      // Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateGaussianNegLogLikelihoodHessian(jacobian, y,Math.Sqrt(SSR / (m - n))), x);
-      Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateBernoulliNegLogLikelihoodHessian(jacobian, y), x);
 
+      if (likelihood == LikelihoodEnum.Gaussian) {
+        // TODO: should we use the specified noise sigma here?
+        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateGaussianNegLogLikelihoodHessian(jacobian, y, Math.Sqrt(SSR / (m - n))), x);
+      } else if (likelihood == LikelihoodEnum.Bernoulli) {
+        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateBernoulliNegLogLikelihoodHessian(jacobian, y), x);
+      }
     }
 
     public double[] Predict(double[,] x) {
@@ -197,7 +191,7 @@ namespace HEAL.NonlinearRegression {
       return y;
     }
 
-    public double[,] PredictWithIntervals(double[,] x, IntervalEnum intervalType, double alpha = 0.05, bool includeNoise = false) {
+    public double[,] PredictWithIntervals(double[,] x, IntervalEnum intervalType, double alpha = 0.05) {
       var m = x.GetLength(0);
       switch (intervalType) {
         case IntervalEnum.None: {
@@ -206,10 +200,10 @@ namespace HEAL.NonlinearRegression {
             Buffer.BlockCopy(yPred, 0, y, 0, yPred.Length * sizeof(double));
             return y;
           }
-        case IntervalEnum.LinearApproximation: {
+        case IntervalEnum.LaplaceApproximation: {
             var yPred = Predict(x);
             var y = new double[m, 4];
-            Statistics.GetPredictionIntervals(jacobian, x, alpha, out var resStdErr, out var low, out var high, includeNoise);
+            Statistics.GetPredictionIntervals(jacobian, x, alpha, out var resStdErr, out var low, out var high);
             for (int i = 0; i < m; i++) {
               y[i, 0] = yPred[i];
               y[i, 1] = resStdErr[i];
@@ -221,7 +215,7 @@ namespace HEAL.NonlinearRegression {
         case IntervalEnum.TProfile: {
             var yPred = Predict(x);
             var y = new double[m, 3];
-            TProfile.GetPredictionIntervals(x, this, out var low, out var high, alpha, includeNoise);
+            TProfile.GetPredictionIntervals(x, this, out var low, out var high, alpha);
             for (int i = 0; i < m; i++) {
               y[i, 0] = yPred[i];
               y[i, 1] = low[i];

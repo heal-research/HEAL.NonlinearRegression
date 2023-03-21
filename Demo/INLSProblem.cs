@@ -1,4 +1,4 @@
-﻿namespace HEAL.NonlinearRegression {
+﻿namespace HEAL.NonlinearRegression.Demo {
   /// <summary>
   /// Interface for nonlinear least squares problems
   /// </summary>

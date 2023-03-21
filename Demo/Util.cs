@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace HEAL.NonlinearRegression {
+namespace HEAL.NonlinearRegression.Demo {
   internal static class Util {
     public static double RandNorm(Random rand, double mean, double stdDev) {
       double u, v, s;

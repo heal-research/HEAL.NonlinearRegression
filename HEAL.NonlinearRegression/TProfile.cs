@@ -20,9 +20,7 @@ namespace HEAL.NonlinearRegression {
     // Calculate t-profiles for all parameters.
     // Bates and Watts, Appendix A3.5
 
-    public TProfile(double[] y, double[,] x, LaplaceApproximation statistics,
-      Function func,
-      Jacobian jacobian) {
+    public TProfile(LaplaceApproximation statistics, alglib.ndimensional_grad negLogLikelihood) {
       this.paramEst = statistics.paramEst;
       this.paramStdError = statistics.paramStdError;
       this.m = statistics.m;
@@ -31,7 +29,7 @@ namespace HEAL.NonlinearRegression {
       t_profiles = new Tuple<double[], double[][]>[statistics.n]; // for each parameter the tau values and the matrix of parameters
 
       for (int pIdx = 0; pIdx < statistics.n; pIdx++) {
-        t_profiles[pIdx] = CalcTProfile(y, x, statistics, func, jacobian, pIdx);
+        t_profiles[pIdx] = CalcTProfile(statistics, negLogLikelihood, pIdx);
       }
 
 
@@ -56,7 +54,7 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    public static Tuple<double[], double[][]> CalcTProfile(double[] y, double[,] x, LaplaceApproximation statistics, Function modelFunc, Jacobian modelJac, int pIdx, double alpha = 0.05) {
+    public static Tuple<double[], double[][]> CalcTProfile(LaplaceApproximation statistics, alglib.ndimensional_grad negLogLikelihood, int pIdx) {
     restart:
       var paramEst = statistics.paramEst;
       var paramStdError = statistics.paramStdError; // approximate value, only used for scaling and to determine initial step size
@@ -86,32 +84,15 @@ namespace HEAL.NonlinearRegression {
       var M = new List<double[]>();
       var delta = -paramStdError[pIdx] / step;
 
-      // var negLogLike = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, statistics.s); // TODO: should we use the noise_stdev here?
-      var negLogLike = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
       var nllOpt = 0.0;
       var tempGrad = new double[n];
-      negLogLike(paramEst, ref nllOpt, tempGrad, null); // calculate maximum likelihood
+      negLogLikelihood(paramEst, ref nllOpt, tempGrad, null); // calculate maximum likelihood
 
-      #region CG
+      #region CG configuration
       alglib.mincgcreate(paramEst, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, 0);
       alglib.mincgsetscale(state, paramStdError);
       // alglib.mincgoptguardgradient(state, 1e-8);
-
-      #endregion
-
-
-      #region Levenberg-Marquard
-      // alglib.minlmcreatevj(m, p_cond, out var state);
-      // // alglib.minlmsetcond(state, 1e-9, 0);
-      // alglib.minlmsetscale(state, paramStdError);
-
-      // var resFunc = Util.CreateResidualFunction(modelFunc, x, y); // fix parameter not required here because it is fixed in the Jacobian -> parameter is unchanged
-      // // adapted jacobian for fixed parameter
-      // var resJacForFixed = Util.FixParameter(Util.CreateResidualJacobian(modelJac, x, y), pIdx);
-      // 
-      // var alglibResFunc = Util.CreateAlgibResidualFunction(resFunc);
-      // var alglibResJacForFixed = Util.CreateAlgibResidualJacobian(resJacForFixed);
       #endregion
 
       do {
@@ -124,33 +105,9 @@ namespace HEAL.NonlinearRegression {
 
           // minimize
           p_cond[pIdx] = curP;
-          var negLogLikeFixed = Util.FixParameter(negLogLike, pIdx, curP);
+          var negLogLikeFixed = Util.FixParameter(negLogLikelihood, pIdx, curP);
 
-          #region LM / Gaussian
-          // alglib.minlmrestartfrom(state, p_cond);
-          // alglib.minlmoptimize(state, alglibResFunc, alglibResJacForFixed, null, null);
-          // alglib.minlmresults(state, out p_cond, out var report);
-          // if (report.terminationtype < 0) throw new InvalidProgramException();
-          // 
-          // jac(p_cond, x, yPred_cond, J); // get predicted values and Jacobian for calculation of z and v_p
-          // 
-          // var SSR_cond = 0.0; // S(,theta_p)
-          // var zv = 0.0; // z^T v_p
-          // 
-          // for (int i = 0; i < m; i++) {
-          //   var z = y[i] - yPred_cond[i];
-          //   SSR_cond += z * z;
-          //   zv += z * J[i, pIdx];
-          // }
-          // 
-          // if (SSR_cond < SSR) throw new ArgumentException($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
-          // 
-          // var tau_i = Math.Sign(delta) * Math.Sqrt(SSR_cond - SSR) / s;
-          // 
-          // invSlope = Math.Abs(tau_i * s * s / (paramStdError[pIdx] * zv));
-          #endregion
-
-          #region CG Gaussian
+          #region parameter optimization (CG)
           alglib.mincgrestartfrom(state, p_cond);
           alglib.mincgoptimize(state, negLogLikeFixed, rep: null, obj: null);
           alglib.mincgresults(state, out p_cond, out var report);
@@ -159,22 +116,8 @@ namespace HEAL.NonlinearRegression {
 
           double nll = 0.0;
           var grad = new double[n];
-          negLogLike(p_cond, ref nll, grad, null);
+          negLogLikelihood(p_cond, ref nll, grad, null);
           var zv = grad[pIdx];
-
-
-          // modelJac(p_cond, x, yPred_cond, J); // get predicted values and Jacobian for calculation of z and v_p
-          // 
-          // var SSR_cond = 0.0; // S(,heta_p)
-          // var zv = 0.0; // z^T v_p
-          // 
-          // for (int i = 0; i < m; i++) {
-          //   var z = y[i] - yPred_cond[i];
-          //   SSR_cond += z * z;
-          //   zv += z * J[i, pIdx];
-          // }
-
-          // if (SSR_cond < SSR) throw new ArgumentException($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
 
           if (nll < nllOpt) {
             System.Console.Error.WriteLine($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
@@ -188,7 +131,7 @@ namespace HEAL.NonlinearRegression {
           var deviance = 2 * nll;
           var devianceOriginal = 2 * nllOpt;
 
-           var tau_i = Math.Sign(delta) * Math.Sqrt(deviance - devianceOriginal); // TODO: double check the factor 2 here (it is required to produce exactly the same results as LaplaceApproximation for Gaussian likelihood and a linear model)
+           var tau_i = Math.Sign(delta) * Math.Sqrt(deviance - devianceOriginal);
           invSlope = Math.Abs(tau_i / (paramStdError[pIdx] * zv));
           #endregion
 
@@ -291,7 +234,7 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    public static void GetPredictionIntervals(double[,] x, NonlinearRegression nls, out double[] low, out double[] high, double alpha = 0.05, bool includeNoise = false) {
+    public static void GetPredictionIntervals(double[,] x, NonlinearRegression nls, out double[] low, out double[] high, double alpha = 0.05) {
       var predRows = x.GetLength(0); // the points for which we calculate the prediction interval
       var trainRows = nls.Statistics.m;
       var n = nls.Statistics.n; // number of parameters
@@ -304,11 +247,6 @@ namespace HEAL.NonlinearRegression {
       var yPred = new double[predRows];
       nls.func(nls.Statistics.paramEst, x, yPred);
 
-      // var offsetIdx = Expr.FindOffsetParameterIndex(nls.modelExpr);
-      // var scaleIdx = Expr.FindScalingParameterIndex(nls.modelExpr);
-      // if (offsetIdx == -1 && scaleIdx == -1) {
-      //   throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
-      // }
 
       // we only calculate pointwise intervals
       // in R:
@@ -321,17 +259,7 @@ namespace HEAL.NonlinearRegression {
       // alglib.invstudenttdistribution(10, 0.05) -1.8124611228116756
 
       var t = -alglib.invstudenttdistribution(trainRows - n, alpha / 2); // source: https://github.com/cran/MASS/blob/1767aca83144264dac95606edff420855fac260b/R/confint.R#L80
-      // old code for pointwise and simultaneuous intervals
-      // var t = alglib.invstudenttdistribution(m - n, 1 - alpha / 2);
-      // var f = alglib.invfdistribution(n, m - n, alpha);
-      // var s = nls.Statistics.s;
-      // if (m == 1) {
-      //   _low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
-      //   _high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
-      // } else {
-      //   _low[i] = alglib.spline1dcalc(tau2theta, -f) - (includeNoise ? t * s : 0.0);
-      //   _high[i] = alglib.spline1dcalc(tau2theta, f) + (includeNoise ? t * s : 0.0);
-      // }
+
       var s = nls.Statistics.s;
 
       // prediction intervals for each point in x
@@ -344,27 +272,9 @@ namespace HEAL.NonlinearRegression {
           var xi = new double[d];
 
           Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
-          #region old reparameterization
-          // Function funcExt;
-          // Jacobian jacExt;
-          // int outputParamIdx;
-          // if (offsetIdx > 0) {
-          //   funcExt = Util.ReparameterizeFuncWithOffset(nls.func, xi, offsetIdx);
-          //   jacExt = Util.ReparameterizeJacobianWithOffset(nls.jacobian, xi, offsetIdx);
-          //   outputParamIdx = offsetIdx;
-          // } else if (scaleIdx > 0) {
-          //   funcExt = Util.ReparameterizeFuncWithScale(nls.func, xi, scaleIdx);
-          //   jacExt = Util.ReparameterizeJacobianWithScale(nls.jacobian, xi, scaleIdx);
-          //   outputParamIdx = scaleIdx;
-          // } else {
-          //   throw new NotSupportedException("Only models with an explicit offset or scaling parameter are supported by the t-profile prediction intervals.");
-          // }
 
-          // paramEstExt[outputParamIdx] = yPred[i]; // function output parameter is prediction at point xi
-          #endregion 
           var reparameterizedModel = Expr.ReparameterizeExpr(nls.modelExpr, xi, out var outputParamIdx);
           paramEstExt[outputParamIdx] = yPred[i];
-
 
           // TODO compilation can be done outside of the loop if reparameterizedModel has x,x0,theta as parameters (needs new expression type)
           var _func = Expr.Broadcast(reparameterizedModel).Compile();
@@ -372,13 +282,20 @@ namespace HEAL.NonlinearRegression {
           var _jac = Expr.Jacobian(reparameterizedModel, n).Compile();
           void modelJac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
+          LaplaceApproximation statisticsExt = null; // for the re-parameterized model
+          alglib.ndimensional_grad negLogLikelihood = null;
+          if (nls.LikelihoodType == LikelihoodEnum.Gaussian) {
+            negLogLikelihood = Util.CreateGaussianNegLogLikelihood(modelJac, nls.y, nls.x, nls.Statistics.s);
+            statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
+              Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, nls.Statistics.s), nls.x);
 
-          // var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
-          //   Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, nls.Statistics.s), nls.x);
-          var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
-             Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, nls.y), nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
+          } else if(nls.LikelihoodType == LikelihoodEnum.Bernoulli) {
+            negLogLikelihood = Util.CreateBernoulliNegLogLikelihood(modelJac, nls.y, nls.x);
+            statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
+               Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, nls.y), nls.x);
+          }
 
-          var profile = CalcTProfile(nls.y, nls.x, statisticsExt, modelFunc, modelJac, outputParamIdx, alpha); // only for the function output parameter
+          var profile = CalcTProfile(statisticsExt, negLogLikelihood, outputParamIdx); // only for the function output parameter
 
           var tau = profile.Item1;
           var theta = new double[tau.Length];
@@ -387,9 +304,9 @@ namespace HEAL.NonlinearRegression {
           }
           alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
           if (tau.Min() > -t) _low[i] = double.NaN;
-          else _low[i] = alglib.spline1dcalc(tau2theta, -t) - (includeNoise ? t * s : 0.0);
+          else _low[i] = alglib.spline1dcalc(tau2theta, -t);
           if (tau.Max() < t) _high[i] = double.NaN;
-          else _high[i] = alglib.spline1dcalc(tau2theta, t) + (includeNoise ? t * s : 0.0);
+          else _high[i] = alglib.spline1dcalc(tau2theta, t);
         });
 
       // cannot manipulate low and high output parameters directly in parallel.for

@@ -1,5 +1,6 @@
 ﻿namespace HEAL.NonlinearRegression {
-
+  public enum IntervalEnum { None, LaplaceApproximation, TProfile }
+  public enum LikelihoodEnum { Gaussian, Bernoulli } // TODO: Poisson, Cauchy, Multinomial, ...
 
   /// <summary>
   /// Delegate type for parametric functions with inputs

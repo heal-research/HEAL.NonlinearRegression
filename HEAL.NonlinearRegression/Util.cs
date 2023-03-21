@@ -140,7 +140,7 @@ namespace HEAL.NonlinearRegression {
     }
 
 
-    internal static alglib.ndimensional_grad CreateGaussianNegLogLikelihood(Jacobian modelJac, double[] y, double[,] X, double sErr) {
+    public static alglib.ndimensional_grad CreateGaussianNegLogLikelihood(Jacobian modelJac, double[] y, double[,] X, double sErr) {
       return (double[] p, ref double f, double[] grad, object obj) => {
         var m = y.Length;
         var n = p.Length;
@@ -180,7 +180,7 @@ namespace HEAL.NonlinearRegression {
       };
     }
 
-    internal static alglib.ndimensional_grad CreateBernoulliNegLogLikelihood(Jacobian modelJac, double[] y, double[,] X) {
+    public static alglib.ndimensional_grad CreateBernoulliNegLogLikelihood(Jacobian modelJac, double[] y, double[,] X) {
       return (double[] p, ref double f, double[] grad, object obj) => {
         var m = y.Length;
         var n = p.Length;

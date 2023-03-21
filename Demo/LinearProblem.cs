@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace HEAL.NonlinearRegression {
+namespace HEAL.NonlinearRegression.Demo {
   internal class LinearProblem : INLSProblem {
 
     private static double[] pOpt = new double[] { 1, 2, 3, 4 };

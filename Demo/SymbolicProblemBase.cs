@@ -3,7 +3,7 @@ using System.Linq.Expressions;
 using System.Threading;
 using HEAL.Expressions;
 
-namespace HEAL.NonlinearRegression {
+namespace HEAL.NonlinearRegression.Demo {
 
   /// <summary>
   /// Abstract base class for NLS problems where the model is specified as an Expression.

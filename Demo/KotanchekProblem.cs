@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 using System.Xml;
 using HEAL.Expressions;
 
-namespace HEAL.NonlinearRegression {
+namespace HEAL.NonlinearRegression.Demo {
   internal class KotanchekProblem : SymbolicProblemBase {
 
     public KotanchekProblem() {

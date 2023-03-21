@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 using System.Xml;
 using HEAL.Expressions;
 
-namespace HEAL.NonlinearRegression {
+namespace HEAL.NonlinearRegression.Demo {
   internal class RatPol2DProblem : SymbolicProblemBase {
 
     public RatPol2DProblem() {

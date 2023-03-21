@@ -19,9 +19,9 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target values</param>
     /// <param name="p">Initial parameter values for the full model</param>
     /// <returns></returns>
-    public static Dictionary<int, double> VariableImportance(Expression<Expr.ParametricFunction> expr, double[,] X, double[] y, double[] p) {
+    public static Dictionary<int, double> VariableImportance(Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] X, double[] y, double[] p) {
       var nlr = new NonlinearRegression();
-      nlr.Fit(p, expr, X, y);
+      nlr.Fit(p, expr, likelihood, X, y);
       var stats0 = nlr.Statistics;
       var m = y.Length;
       var d = X.GetLength(1);
@@ -39,7 +39,7 @@ namespace HEAL.NonlinearRegression {
         newExpr = Expr.FoldParameters(newExpr, newThetaValues, out newThetaValues);
 
         nlr = new NonlinearRegression();
-        nlr.Fit(newThetaValues, newExpr, X, y);
+        nlr.Fit(newThetaValues, newExpr, likelihood, X, y);
         if (nlr.Statistics == null) {
           Console.WriteLine("Problem while fitting");
           varExpl[varIdx] = 0.0;
@@ -64,7 +64,7 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target variable values</param>
     /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
-    public static IEnumerable<Tuple<Expression, double, double, double>> SubtreeImportance(Expression<Expr.ParametricFunction> expr, double[,] X, double[] y, double[] p) {
+    public static IEnumerable<Tuple<Expression, double, double, double>> SubtreeImportance(Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] X, double[] y, double[] p) {
       var m = X.GetLength(0);
       var pParam = expr.Parameters[0];
       var xParam = expr.Parameters[1];
@@ -76,7 +76,7 @@ namespace HEAL.NonlinearRegression {
       // fit the full model once for the baseline
       // TODO: we could skip this and get the baseline as parameter
       var nlr = new NonlinearRegression();
-      nlr.Fit(p, expr, X, y);
+      nlr.Fit(p, expr, likelihood, X, y);
       var stats0 = nlr.Statistics;
       p = (double[])stats0.paramEst.Clone();
 
@@ -98,7 +98,7 @@ namespace HEAL.NonlinearRegression {
 
 
         // fit reduced model
-        nlr.Fit(newTheta, reducedExpression, X, y); // TODO make CLI parameter
+        nlr.Fit(newTheta, reducedExpression, likelihood, X, y); // TODO make CLI parameter
         var reducedStats = nlr.Statistics;
 
         var impact = reducedStats.SSR / stats0.SSR;
@@ -120,7 +120,7 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target variable values</param>
     /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
-    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(Expression<Expr.ParametricFunction> expr, double[,] X, double[] y, double[] p, int maxIterations, bool verbose = false) {
+    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] X, double[] y, double[] p, int maxIterations, bool verbose = false) {
       var m = X.GetLength(0);
       var pParam = expr.Parameters[0];
       var xParam = expr.Parameters[1];
@@ -129,7 +129,7 @@ namespace HEAL.NonlinearRegression {
       // TODO: we could skip this and get the baseline as parameter
 
       var nlr = new NonlinearRegression();
-      nlr.Fit(p, expr, X, y, maxIterations);
+      nlr.Fit(p, expr, likelihood, X, y, maxIterations);
 
       var stats0 = nlr.Statistics;
       var noiseSigma = stats0.s;
@@ -170,7 +170,7 @@ namespace HEAL.NonlinearRegression {
         // fit reduced model
         try {
           var nlr = new NonlinearRegression();
-          nlr.Fit(newP, reducedExpression, X, y, maxIterations); // TODO make parameter
+          nlr.Fit(newP, reducedExpression, likelihood, X, y, maxIterations); // TODO make parameter
           var reducedStats = nlr.Statistics;
 
           var ssrFactor = reducedStats.SSR / stats0.SSR;

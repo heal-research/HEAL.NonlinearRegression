@@ -2,7 +2,7 @@
 using System.Linq.Expressions;
 using HEAL.Expressions;
 
-namespace HEAL.NonlinearRegression {
+namespace HEAL.NonlinearRegression.Demo {
   // PCB example from Nonlinear Regression Analysis and Its Applications, Bates and Watts, 1988
 
   internal class PCBDSRProblem : SymbolicProblemBase {

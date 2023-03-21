@@ -36,7 +36,6 @@ namespace HEAL.NonlinearRegression {
       int m = x.GetLength(0);
       var pOpt = paramEst;
 
-      // var yPred = new double[m];
       var U = new double[n, n];
       negLogLikeHessian(pOpt, x, U); // Hessian is symmetric positive definite in pOpt
       try {
@@ -78,7 +77,7 @@ namespace HEAL.NonlinearRegression {
       }
 
       correlation = C;
-      paramStdError = se.Select(sei => sei * s).ToArray(); // not sure why multiplication with s is needed here (should be contained within invH already)
+      paramStdError = se.Select(sei => sei * s).ToArray();
     }
 
     public void GetParameterIntervals(double alpha, out double[] low, out double[] high) {
@@ -96,7 +95,7 @@ namespace HEAL.NonlinearRegression {
 
 
 
-    public void GetPredictionIntervals(Jacobian jacobian, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high, bool includeNoise = false) {
+    public void GetPredictionIntervals(Jacobian jacobian, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high) {
       int numRows = x.GetLength(0);
       low = new double[numRows];
       high = new double[numRows];
@@ -121,28 +120,13 @@ namespace HEAL.NonlinearRegression {
       }
 
       // https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
-      // var f = alglib.invfdistribution(n, this.m - n, alpha);
       var t = -alglib.invstudenttdistribution(this.m - n, alpha / 2);
-
-      var noiseStdDev = includeNoise ? s : 0.0; // TODO noiseStdDev is not applicable for general likelihoods (specific to Gaussian)
 
       // point-wise interval
       for (int i = 0; i < numRows; i++) {
-        low[i] = yPred[i] - (resStdError[i] + noiseStdDev) * t;
-        high[i] = yPred[i] + (resStdError[i] + noiseStdDev) * t;
+        low[i] = yPred[i] - resStdError[i] * t;
+        high[i] = yPred[i] + resStdError[i]* t;
       }
-      // old code to calculate pointwise and simultaneous intervals
-      // if (m == 1) {
-      //   // point-wise interval
-      //   low[0] = yPred[0] - (resStdError[0] + noiseStdDev) * t;
-      //   high[0] = yPred[0] + (resStdError[0] + noiseStdDev) * t;
-      // } else {
-      //   // simultaneous interval (band)
-      //   for (int i = 0; i < m; i++) {
-      //     low[i] = yPred[i] - (resStdError[i] + noiseStdDev)* Math.Sqrt(n * f); // not sure if t or sqrt(n*f) should be used for the noise part
-      //     high[i] = yPred[i] + (resStdError[i] + noiseStdDev) * Math.Sqrt(n * f);
-      //   }
-      // }
     }
 
 

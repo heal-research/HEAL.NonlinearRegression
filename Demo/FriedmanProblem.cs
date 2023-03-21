@@ -2,7 +2,7 @@
 using System.Linq.Expressions;
 using HEAL.Expressions;
 
-namespace HEAL.NonlinearRegression {
+namespace HEAL.NonlinearRegression.Demo {
   internal class FriedmanProblem : SymbolicProblemBase {
 
     public FriedmanProblem() {
