@@ -77,7 +77,7 @@ namespace HEAL.NonlinearRegression {
       // 7.6384216175965465
       // alglib.invfdistribution(1, 12 - 2, 0.05)
       // 4.964602743730711
-      var tmax = Math.Sqrt(alglib.invfdistribution(1, m - n, 0.001)); // use a small threshold here
+      var tmax = Math.Sqrt(alglib.invfdistribution(1, m - n, 0.001)); // use a small threshold here (alpha smaller or equal to the alpha we use for the query)
 
       // buffers
       var yPred_cond = new double[m];
@@ -86,8 +86,8 @@ namespace HEAL.NonlinearRegression {
       var M = new List<double[]>();
       var delta = -paramStdError[pIdx] / step;
 
-      // var negLogLike = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, s);
-      var negLogLike = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
+      var negLogLike = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, statistics.s); // TODO: should we use the noise_stdev here?
+      // var negLogLike = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
       var nllOpt = 0.0;
       var tempGrad = new double[n];
       negLogLike(paramEst, ref nllOpt, tempGrad, null); // calculate maximum likelihood
@@ -134,7 +134,7 @@ namespace HEAL.NonlinearRegression {
           // 
           // jac(p_cond, x, yPred_cond, J); // get predicted values and Jacobian for calculation of z and v_p
           // 
-          // var SSR_cond = 0.0; // S(,heta_p)
+          // var SSR_cond = 0.0; // S(,theta_p)
           // var zv = 0.0; // z^T v_p
           // 
           // for (int i = 0; i < m; i++) {
@@ -185,13 +185,8 @@ namespace HEAL.NonlinearRegression {
           var deviance = nll;
           var devianceOriginal = nllOpt;
 
-          // In R: (Dispersion parameter for binomial family taken to be 1)
-          // var dispersion = statistics.s*statistics.s; // TODO: this needs to be adjusted for different likelihoods
-          var dispersion = 1.0;
-
-          var tau_i = Math.Sign(delta) * Math.Sqrt((deviance - devianceOriginal) / dispersion);
-
-          invSlope = Math.Abs(tau_i / (paramStdError[pIdx] * zv)); // TODO: double-check this
+           var tau_i = Math.Sign(delta) * Math.Sqrt(2 * (deviance - devianceOriginal)); // TODO: double check the factor 2 here (it is required to produce exactly the same results as LaplaceApproximation for Gaussian likelihood and a linear model)
+          invSlope = Math.Abs(tau_i / (paramStdError[pIdx] * zv));
           #endregion
 
 
@@ -322,7 +317,7 @@ namespace HEAL.NonlinearRegression {
       // alglib.invstudenttdistribution(10, 0.02) -2.3593146237365361
       // alglib.invstudenttdistribution(10, 0.05) -1.8124611228116756
 
-      var t = alglib.invstudenttdistribution(trainRows - n, (1 - alpha) / 2); // source: https://github.com/cran/MASS/blob/1767aca83144264dac95606edff420855fac260b/R/confint.R#L80
+      var t = -alglib.invstudenttdistribution(trainRows - n, alpha / 2); // source: https://github.com/cran/MASS/blob/1767aca83144264dac95606edff420855fac260b/R/confint.R#L80
       // old code for pointwise and simultaneuous intervals
       // var t = alglib.invstudenttdistribution(m - n, 1 - alpha / 2);
       // var f = alglib.invfdistribution(n, m - n, alpha);
@@ -337,7 +332,7 @@ namespace HEAL.NonlinearRegression {
       var s = nls.Statistics.s;
 
       // prediction intervals for each point in x
-      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
+      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 1 },
         (i, loopState) => {
           // buffer
           // actually they are only needed once for the whole loop but with parallel for we need to make copies
@@ -375,10 +370,10 @@ namespace HEAL.NonlinearRegression {
           void modelJac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
 
-          // var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
-          //   Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, x, nls.Statistics.s), nls.x);
           var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
-            Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, nls.y), nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
+            Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, nls.Statistics.s), nls.x);
+          // var statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
+          //   Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, nls.y), nls.x); // the effort for this is small compared to the effort of the TProfile calculation below
 
           var profile = CalcTProfile(nls.y, nls.x, statisticsExt, modelFunc, modelJac, outputParamIdx, alpha); // only for the function output parameter
 

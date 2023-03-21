@@ -86,7 +86,7 @@ namespace HEAL.NonlinearRegression {
       high = new double[n];
 
       // for approximate confidence interval of each parameter
-      var t = alglib.invstudenttdistribution(m - n, 1 - alpha / 2.0);
+      var t = -alglib.invstudenttdistribution(m - n, alpha / 2.0);
 
       for (int i = 0; i < n; i++) {
         low[i] = paramEst[i] - paramStdError[i] * t;
@@ -122,7 +122,7 @@ namespace HEAL.NonlinearRegression {
 
       // https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
       // var f = alglib.invfdistribution(n, this.m - n, alpha);
-      var t = alglib.invstudenttdistribution(this.m - n, 1 - alpha / 2);
+      var t = -alglib.invstudenttdistribution(this.m - n, alpha / 2);
 
       var noiseStdDev = includeNoise ? s : 0.0; // TODO noiseStdDev is not applicable for general likelihoods (specific to Gaussian)
 
