@@ -9,11 +9,11 @@ using HEAL.Expressions;
 using HEAL.Expressions.Parser;
 
 // TODO:
+//   - Remove everything that is specific to Gaussian likelihoods (s, SSR) (in model analysis, impact calculation, model evaluation, ...) use deviance instead
 //   - Option to set likelihood function on the command line
 //   - Clean up expression code to provide functions with inverses and derivatives via mapping functions (no special handling of inverse functions and derivatives within visitors)
 //   - Implement likelihoods symbolically (on top of the model functions) to support autodiff for likelihood gradients and likelihood Hessians. They are now hard-coded.
 //   - Numerically stable implementation for Bernoulli likelihood (using log1p() ?)
-//   - Remove everything that is specific to Gaussian likelihoods (s, SSR) (in model analysis, impact calculation, model evaluation, ...) use deviance instead
 //   - alglib is GPL, should switch to .NET numerics (MIT) instead.
 //   - iterative pruning based on subtree impacts or likelihood ratios for nested models
 //   - variable impacts for combinations of variables (tuples, triples). Contributions to individual variables via Shapely values?
@@ -21,8 +21,6 @@ using HEAL.Expressions.Parser;
 //   - If a range is specified (training, test) then only read the relevant rows of data
 
 namespace HEAL.NonlinearRegression.Console {
-  // Takes a dataset, target variable, and a model from the command line and runs NLR and calculates all statistics.
-  // Range for training set can be specified optionally.
   // Intended to be used together with Operon.
   // Use the suffix 'f' to mark real literals in the model as fixed instead of a parameter.
   // e.g. 10 * x^2f ,  2 is a fixed constant, 10 is a parameter of the model

@@ -65,7 +65,19 @@ namespace HEAL.NonlinearRegression {
 
       const int kmax = 300;
       const int step = 16;
-      var tmax = alglib.invstudenttdistribution(m - n, 1 - alpha / 2); // Math.Sqrt(alglib.invfdistribution(n, m - n, 0.01)); // limit for t (use small alpha here), book page 302
+      // in R: (parameterization taken from: https://github.com/wch/r-source/blob/03f8775bf4ae55129fa76318de2394059613353f/src/library/stats/R/nls-profile.R#L144)
+      // > qf(1 - 0.01, 1L, 12 - 2) 10.04429
+      // > qf(1 - 0.02, 1L, 12 - 2) 7.638422
+      // > qf(1 - 0.05, 1L, 12 - 2) 4.964603
+
+      // in alglib:
+      // alglib.invfdistribution(1, 12 - 2, 0.01)
+      // 10.044289273396592
+      // alglib.invfdistribution(1, 12 - 2, 0.02)
+      // 7.6384216175965465
+      // alglib.invfdistribution(1, 12 - 2, 0.05)
+      // 4.964602743730711
+      var tmax = Math.Sqrt(alglib.invfdistribution(1, m - n, 0.001)); // use a small threshold here
 
       // buffers
       var yPred_cond = new double[m];
@@ -169,7 +181,12 @@ namespace HEAL.NonlinearRegression {
             goto restart;
           }
 
-          var tau_i = Math.Sign(delta) * (nll - nllOpt);
+          // TODO: statistics of the NLS model should provide these (based on the likelihoods)
+          var deviance = nll;
+          var devianceOriginal = nllOpt;
+          var dispersion = statistics.s*statistics.s; // TODO: this needs to be adjusted for different likelihoods
+
+          var tau_i = Math.Sign(delta) * Math.Sqrt((deviance - devianceOriginal) / dispersion);
 
           invSlope = Math.Abs(tau_i / (paramStdError[pIdx] * zv)); // TODO: double-check this
           #endregion
@@ -293,7 +310,16 @@ namespace HEAL.NonlinearRegression {
       // }
 
       // we only calculate pointwise intervals
-      var t = alglib.invstudenttdistribution(trainRows - n, 1 - alpha / 2);
+      // in R:
+      // > qt(0.01, 10) -2.763769
+      // > qt(0.02, 10) -2.359315
+      // > qt(0.05, 10) -1.812461
+      // in alglib:
+      // alglib.invstudenttdistribution(10, 0.01) -2.7637694581126961
+      // alglib.invstudenttdistribution(10, 0.02) -2.3593146237365361
+      // alglib.invstudenttdistribution(10, 0.05) -1.8124611228116756
+
+      var t = alglib.invstudenttdistribution(trainRows - n, (1 - alpha) / 2); // source: https://github.com/cran/MASS/blob/1767aca83144264dac95606edff420855fac260b/R/confint.R#L80
       // old code for pointwise and simultaneuous intervals
       // var t = alglib.invstudenttdistribution(m - n, 1 - alpha / 2);
       // var f = alglib.invfdistribution(n, m - n, alpha);
