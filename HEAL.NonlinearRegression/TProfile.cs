@@ -182,10 +182,13 @@ namespace HEAL.NonlinearRegression {
           }
 
           // TODO: statistics of the NLS model should provide these (based on the likelihoods)
-          var deviance = nll;
-          var devianceOriginal = nllOpt;
+          // deviance is 2* log likelihood for gaussian case
+          // deviance is 2 * (loglike(model) - loglike(optimalModel)) for general likelihoods where optimalModel has one parameter for each output and produces a perfect fit
+          // https://en.wikipedia.org/wiki/Deviance_(statistics)
+          var deviance = 2 * nll;
+          var devianceOriginal = 2 * nllOpt;
 
-           var tau_i = Math.Sign(delta) * Math.Sqrt(2 * (deviance - devianceOriginal)); // TODO: double check the factor 2 here (it is required to produce exactly the same results as LaplaceApproximation for Gaussian likelihood and a linear model)
+           var tau_i = Math.Sign(delta) * Math.Sqrt(deviance - devianceOriginal); // TODO: double check the factor 2 here (it is required to produce exactly the same results as LaplaceApproximation for Gaussian likelihood and a linear model)
           invSlope = Math.Abs(tau_i / (paramStdError[pIdx] * zv));
           #endregion
 
