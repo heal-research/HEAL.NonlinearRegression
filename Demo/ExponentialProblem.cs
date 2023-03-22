@@ -1,4 +1,6 @@
-﻿using System;
+﻿using HEAL.Expressions;
+using System;
+using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression.Demo {
   internal class ExponentialProblem : INLSProblem {
@@ -24,6 +26,8 @@ namespace HEAL.NonlinearRegression.Demo {
     public double[] y { get; private set; }
 
     public double[] ThetaStart => new double[] { 1.0, 1.0 };
+
+    public Expression<Expr.ParametricFunction> ModelExpression => (double[] theta, double[] x) => theta[0] * Math.Exp(x[0] * theta[1]);
 
     public void Func(double[] theta, double[,] X, double[] f) {
       int m = X.GetLength(0);

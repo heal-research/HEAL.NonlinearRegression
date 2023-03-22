@@ -83,8 +83,8 @@ namespace HEAL.NonlinearRegression {
       // we assume noiseSigma is the RMSE of the original model
       var noiseSigma = stats0.s;
 
-      var fullAICc = ModelSelection.AICc(y, stats0.yPred, p.Length, noiseSigma);
-      var fullBIC = ModelSelection.AICc(y, stats0.yPred, p.Length, noiseSigma);
+      var fullAICc = nlr.AICc;
+      var fullBIC = nlr.BIC;
 
       var impacts = new Dictionary<Expression, double>();
 
@@ -103,8 +103,8 @@ namespace HEAL.NonlinearRegression {
 
         var impact = reducedStats.SSR / stats0.SSR;
 
-        yield return Tuple.Create(subExpr, impact, ModelSelection.AICc(y, reducedStats.yPred, p.Length, noiseSigma) - fullAICc,
-          ModelSelection.BIC(y, reducedStats.yPred, p.Length, noiseSigma) - fullBIC);
+        yield return Tuple.Create(subExpr, impact,nlr.AICc - fullAICc,
+          nlr.BIC - fullBIC);
       }
     }
 
@@ -138,8 +138,8 @@ namespace HEAL.NonlinearRegression {
       p = stats0.paramEst;
       var impacts = new List<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>();
 
-      var fullAIC = ModelSelection.AICc(y, stats0.yPred, p.Length, noiseSigma);
-      var fullBIC = ModelSelection.BIC(y, stats0.yPred, p.Length, noiseSigma);
+      var fullAIC = nlr.AICc;
+      var fullBIC = nlr.BIC;
       if (verbose) {
         Console.WriteLine(expr.Body);
         Console.WriteLine($"theta: {string.Join(", ", p.Select(p => p.ToString("e2")))}");
@@ -187,16 +187,17 @@ namespace HEAL.NonlinearRegression {
           var f = alglib.fdistribution(deltaDoF, fullDoF, fRatio);
 
           if(verbose)
-            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1-f,-10:e3}, {ModelSelection.AICc(y, reducedStats.yPred, reducedStats.paramEst.Length, noiseSigma) - fullAIC,-11:f1} {ModelSelection.BIC(y, reducedStats.yPred, reducedStats.paramEst.Length, noiseSigma) - fullBIC,-11:f1}");
+            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1-f,-10:e3}, " +
+              $"{nlr.AICc - fullAIC,-11:f1} " +
+              $"{nlr.BIC - fullBIC,-11:f1}");
 
           lock (impacts) {
-            impacts.Add(Tuple.Create(paramIdx, ssrFactor, ModelSelection.AICc(y, reducedStats.yPred, reducedStats.paramEst.Length, noiseSigma) - fullAIC, reducedExpression, newP));
+            impacts.Add(Tuple.Create(paramIdx, ssrFactor, nlr.AICc - fullAIC, reducedExpression, newP));
           }
         }
         catch (Exception e) {
           // Console.WriteLine($"Exception {e.Message} for {reducedExpression}");
         }
-        // yield return Tuple.Create(impact, (Expression)reducedExpression);
       }
       );
 

@@ -1,4 +1,6 @@
-﻿using System;
+﻿using HEAL.Expressions;
+using System;
+using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression.Demo {
 
@@ -16,6 +18,9 @@ namespace HEAL.NonlinearRegression.Demo {
     public double[] y => velocityTreated;
 
     public double[] ThetaStart => new double[] { 205, 0.08 };  // Bates and Watts page 41
+
+    public Expression<Expr.ParametricFunction> ModelExpression => (p, x) => p[0] * x[0] / (p[1] + x[0]);
+
     // model: y = p1 x / (p2 + x)
     public void Func(double[] theta, double[,] X, double[] f) {
       var m = X.GetLength(0);

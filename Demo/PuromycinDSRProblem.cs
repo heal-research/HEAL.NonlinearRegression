@@ -23,7 +23,7 @@ namespace HEAL.NonlinearRegression.Demo {
 
     // From grammar enumeration
     //  exp(conc * -6.38322549e+000) * -1.52730232e+002 + 2.00942899e+002
-    public override Expression<Expr.ParametricFunction> ModelExpr => (p, x) => 
+    public override Expression<Expr.ParametricFunction> ModelExpression => (p, x) => 
       p[0] * Math.Exp(x[0] * p[1])  + p[2];
   }
 }

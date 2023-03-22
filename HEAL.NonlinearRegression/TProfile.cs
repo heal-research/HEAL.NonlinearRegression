@@ -245,7 +245,7 @@ namespace HEAL.NonlinearRegression {
 
       // calc predicted values
       var yPred = new double[predRows];
-      nls.func(nls.Statistics.paramEst, x, yPred);
+      nls.modelFunc(nls.Statistics.paramEst, x, yPred);
 
 
       // we only calculate pointwise intervals
@@ -284,6 +284,7 @@ namespace HEAL.NonlinearRegression {
 
           LaplaceApproximation statisticsExt = null; // for the re-parameterized model
           alglib.ndimensional_grad negLogLikelihood = null;
+          // here we need to create our own functions because we have reparameterized the model
           if (nls.LikelihoodType == LikelihoodEnum.Gaussian) {
             negLogLikelihood = Util.CreateGaussianNegLogLikelihood(modelJac, nls.y, nls.x, nls.Statistics.s);
             statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,

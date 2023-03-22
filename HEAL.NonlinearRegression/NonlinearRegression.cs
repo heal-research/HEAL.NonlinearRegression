@@ -16,30 +16,49 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    internal Function? func;
-    internal Jacobian? jacobian;
+    internal Function? modelFunc;
+    internal Jacobian? modelJacobian;
     internal Expression<Expr.ParametricFunction>? modelExpr;
-    public LikelihoodEnum LikelihoodType { get; private set; }
+    public LikelihoodEnum? LikelihoodType { get; private set; }
     internal double[,]? x;
     internal double[]? y;
 
     // results
     private double[]? paramEst;
-    public alglib.ndimensional_grad NegLogLikelihoodFunc { get; private set; }
+    public alglib.ndimensional_grad? NegLogLikelihoodFunc { get; private set; } // mainly for internal use
+
+    public Hessian? FisherInformation { get; private set; }
 
     public double[]? ParamEst { get { return paramEst?.Clone() as double[]; } }
 
     public OptimizationReport? OptReport { get; private set; }
     public LaplaceApproximation? Statistics { get; private set; }
 
+
+    public double NegLogLikelihood {
+      // negative log likelihood of the model for the estimated parameters
+      get {
+        double f = 0.0;
+        var grad = new double[paramEst.Length];
+        NegLogLikelihoodFunc(ParamEst, ref f, grad, obj: null);
+        return f;
+      }
+    }
+
+    public double Deviance => 2.0 * NegLogLikelihood;
+    public double AIC => ModelSelection.AIC(-NegLogLikelihood, Statistics.n);
+    public double AICc => ModelSelection.AICc(-NegLogLikelihood, Statistics.n, Statistics.m);
+    public double BIC => ModelSelection.BIC(-NegLogLikelihood, Statistics.n, Statistics.m);
+
     public NonlinearRegression() { }
-    
+
     /// <summary>
     /// Least-squares fitting for func with Jacobian to target y using initial values p.
     /// Uses Levenberg-Marquardt algorithm.
     /// </summary>
     /// <param name="p">Initial values and optimized parameters on exit. Initial parameters are overwritten.</param>
-    /// <param name="expr"The expression (p, x) => to fit. Where p is the parameter vector to be optimized.</param> 
+    /// <param name="expr">The expression (p, x) => to fit. Where p is the parameter vector to be optimized.</param> 
+    /// <param name="likelihood">The likelihood type.</param> 
     /// <param name="y">Target values</param>
     /// <param name="report">Report with fitting results and statistics</param>
     /// <param name="maxIterations"></param>
@@ -50,48 +69,32 @@ namespace HEAL.NonlinearRegression {
     public void Fit(double[] p, Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] x, double[] y,
       int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
       Func<double[], double, bool>? callback = null) {
-      
-      var _func = Expr.Broadcast(expr).Compile();
-      void modelFunc(double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible 
-      
-      
-      var _jac = Expr.Jacobian(expr, p.Length).Compile();
-      void modelJac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
       this.modelExpr = expr;
       this.LikelihoodType = likelihood;
 
+      var _func = Expr.Broadcast(expr).Compile();
+      var _jac = Expr.Jacobian(expr, p.Length).Compile();
+      this.modelFunc = (double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible;
+      this.modelJacobian = (double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
+
       this.NegLogLikelihoodFunc = null;
       Hessian fisherInformation = null;
+
+      // TODO extract likelihoods in different base types?
       if (likelihood == LikelihoodEnum.Gaussian) {
         // TODO should we use specified noise error here?
-        this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJac, y, x, sErr: 1.0); 
-        fisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJac, y, sErr: 1.0); 
+        this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, sErr: 1.0);
+        this.FisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJacobian, y, sErr: 1.0);
       } else if (likelihood == LikelihoodEnum.Bernoulli) {
-        this.NegLogLikelihoodFunc = Util.CreateBernoulliNegLogLikelihood(modelJac, y, x);
-        fisherInformation = Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, y);
+        this.NegLogLikelihoodFunc = Util.CreateBernoulliNegLogLikelihood(modelJacobian, y, x);
+        this.FisherInformation = Util.CreateBernoulliNegLogLikelihoodHessian(modelJacobian, y);
       }
 
-      // TODO: required?
-      // this.func = modelFunc;
-      // this.jacobian = modelJac;
-      Fit(p, modelFunc, NegLogLikelihoodFunc, fisherInformation, x, y, maxIterations, scale, stepMax, callback);
+      Fit(p, fisherInformation, x, y, maxIterations, scale, stepMax, callback);
     }
 
-
-    /// <summary>
-    /// Least-squares fitting for func with Jacobian to target y using initial values p.
-    /// Uses Levenberg-Marquardt algorithm.
-    /// </summary>
-    /// <param name="p">Initial values and optimized parameters on exit. Initial parameters are overwritten.</param>
-    /// <param name="y">Target values</param>
-    /// <param name="report">Report with fitting results and statistics</param>
-    /// <param name="maxIterations"></param>
-    /// <param name="scale">Optional parameter to set parameter scale. Useful if parameters are given on very different measurement scales.</param>
-    /// <param name="stepMax">Optional parameter to limit the step size in Levenberg-Marquardt. Can be useful on quickly changing functions (e.g. exponentials).</param>
-    /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
-    /// <exception cref="InvalidProgramException"></exception>
-    public void Fit(double[] p, Function modelFunc, alglib.ndimensional_grad logLikelihood, Hessian fisherInformation, double[,] x, double[] y,
+    private void Fit(double[] p, Hessian fisherInformation, double[,] x, double[] y,
         int maxIterations = 0, double[]? scale = null, double stepMax = 0.0, Func<double[], double, bool>? callback = null) {
 
       this.x = (double[,])x.Clone();
@@ -111,7 +114,7 @@ namespace HEAL.NonlinearRegression {
           alglib.mincgrequesttermination(state);
         }
       }
-      alglib.mincgoptimize(state, logLikelihood, _rep, obj: null);
+      alglib.mincgoptimize(state, NegLogLikelihoodFunc, _rep, obj: null);
       alglib.mincgresults(state, out paramEst, out var rep);
       #endregion
 
@@ -160,8 +163,9 @@ namespace HEAL.NonlinearRegression {
       this.modelExpr = expr;
       var _func = Expr.Broadcast(expr).Compile();
       var _jac = Expr.Jacobian(expr, p.Length).Compile();
-      this.func = (double[] p, double[,] X, double[] f) => _func(p, X, f);
-      this.jacobian = (double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
+      this.modelFunc = (double[] p, double[,] X, double[] f) => _func(p, X, f);
+      this.modelJacobian = (double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
+
       this.paramEst = (double[])p.Clone();
       this.x = (double[,])x.Clone();
       this.y = (double[])y.Clone();
@@ -169,7 +173,7 @@ namespace HEAL.NonlinearRegression {
       // evaluate ypred and SSR
       var yPred = new double[m];
       var SSR = 0.0;
-      func(paramEst, x, yPred);
+      modelFunc(paramEst, x, yPred);
       for (int i = 0; i < yPred.Length; i++) {
         var r = y[i] - yPred[i];
         SSR += r * r;
@@ -177,9 +181,14 @@ namespace HEAL.NonlinearRegression {
 
       if (likelihood == LikelihoodEnum.Gaussian) {
         // TODO: should we use the specified noise sigma here?
-        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateGaussianNegLogLikelihoodHessian(jacobian, y, Math.Sqrt(SSR / (m - n))), x);
+        var s = Math.Sqrt(SSR / (m - n));
+        this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, s);
+        this.FisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJacobian, y, s);
+        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, FisherInformation, x);
       } else if (likelihood == LikelihoodEnum.Bernoulli) {
-        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, Util.CreateBernoulliNegLogLikelihoodHessian(jacobian, y), x);
+        this.NegLogLikelihoodFunc = Util.CreateBernoulliNegLogLikelihood(modelJacobian, y, x);
+        this.FisherInformation = Util.CreateBernoulliNegLogLikelihoodHessian(modelJacobian, y);
+        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, FisherInformation, x);
       }
     }
 
@@ -187,7 +196,7 @@ namespace HEAL.NonlinearRegression {
       if (paramEst == null) throw new InvalidOperationException("Call fit first.");
       var m = x.GetLength(0);
       var y = new double[m];
-      func(paramEst, x, y);
+      modelFunc(paramEst, x, y);
       return y;
     }
 
@@ -203,7 +212,7 @@ namespace HEAL.NonlinearRegression {
         case IntervalEnum.LaplaceApproximation: {
             var yPred = Predict(x);
             var y = new double[m, 4];
-            Statistics.GetPredictionIntervals(jacobian, x, alpha, out var resStdErr, out var low, out var high);
+            Statistics.GetPredictionIntervals(modelJacobian, x, alpha, out var resStdErr, out var low, out var high);
             for (int i = 0; i < m; i++) {
               y[i, 0] = yPred[i];
               y[i, 1] = resStdErr[i];
@@ -233,9 +242,9 @@ namespace HEAL.NonlinearRegression {
 
     private void WriteStatistics(TextWriter writer) {
       var noiseSigma = Statistics.s;
-      var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, y, noiseSigma, x, approxHessian: true);
-      var aicc = ModelSelection.AICc(y, Statistics.yPred, Statistics.n, noiseSigma);
-      var bic = ModelSelection.BIC(y, Statistics.yPred, Statistics.n, noiseSigma);
+      var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, -NegLogLikelihood, y, noiseSigma, x, approxHessian: true);
+      var aicc = ModelSelection.AICc(-NegLogLikelihood, Statistics.n, Statistics.m);
+      var bic = ModelSelection.BIC(-NegLogLikelihood, Statistics.n, Statistics.m);
       writer.WriteLine($"SSR: {Statistics.SSR:e4} s: {Statistics.s:e4} AICc: {aicc:f1} BIC: {bic:f1} MDL: {mdl:f1}");
       var p = ParamEst;
       var se = Statistics.paramStdError;

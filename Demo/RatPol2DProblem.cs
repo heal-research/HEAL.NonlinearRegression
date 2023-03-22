@@ -48,7 +48,7 @@ namespace HEAL.NonlinearRegression.Demo {
     // X1 * exp(X1 * X2 * 2.69747722e-002) * -5.52213198e-001 +
     // X2 * 3.28722667e-001 +
     // -2.16429221e+000
-    public override Expression<Expr.ParametricFunction> ModelExpr => (p, x) =>
+    public override Expression<Expr.ParametricFunction> ModelExpression => (p, x) =>
       p[0] * Math.Exp(x[0] * p[1]) +
       p[2] * x[0] +
       p[3] * Math.Exp(p[4] * x[1] * x[1]) * Math.Exp(p[5] * x[0]) * Math.Exp(p[6] * x[1]) +

@@ -1,4 +1,6 @@
-﻿using System;
+﻿using HEAL.Expressions;
+using System;
+using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression.Demo {
   // BOD example from Nonlinear Regression Analysis and Its Applications, Bates and Watts, 1988
@@ -20,6 +22,8 @@ namespace HEAL.NonlinearRegression.Demo {
     public double[] y => BOD;
 
     public double[] ThetaStart => new double[] { 20, 0.24 };
+
+    public Expression<Expr.ParametricFunction> ModelExpression => (double[] theta, double[] x) => theta[0] * (1 - Math.Exp(-theta[1] * x[0]));
 
     public void Func(double[] theta, double[,] X, double[] f) {
       var m = X.GetLength(0);

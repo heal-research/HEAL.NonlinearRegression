@@ -1,4 +1,7 @@
-﻿namespace HEAL.NonlinearRegression.Demo {
+﻿using HEAL.Expressions;
+using System.Linq.Expressions;
+
+namespace HEAL.NonlinearRegression.Demo {
   /// <summary>
   /// Interface for nonlinear least squares problems
   /// </summary>
@@ -11,6 +14,8 @@
     /// Target values. len(y) = m
     /// </summary>
     double[] y { get; }
+
+    Expression<Expr.ParametricFunction> ModelExpression { get; }
 
     /// <summary>
     /// Model function 

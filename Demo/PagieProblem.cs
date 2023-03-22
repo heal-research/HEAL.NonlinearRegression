@@ -78,7 +78,7 @@ namespace HEAL.NonlinearRegression.Demo {
     // cbrt(Y * Y * -2.60030338e+001 + 2.59476220e+001) * -7.79373531e-002 +
     // 1.61634069e+000
     
-    public override Expression<Expr.ParametricFunction> ModelExpr => (theta, x) =>
+    public override Expression<Expr.ParametricFunction> ModelExpression => (theta, x) =>
 
         /*
         // original

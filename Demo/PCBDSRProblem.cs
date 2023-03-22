@@ -91,7 +91,7 @@ namespace HEAL.NonlinearRegression.Demo {
 
     // From grammar enumeration
     // age * 1.37606397e+000 + 1/(age * -6.96730099e-002 + 6.30467914e-001) * 6.60401507e-002 + -1.34198596e+000
-    public override Expression<Expr.ParametricFunction> ModelExpr => (p, x) => 
+    public override Expression<Expr.ParametricFunction> ModelExpression => (p, x) => 
       p[0] * x[0] + 
       p[1]/(x[0] * p[2] + p[3])
       + p[4];

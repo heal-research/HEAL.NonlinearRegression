@@ -3,14 +3,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Security.Cryptography;
 
 
 namespace HEAL.NonlinearRegression {
   public static class MinimumDescriptionLength {
     // as described in https://arxiv.org/abs/2211.11461
     // Deaglan J. Bartlett, Harry Desmond, Pedro G. Ferreira, Exhaustive Symbolic Regression, 2022
-    public static double MDL(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double[] y, double noiseSigma, double[,] x, bool approxHessian = false) {
+    public static double MDL(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double logLikelihood, double[] y, double noiseSigma, double[,] x, bool approxHessian = false) {
       // total description length:
       // L(D) = L(D|H) + L(H)
 
@@ -31,16 +30,16 @@ namespace HEAL.NonlinearRegression {
       int numParam = paramEst.Length;
       var yPred = new double[y.Length];
       Expr.Broadcast(modelExpr).Compile()(paramEst, x, yPred);
-      var FIdiag = FisherInformationDiag(x, y, yPred, modelExpr, paramEst, noiseSigma, approxHessian);
+      var FIdiag = FisherInformationDiag(x, y, yPred, modelExpr, paramEst, noiseSigma, approxHessian); // here we would actually need the Hessian of the log likelihood (should be a parameter)
       
       // TODO: for negative constants and negative parameters we would need to account for an unary sign in the expression
-      return -ModelSelection.LogLikelihood(y, yPred, noiseSigma)
+      return -logLikelihood
         + numNodes * Math.Log(numSymbols) + constants.Sum(ci => Math.Log(Math.Abs(ci)))
         - numParam / 2.0 * Math.Log(3.0)
         + Enumerable.Range(0, numParam).Sum(i => 0.5 * Math.Log(FIdiag[i]) + Math.Log(Math.Abs(paramEst[i])));
     }
 
-    public static double MDLFreq(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double[] y, double noiseSigma, double[,] x, bool approxHessian = false) {
+    public static double MDLFreq(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double logLikelihood, double[] y, double noiseSigma, double[,] x, bool approxHessian = false) {
       // total description length:
       // L(D) = L(D|H) + L(H)
 
@@ -90,7 +89,7 @@ namespace HEAL.NonlinearRegression {
       var distinctVariables = usedVariables.Distinct().ToArray();
 
       // TODO: for negative constants and negative parameters we would need to account for an unary sign in the expression
-      return -ModelSelection.LogLikelihood(y, yPred, noiseSigma)
+      return -logLikelihood
         + Expr.CollectSymbols(modelExpr).Select(sy => CodeLen(sy)).Sum() // symbols in the expr
         + usedVariables.Length * Math.Log(distinctVariables.Length) // fixed length encoding for variables
         + constants.Sum(ci => Math.Log(Math.Abs(ci))) // constants

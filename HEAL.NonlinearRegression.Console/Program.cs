@@ -100,21 +100,21 @@ namespace HEAL.NonlinearRegression.Console {
           // TODO: most of the result values are specific to Gaussian likelihood
           GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
-          var SSR = EvaluateSSR(parametricExpr, p, x, y, out var yPred);
+          var nlr = new NonlinearRegression();
+          nlr.SetModel(p, parametricExpr, options.Likelihood, x, y);
+          var m = y.Length;
+          var SSR = nlr.Statistics.SSR;
+
+          var noiseSigma = options.NoiseSigma ?? nlr.Statistics.s; // use estimated noise standard error as default
           var nmse = SSR / y.Length / Util.Variance(y);
-          var noiseSigma = options.NoiseSigma ?? Math.Sqrt(SSR / y.Length); // use model RMSE as default
+          
+          var stats = nlr.Statistics;
+          var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, -nlr.NegLogLikelihood, y, noiseSigma, x, approxHessian: true);
+          var freqMdl = MinimumDescriptionLength.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, y, noiseSigma, x, approxHessian: false);
 
-          var _jac = Expr.Jacobian(parametricExpr, p.Length).Compile();
-          void jac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
-          var hessian = Util.CreateGaussianNegLogLikelihoodHessian(jac, y, noiseSigma);
-          var stats = new LaplaceApproximation(y.Length, p.Length, SSR, yPred, p, hessian, x);
-
-          var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, y, noiseSigma, x, approxHessian: true);
-          var freqMdl = MinimumDescriptionLength.MDLFreq(parametricExpr, p, y, noiseSigma, x, approxHessian: false);
-
-          var logLik = ModelSelection.LogLikelihood(y, yPred, noiseSigma);
-          var aicc = ModelSelection.AICc(y, yPred, p.Length, noiseSigma);
-          var bic = ModelSelection.BIC(y, yPred, p.Length, noiseSigma);
+          var logLik = -nlr.NegLogLikelihood;
+          var aicc = nlr.AICc;
+          var bic = nlr.BIC;
 
           System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {logLik} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
         } catch (Exception e) {
@@ -304,8 +304,8 @@ namespace HEAL.NonlinearRegression.Console {
         nlr.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, options.MaxIterations);
         var refStats = nlr.Statistics;
         var noiseSigma = refStats.s;
-        var refAicc = ModelSelection.AICc(trainY, refStats.yPred, p.Length, noiseSigma);
-        var refBic = ModelSelection.BIC(trainY, refStats.yPred, p.Length, noiseSigma);
+        var refAicc = nlr.AICc;
+        var refBic = nlr.BIC;
 
         var allModels = new List<Tuple<Expression<Expr.ParametricFunction>, double[]>>();
         var modelQueue = new Queue<Tuple<Expression<Expr.ParametricFunction>, double[]>>();
@@ -350,8 +350,8 @@ namespace HEAL.NonlinearRegression.Console {
             cvrmseMean = cvrmse.Average();
             cvrmseStd = Math.Sqrt(Util.Variance(cvrmse.ToArray()));
           } catch (Exception) { }
-          var aicc = ModelSelection.AICc(trainY, stats.yPred, p.Length, rmseTrain);
-          var bic = ModelSelection.BIC(trainY, stats.yPred, p.Length, rmseTrain);
+          var aicc = nlr.AICc;
+          var bic = nlr.BIC;
           System.Console.WriteLine($"{stats.SSR / refStats.SSR:e4},{stats.n},{rmseTrain:e4},{rmseTest:e4},{cvrmseMean:e4},{cvrmseStd:e4},{aicc:e4},{aicc - refAicc:e4},{bic:e4},{bic - refBic:e4},{Expr.ToString(parametricExpr, varNames, p)}");
         }
       }
@@ -416,7 +416,7 @@ namespace HEAL.NonlinearRegression.Console {
         var bestModel = origExpr;
         var bestParam = origParam;
         var bestNumParam = refStats.n;
-        var refAICc = ModelSelection.AICc(y, refStats.yPred, refStats.paramEst.Length, noiseSigma);
+        var refAICc = nlr.AICc;
         var bestAICc = refAICc;
 
         foreach (var subModel in allModels) {
@@ -426,7 +426,7 @@ namespace HEAL.NonlinearRegression.Console {
           nlr = new NonlinearRegression();
           nlr.SetModel(param, expr, options.Likelihood, trainX, trainY);
           var stats = nlr.Statistics;
-          var aicc = ModelSelection.AICc(trainY, stats.yPred, param.Length, noiseSigma);
+          var aicc = nlr.AICc;
           if (aicc - refAICc < options.DeltaAIC && stats.n <= bestNumParam) {
             bestModel = expr;
             bestNumParam = param.Length;

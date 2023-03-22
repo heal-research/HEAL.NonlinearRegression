@@ -1,4 +1,6 @@
-﻿using System;
+﻿using HEAL.Expressions;
+using System;
+using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression.Demo {
   internal class LinearUnivariateProblem : INLSProblem {
@@ -30,6 +32,8 @@ namespace HEAL.NonlinearRegression.Demo {
     public double[] y { get; private set; }
 
     public double[] ThetaStart => new double[] { .1, .1 };
+
+    public Expression<Expr.ParametricFunction> ModelExpression => (p, x) => p[0] * x[0] + p[1] * x[1];
 
     public void Func(double[] theta, double[,] X, double[] f) {
       int m = X.GetLength(0);

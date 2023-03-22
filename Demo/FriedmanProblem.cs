@@ -34,7 +34,7 @@ namespace HEAL.NonlinearRegression.Demo {
 
 
     // generating expression
-    public override Expression<Expr.ParametricFunction> ModelExpr => (p, x) => 
+    public override Expression<Expr.ParametricFunction> ModelExpression => (p, x) => 
         p[0] * Math.Sin(Math.PI * x[0] * x[1]) + p[1] * Math.Pow(x[2] - p[2], 2) + p[3] * x[3] + p[4] * x[4];
     
   }

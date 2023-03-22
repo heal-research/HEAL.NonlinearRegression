@@ -1,4 +1,6 @@
-﻿using System;
+﻿using HEAL.Expressions;
+using System;
+using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression.Demo {
   // PCB example from Nonlinear Regression Analysis and Its Applications, Bates and Watts, 1988
@@ -86,6 +88,8 @@ namespace HEAL.NonlinearRegression.Demo {
     public double[] y { get; private set; }
 
     public double[] ThetaStart => new double[] { 1.0, 1.0 };
+
+    public Expression<Expr.ParametricFunction> ModelExpression => (p, x) => p[0] * x[0] + p[1] * x[1];
 
     public void Func(double[] theta, double[,] X, double[] f) {
       var m = X.GetLength(0);

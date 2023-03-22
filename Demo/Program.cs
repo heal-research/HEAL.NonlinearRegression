@@ -34,22 +34,22 @@ namespace HEAL.NonlinearRegression.Demo {
       Console.WriteLine("-----------------");
 
       // fitting and prediction intervals
-      RunDemo(problem.X, problem.y, problem.Func, problem.Jacobian, problem.ThetaStart);
+      RunDemo(problem.X, problem.y, problem.ModelExpression, problem.Jacobian, problem.ThetaStart);
 
       // model analysis
       if (problem is SymbolicProblemBase symbProb) {
-        Console.WriteLine($"Model: {symbProb.ModelExpr}");
+        Console.WriteLine($"Model: {symbProb.ModelExpression}");
 
         Console.WriteLine("Variable importance (SSR ratio)");
         var varImportance =
-          ModelAnalysis.VariableImportance(symbProb.ModelExpr, LikelihoodEnum.Gaussian, symbProb.X, symbProb.y, symbProb.ThetaStart);
+          ModelAnalysis.VariableImportance(symbProb.ModelExpression, LikelihoodEnum.Gaussian, symbProb.X, symbProb.y, symbProb.ThetaStart);
         foreach (var kvp in varImportance.OrderByDescending(kvp => kvp.Value)) {
           Console.WriteLine($"x{kvp.Key} {kvp.Value,-11:e4}");
         }
         Console.WriteLine();
 
         Console.WriteLine("Subtree importance (SSR ratio)");
-        var expr = symbProb.ModelExpr;
+        var expr = symbProb.ModelExpression;
         var subExprImportance = ModelAnalysis.SubtreeImportance(expr, LikelihoodEnum.Gaussian, symbProb.X, symbProb.y, symbProb.ThetaStart);
         var sat = new Dictionary<Expression, double>();
         sat[expr] = 0.0; // reference value for the importance
@@ -64,7 +64,7 @@ namespace HEAL.NonlinearRegression.Demo {
         Console.WriteLine();
 
         Console.WriteLine("Nested models (set parameters zero) (SSR ratio)");
-        ModelAnalysis.NestedModelLiklihoodRatios(symbProb.ModelExpr, LikelihoodEnum.Gaussian, symbProb.X, symbProb.y, symbProb.ThetaStart, maxIterations: 10000);
+        ModelAnalysis.NestedModelLiklihoodRatios(symbProb.ModelExpression, LikelihoodEnum.Gaussian, symbProb.X, symbProb.y, symbProb.ThetaStart, maxIterations: 10000);
       }
 
 
@@ -80,14 +80,11 @@ namespace HEAL.NonlinearRegression.Demo {
     /// <param name="f">The function to fit.</param>
     /// <param name="jac">The Jacobian of f.</param>
     /// <param name="start">The starting point for parameter values.</param>
-    private static void RunDemo(double[,] x, double[] y, Function f, Jacobian jac, double[] start) {
+    private static void RunDemo(double[,] x, double[] y, Expression<Expr.ParametricFunction> expr, Jacobian jac, double[] start) {
       var theta = (double[])start.Clone();
       
-      var negLogLikelihoodFunc = HEAL.NonlinearRegression.Util.CreateGaussianNegLogLikelihood(jac, y, x, sErr: 1.0);
-      var fisherInformation = HEAL.NonlinearRegression.Util.CreateGaussianNegLogLikelihoodHessian(jac, y, sErr: 1.0);
-
       var nls = new NonlinearRegression();
-      nls.Fit(theta, f, negLogLikelihoodFunc, fisherInformation, x, y);
+      nls.Fit(theta, expr, LikelihoodEnum.Gaussian, x, y);
 
       if (nls.OptReport.Success) {
         Console.WriteLine($"p_opt: {string.Join(" ", theta.Select(pi => pi.ToString("e5")))}");

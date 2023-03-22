@@ -14,8 +14,6 @@ namespace HEAL.NonlinearRegression.Demo {
 
     public abstract double[] ThetaStart { get; }
 
-    public abstract Expression<Expr.ParametricFunction> ModelExpr { get; }
-    
     // compile the expressions only once
     private object compiledModelLocker = new object();
     private Expr.ParametricVectorFunction compiledModel;
@@ -25,7 +23,7 @@ namespace HEAL.NonlinearRegression.Demo {
       get {
         lock (compiledModelLocker) {
           if (compiledModel == null) {
-            compiledModel = Expr.Broadcast(ModelExpr).Compile();
+            compiledModel = Expr.Broadcast(ModelExpression).Compile();
           }
         }
         return compiledModel;
@@ -35,12 +33,14 @@ namespace HEAL.NonlinearRegression.Demo {
       get {
         lock (compiledModelLocker) {
           if (compiledJacobian == null) {
-            compiledJacobian = Expr.Broadcast(Expr.Gradient(ModelExpr, ThetaStart.Length)).Compile();
+            compiledJacobian = Expr.Broadcast(Expr.Gradient(ModelExpression, ThetaStart.Length)).Compile();
           }
         }
         return compiledJacobian;
       }
     }
+
+    public abstract Expression<Expr.ParametricFunction> ModelExpression { get; }
 
     public void Func(double[] theta, double[,] X, double[] f) {
       Model(theta, X, f);

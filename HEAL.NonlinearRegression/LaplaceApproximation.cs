@@ -95,7 +95,7 @@ namespace HEAL.NonlinearRegression {
 
 
 
-    public void GetPredictionIntervals(Jacobian jacobian, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high) {
+    public void GetPredictionIntervals(Jacobian modelJacobian, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high) {
       int numRows = x.GetLength(0);
       low = new double[numRows];
       high = new double[numRows];
@@ -103,7 +103,7 @@ namespace HEAL.NonlinearRegression {
 
       var yPred = new double[numRows];
       var J = new double[numRows, n];
-      jacobian(paramEst, x, yPred, J); // jacobian for the model
+      modelJacobian(paramEst, x, yPred, J);
 
       for (int i = 0; i < numRows; i++) {
         resStdError[i] = 0.0;
