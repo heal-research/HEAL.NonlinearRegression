@@ -5,13 +5,13 @@ namespace HEAL.NonlinearRegression {
   public class LaplaceApproximation {
     public int m { get; internal set; } // number of observations
     public int n { get; internal set; } // number of parameters
-    public double[] yPred { get; internal set; }
+
     // should be replaced by deviance https://en.wikipedia.org/wiki/Deviance_(statistics)
-    public double SSR { get; internal set; } // sum of squared residuals, S(θ) in Bates and Watts
+    // public double SSR { get; internal set; } // sum of squared residuals, S(θ) in Bates and Watts
 
     // s is used within this class because we use a Normal distribution to approximate the likelihood peak at maximum likelihood
     // outside of this class s should not be used
-    public double s => Math.Sqrt(SSR / (m - n)); // s²: residual mean square or variance estimate based on m-n degrees of freedom 
+    // public double s => Math.Sqrt(SSR / (m - n)); // s²: residual mean square or variance estimate based on m-n degrees of freedom 
     public double[] paramEst { get; internal set; } // estimated values for parameters θ
     public double[] paramStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
     public double[,] correlation { get; internal set; }// correlation matrix for parameters
@@ -19,11 +19,9 @@ namespace HEAL.NonlinearRegression {
 
     private double[,] invH; // covariance matrix for training set (required for prediction intervals)
 
-    public LaplaceApproximation(int m, int n, double SSR, double[] yPred, double[] paramEst, Hessian negLogLikeHessian, double[,] x) {
+    public LaplaceApproximation(int m, int n, double[] paramEst, Hessian negLogLikeHessian, double[,] x) {
       this.m = m;
       this.n = n;
-      this.SSR = SSR;
-      this.yPred = yPred;
       this.paramEst = (double[])paramEst.Clone();
       try {
         CalcParameterStatistics(negLogLikeHessian, x);
@@ -33,7 +31,6 @@ namespace HEAL.NonlinearRegression {
     }
 
     private void CalcParameterStatistics(Hessian negLogLikeHessian, double[,] x) {
-      int m = x.GetLength(0);
       var pOpt = paramEst;
 
       var U = new double[n, n];
@@ -77,7 +74,7 @@ namespace HEAL.NonlinearRegression {
       }
 
       correlation = C;
-      paramStdError = se.Select(sei => sei * s).ToArray();
+      paramStdError = se.ToArray();
     }
 
     public void GetParameterIntervals(double alpha, out double[] low, out double[] high) {
@@ -116,7 +113,7 @@ namespace HEAL.NonlinearRegression {
         for (int j = 0; j < n; j++) {
           resStdError[i] += J[i, j] * row[j];
         }
-        resStdError[i] = s * Math.Sqrt(resStdError[i]);
+        resStdError[i] = Math.Sqrt(resStdError[i]);
       }
 
       // https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
@@ -128,7 +125,5 @@ namespace HEAL.NonlinearRegression {
         high[i] = yPred[i] + resStdError[i]* t;
       }
     }
-
-
   }
 }

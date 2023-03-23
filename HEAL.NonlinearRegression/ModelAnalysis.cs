@@ -23,6 +23,7 @@ namespace HEAL.NonlinearRegression {
       var nlr = new NonlinearRegression();
       nlr.Fit(p, expr, likelihood, X, y);
       var stats0 = nlr.Statistics;
+      var referenceDeviance = nlr.Deviance;
       var m = y.Length;
       var d = X.GetLength(1);
 
@@ -46,7 +47,7 @@ namespace HEAL.NonlinearRegression {
         } else {
           var newStats = nlr.Statistics;
           // increase in variance for the reduced feature = variance explained by the feature
-          varExpl[varIdx] = (newStats.SSR - stats0.SSR) / (y.Length * Util.Variance(y));
+          varExpl[varIdx] = (nlr.Deviance - referenceDeviance) / y.Length;
         }
       }
 
@@ -77,11 +78,9 @@ namespace HEAL.NonlinearRegression {
       // TODO: we could skip this and get the baseline as parameter
       var nlr = new NonlinearRegression();
       nlr.Fit(p, expr, likelihood, X, y);
+      var referenceDeviance = nlr.Deviance;
       var stats0 = nlr.Statistics;
       p = (double[])stats0.paramEst.Clone();
-
-      // we assume noiseSigma is the RMSE of the original model
-      var noiseSigma = stats0.s;
 
       var fullAICc = nlr.AICc;
       var fullBIC = nlr.BIC;
@@ -101,7 +100,7 @@ namespace HEAL.NonlinearRegression {
         nlr.Fit(newTheta, reducedExpression, likelihood, X, y); // TODO make CLI parameter
         var reducedStats = nlr.Statistics;
 
-        var impact = reducedStats.SSR / stats0.SSR;
+        var impact = nlr.Deviance / referenceDeviance;
 
         yield return Tuple.Create(subExpr, impact,nlr.AICc - fullAICc,
           nlr.BIC - fullBIC);
@@ -129,10 +128,10 @@ namespace HEAL.NonlinearRegression {
       // TODO: we could skip this and get the baseline as parameter
 
       var nlr = new NonlinearRegression();
-      nlr.Fit(p, expr, likelihood, X, y, maxIterations);
+      nlr.Fit(p, expr, likelihood, X, y, maxIterations: maxIterations);
+      var refDeviance = nlr.Deviance;
 
-      var stats0 = nlr.Statistics;
-      var noiseSigma = stats0.s;
+      var stats0 = nlr.Statistics;      
       if (stats0 == null) return Enumerable.Empty<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>(); // cannot fit the expression
 
       p = stats0.paramEst;
@@ -143,7 +142,7 @@ namespace HEAL.NonlinearRegression {
       if (verbose) {
         Console.WriteLine(expr.Body);
         Console.WriteLine($"theta: {string.Join(", ", p.Select(p => p.ToString("e2")))}");
-        Console.WriteLine($"Full model SSR: {stats0.SSR,-11:e4}, MSE: {stats0.SSR / stats0.m,-11:e4}, AICc: {fullAIC,-11:f1} BIC: {fullBIC,-11:f1}");
+        Console.WriteLine($"Full model deviance: {refDeviance,-11:e4}, mean deviance: {refDeviance / stats0.m,-11:e4}, AICc: {fullAIC,-11:f1} BIC: {fullBIC,-11:f1}");
         Console.WriteLine($"p{"idx",-5} {"val",-11} {"SSR_factor",-11} {"deltaDoF",-6} {"deltaSSR",-11} {"s2Extra":e3} {"fRatio",-11} {"p value",10} {"deltaAICc"} {"deltaBIC"}");
       }
 
@@ -170,24 +169,24 @@ namespace HEAL.NonlinearRegression {
         // fit reduced model
         try {
           var nlr = new NonlinearRegression();
-          nlr.Fit(newP, reducedExpression, likelihood, X, y, maxIterations); // TODO make parameter
+          nlr.Fit(newP, reducedExpression, likelihood, X, y, maxIterations: maxIterations); // TODO make parameter
           var reducedStats = nlr.Statistics;
 
-          var ssrFactor = reducedStats.SSR / stats0.SSR;
+          var ssrFactor = nlr.Deviance / refDeviance;
 
           // likelihood ratio test
           var fullDoF = stats0.m - stats0.n;
           var deltaDoF = stats0.n - reducedStats.n; // number of fewer parameters
-          var deltaSSR = reducedStats.SSR - stats0.SSR;
-          var s2Extra = deltaSSR / deltaDoF; // increase in SSR per parameter
-          var fRatio = s2Extra / Math.Pow(stats0.s, 2);
+          var deltaDeviance = nlr.Deviance - refDeviance;
+          var s2Extra = deltaDeviance / deltaDoF; // increase in deviance per parameter
+          var fRatio = s2Extra / (nlr.Dispersion * nlr.Dispersion);
 
           // "accept the partial value if the calculated ratio is lower than the table value"
           // var f = alglib.invfdistribution(deltaDoF, fullDoF, 0.05);  // TODO make alpha CLI parameter
           var f = alglib.fdistribution(deltaDoF, fullDoF, fRatio);
 
           if(verbose)
-            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1-f,-10:e3}, " +
+            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaDeviance,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1-f,-10:e3}, " +
               $"{nlr.AICc - fullAIC,-11:f1} " +
               $"{nlr.BIC - fullBIC,-11:f1}");
 

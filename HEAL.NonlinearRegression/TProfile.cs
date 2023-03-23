@@ -260,8 +260,7 @@ namespace HEAL.NonlinearRegression {
 
       var t = -alglib.invstudenttdistribution(trainRows - n, alpha / 2); // source: https://github.com/cran/MASS/blob/1767aca83144264dac95606edff420855fac260b/R/confint.R#L80
 
-      var s = nls.Statistics.s;
-
+      
       // prediction intervals for each point in x
       Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
         (i, loopState) => {
@@ -286,13 +285,13 @@ namespace HEAL.NonlinearRegression {
           alglib.ndimensional_grad negLogLikelihood = null;
           // here we need to create our own functions because we have reparameterized the model
           if (nls.LikelihoodType == LikelihoodEnum.Gaussian) {
-            negLogLikelihood = Util.CreateGaussianNegLogLikelihood(modelJac, nls.y, nls.x, nls.Statistics.s);
-            statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
-              Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, nls.Statistics.s), nls.x);
+            negLogLikelihood = Util.CreateGaussianNegLogLikelihood(modelJac, nls.y, nls.x, nls.Dispersion);
+            statisticsExt = new LaplaceApproximation(trainRows, n, paramEstExt,
+              Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, nls.Dispersion), nls.x);
 
           } else if(nls.LikelihoodType == LikelihoodEnum.Bernoulli) {
             negLogLikelihood = Util.CreateBernoulliNegLogLikelihood(modelJac, nls.y, nls.x);
-            statisticsExt = new LaplaceApproximation(trainRows, n, nls.Statistics.SSR, yPred, paramEstExt,
+            statisticsExt = new LaplaceApproximation(trainRows, n, paramEstExt,
                Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, nls.y), nls.x);
           }
 

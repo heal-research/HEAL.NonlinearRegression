@@ -97,6 +97,7 @@ namespace HEAL.NonlinearRegression {
         ;
     }
 
+    // TODO: this is hard-coded for Gaussian likelihood
     // diag(I) for the normal log likelihood
     public static double[] FisherInformationDiag(double[,] X, double[] y, double[] yPred, Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double noiseSigma, bool approxHessian = false) {
       var n = paramEst.Length;

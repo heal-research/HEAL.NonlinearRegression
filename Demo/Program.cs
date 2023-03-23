@@ -82,7 +82,7 @@ namespace HEAL.NonlinearRegression.Demo {
     /// <param name="start">The starting point for parameter values.</param>
     private static void RunDemo(double[,] x, double[] y, Expression<Expr.ParametricFunction> expr, Jacobian jac, double[] start) {
       var theta = (double[])start.Clone();
-      
+
       var nls = new NonlinearRegression();
       nls.Fit(theta, expr, LikelihoodEnum.Gaussian, x, y);
 
@@ -92,38 +92,35 @@ namespace HEAL.NonlinearRegression.Demo {
         nls.WriteStatistics();
 
 
-        if (nls.Statistics.s > 1e-6) {
-          var tProfile = new TProfile(nls.Statistics, nls.NegLogLikelihoodFunc);
+        var tProfile = new TProfile(nls.Statistics, nls.NegLogLikelihoodFunc);
 
 
-          nls.Statistics.GetPredictionIntervals(jac, x, 0.05, out var resStdError, out var linLow, out var linHigh);
-          Console.WriteLine("Prediction intervals (linear approximation);");
-          for (int i = 0; i < Math.Min(linLow.Length, 10); i++) {
-            Console.WriteLine($"{nls.Statistics.yPred[i],14:e4} {linLow[i],14:e4} {linHigh[i],14:e4}");
+        var pred = nls.PredictWithIntervals(x, IntervalEnum.LaplaceApproximation, 0.05);
+        Console.WriteLine("Prediction intervals (linear approximation);");
+        for (int i = 0; i < Math.Min(pred.GetLength(0), 10); i++) {
+          Console.WriteLine($"{pred[i,0],14:e4} {pred[i,2],14:e4} {pred[i,3],14:e4}");
+        }
+
+        Console.WriteLine();
+
+        // produce predictions for the first few data points
+        double[,] xReduced;
+        if (x.GetLength(0) > 10) {
+          xReduced = new double[10, x.GetLength(1)];
+          Buffer.BlockCopy(x, 0, xReduced, 0, xReduced.Length * sizeof(double));
+        } else {
+          xReduced = x;
+        }
+
+        try {
+
+          pred = nls.PredictWithIntervals(x, IntervalEnum.TProfile, 0.05);
+          Console.WriteLine("Prediction intervals (t-profile);");
+          for (int i = 0; i < Math.Min(pred.GetLength(0), 10); i++) {
+            Console.WriteLine($"{pred[i, 0],14:e4} {pred[i, 1],14:e4} {pred[i, 2],14:e4}");
           }
-
-          Console.WriteLine();
-
-          // produce predictions for the first few data points
-          double[,] xReduced;
-          if (x.GetLength(0) > 10) {
-            xReduced = new double[10, x.GetLength(1)];
-            Buffer.BlockCopy(x, 0, xReduced, 0, xReduced.Length * sizeof(double));
-          } else {
-            xReduced = x;
-          }
-
-          try {
-
-            TProfile.GetPredictionIntervals(xReduced, nls, out var tLow, out var tHigh);
-            Console.WriteLine("Prediction intervals (t-profile);");
-            for (int i = 0; i < Math.Min(linLow.Length, 10); i++) {
-              Console.WriteLine($"{nls.Statistics.yPred[i],14:e4} {tLow[i],14:e4} {tHigh[i],14:e4}");
-            }
-          }
-          catch (Exception e) {
-            Console.WriteLine(e.Message);
-          }
+        } catch (Exception e) {
+          Console.WriteLine(e.Message);
         }
 
         // // TODO: extend this to produce some relevant output for all parameters instead of only a pairwise contour

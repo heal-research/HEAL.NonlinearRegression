@@ -45,7 +45,8 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    public double Deviance => 2.0 * NegLogLikelihood;
+    public double Deviance => 2.0 * NegLogLikelihood; // for Gaussian: Deviance = SSR /sErr^2
+    public double Dispersion { get; set; } // for Gaussian: Dispersion = sErr (estimated as Math.Sqrt(SSR / (m-n))); for Bernoulli: Dispersion = 1;
     public double AIC => ModelSelection.AIC(-NegLogLikelihood, Statistics.n);
     public double AICc => ModelSelection.AICc(-NegLogLikelihood, Statistics.n, Statistics.m);
     public double BIC => ModelSelection.BIC(-NegLogLikelihood, Statistics.n, Statistics.m);
@@ -66,7 +67,7 @@ namespace HEAL.NonlinearRegression {
     /// <param name="stepMax">Optional parameter to limit the step size in Levenberg-Marquardt. Can be useful on quickly changing functions (e.g. exponentials).</param>
     /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
     /// <exception cref="InvalidProgramException"></exception>
-    public void Fit(double[] p, Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] x, double[] y,
+    public void Fit(double[] p, Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] x, double[] y, double? noiseSigma = null,
       int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
       Func<double[], double, bool>? callback = null) {
 
@@ -81,14 +82,27 @@ namespace HEAL.NonlinearRegression {
       // TODO extract likelihoods in different base types?
       if (likelihood == LikelihoodEnum.Gaussian) {
         // TODO should we use specified noise error here?
-        this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, sErr: 1.0);
-        this.FisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJacobian, y, sErr: 1.0);
+        this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, sErr: noiseSigma ?? 1.0);
+        this.Dispersion = noiseSigma ?? 1.0;
       } else if (likelihood == LikelihoodEnum.Bernoulli) {
         this.NegLogLikelihoodFunc = Util.CreateBernoulliNegLogLikelihood(modelJacobian, y, x);
-        this.FisherInformation = Util.CreateBernoulliNegLogLikelihoodHessian(modelJacobian, y);
+        this.Dispersion = 1.0; // assumed to be 1 for Bernoulli
       }
 
       Fit(p, x, y, maxIterations, scale, stepMax, callback);
+
+      // if successful
+      if (paramEst != null) {
+        if (likelihood == LikelihoodEnum.Gaussian) {
+          // update dispersion with estimated value after fitting (if noiseSigma was not specified)
+          this.Dispersion = noiseSigma ?? Math.Sqrt(Deviance / (y.Length - p.Length)); // s = Math.Sqrt(SSR / (m - n))
+          this.FisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJacobian, y, this.Dispersion);
+        }
+        else if(likelihood == LikelihoodEnum.Bernoulli) {
+          this.FisherInformation = Util.CreateBernoulliNegLogLikelihoodHessian(modelJacobian, y);
+        }
+        Statistics = new LaplaceApproximation(y.Length, paramEst.Length, paramEst, FisherInformation, x);
+      }
     }
 
     private void Fit(double[] p, double[,] x, double[] y,
@@ -117,16 +131,6 @@ namespace HEAL.NonlinearRegression {
 
       if (rep.terminationtype >= 0) {
         Array.Copy(paramEst, p, p.Length);
-        // TODO: modelFunc is only required for SSR calculation but this is probably not necessary for LaplaceApproximation
-        // evaluate ypred and SSR
-        var yPred = new double[m];
-        var SSR = 0.0;
-        modelFunc(paramEst, x, yPred);
-        for (int i = 0; i < yPred.Length; i++) {
-          var r = y[i] - yPred[i];
-          SSR += r * r;
-        }
-        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, FisherInformation, x);
 
         OptReport = new OptimizationReport() {
           Success = true,
@@ -167,26 +171,26 @@ namespace HEAL.NonlinearRegression {
       this.x = (double[,])x.Clone();
       this.y = (double[])y.Clone();
 
-      // evaluate ypred and SSR
-      var yPred = new double[m];
-      var SSR = 0.0;
-      modelFunc(paramEst, x, yPred);
-      for (int i = 0; i < yPred.Length; i++) {
-        var r = y[i] - yPred[i];
-        SSR += r * r;
-      }
-
       this.LikelihoodType = likelihood;
       if (likelihood == LikelihoodEnum.Gaussian) {
-        // TODO: should we use the specified noise sigma here?
-        var s = Math.Sqrt(SSR / (m - n));
-        this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, s);
-        this.FisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJacobian, y, s);
-        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, FisherInformation, x);
+        // evaluate ypred and SSR
+        var yPred = new double[m];
+        var SSR = 0.0;
+        modelFunc(paramEst, x, yPred);
+        for (int i = 0; i < yPred.Length; i++) {
+          var r = y[i] - yPred[i];
+          SSR += r * r;
+        }
+
+        // TODO: should we use the noise sigma from CLI here?
+        this.Dispersion = Math.Sqrt(SSR / (m - n));
+        this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, Dispersion);
+        this.FisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJacobian, y, Dispersion);
+        Statistics = new LaplaceApproximation(m, n, paramEst, FisherInformation, x);
       } else if (likelihood == LikelihoodEnum.Bernoulli) {
         this.NegLogLikelihoodFunc = Util.CreateBernoulliNegLogLikelihood(modelJacobian, y, x);
         this.FisherInformation = Util.CreateBernoulliNegLogLikelihoodHessian(modelJacobian, y);
-        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, FisherInformation, x);
+        Statistics = new LaplaceApproximation(m, n, paramEst, FisherInformation, x);
       }
     }
 
@@ -239,11 +243,10 @@ namespace HEAL.NonlinearRegression {
     }
 
     private void WriteStatistics(TextWriter writer) {
-      var noiseSigma = Statistics.s;
-      var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, -NegLogLikelihood, y, noiseSigma, x, approxHessian: true);
+      var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, -NegLogLikelihood, y, Dispersion, x, approxHessian: true);
       var aicc = ModelSelection.AICc(-NegLogLikelihood, Statistics.n, Statistics.m);
       var bic = ModelSelection.BIC(-NegLogLikelihood, Statistics.n, Statistics.m);
-      writer.WriteLine($"SSR: {Statistics.SSR:e4} s: {Statistics.s:e4} AICc: {aicc:f1} BIC: {bic:f1} MDL: {mdl:f1}");
+      writer.WriteLine($"Deviance: {Deviance:e4}  Dispersion: {Dispersion:e4} AICc: {aicc:f1} BIC: {bic:f1} MDL: {mdl:f1}");
       var p = ParamEst;
       var se = Statistics.paramStdError;
       if (se != null) {

@@ -57,7 +57,7 @@ namespace HEAL.NonlinearRegression.Console {
 
         var nls = new NonlinearRegression();
         try {
-          nls.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, options.MaxIterations);
+          nls.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, maxIterations: options.MaxIterations);
         } catch (Exception e) {
           System.Console.WriteLine("There was a problem while fitting.");
           continue;
@@ -103,12 +103,14 @@ namespace HEAL.NonlinearRegression.Console {
           var nlr = new NonlinearRegression();
           nlr.SetModel(p, parametricExpr, options.Likelihood, x, y);
           var m = y.Length;
-          var SSR = nlr.Statistics.SSR;
+          
+          var SSR = nlr.Deviance * nlr.Dispersion * nlr.Dispersion; // only valid for Gaussian!
 
-          var noiseSigma = options.NoiseSigma ?? nlr.Statistics.s; // use estimated noise standard error as default
+          var noiseSigma = options.NoiseSigma ?? nlr.Dispersion; // use estimated noise standard error as default
           var nmse = SSR / y.Length / Util.Variance(y);
           
           var stats = nlr.Statistics;
+          // TODO this needs to be generalized to other likelihoods
           var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, -nlr.NegLogLikelihood, y, noiseSigma, x, approxHessian: true);
           var freqMdl = MinimumDescriptionLength.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, y, noiseSigma, x, approxHessian: false);
 
@@ -116,7 +118,11 @@ namespace HEAL.NonlinearRegression.Console {
           var aicc = nlr.AICc;
           var bic = nlr.BIC;
 
-          System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {logLik} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
+          if (options.Likelihood == LikelihoodEnum.Gaussian) {
+            System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {logLik} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
+          } else if(options.Likelihood == LikelihoodEnum.Bernoulli) {
+            System.Console.WriteLine($"Deviance: {nlr.Deviance} LogLik: {logLik} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
+          }
         } catch (Exception e) {
           System.Console.WriteLine($"Could not evaluate model {model}");
         }
@@ -310,9 +316,9 @@ namespace HEAL.NonlinearRegression.Console {
 
         // calculate ref stats for full model
         var nlr = new NonlinearRegression();
-        nlr.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, options.MaxIterations);
+        nlr.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, maxIterations: options.MaxIterations);
         var refStats = nlr.Statistics;
-        var noiseSigma = refStats.s;
+        var refDeviance = nlr.Deviance;
         var refAicc = nlr.AICc;
         var refBic = nlr.BIC;
 
@@ -340,7 +346,7 @@ namespace HEAL.NonlinearRegression.Console {
           }
         }
         System.Console.WriteLine();
-        System.Console.WriteLine($"SSR_Factor,numPar,RMSE_tr,RMSE_te,RMSE_cv,RMSE_cv_std,AICc,dAICc,BIC,dBIC,Model");
+        System.Console.WriteLine($"Deviance_Factor,numPar,AICc,dAICc,BIC,dBIC,Model");
         foreach (var subModel in allModels) {
           (parametricExpr, p) = subModel;
 
@@ -348,20 +354,20 @@ namespace HEAL.NonlinearRegression.Console {
           nlr = new NonlinearRegression();
           nlr.SetModel(p, parametricExpr, options.Likelihood, trainX, trainY);
           var stats = nlr.Statistics;
-          var ssrTrain = stats.SSR;
-          var rmseTrain = Math.Sqrt(ssrTrain / trainY.Length);
-          var ssrTest = EvaluateSSR(parametricExpr, p, testX, testY, out _);
-          var rmseTest = Math.Sqrt(ssrTest / testY.Length);
-          var cvrmseMean = double.NaN;
-          var cvrmseStd = double.NaN;
-          try {
-            var cvrmse = CrossValidate(parametricExpr, options.Likelihood, p, trainX, trainY, folds: 5);
-            cvrmseMean = cvrmse.Average();
-            cvrmseStd = Math.Sqrt(Util.Variance(cvrmse.ToArray()));
-          } catch (Exception) { }
+          var deviance = nlr.Deviance;
+          // var rmseTrain = Math.Sqrt(deviance / trainY.Length);
+          // var ssrTest = EvaluateSSR(parametricExpr, p, testX, testY, out _);
+          // var rmseTest = Math.Sqrt(ssrTest / testY.Length);
+          // var cvrmseMean = double.NaN;
+          // var cvrmseStd = double.NaN;
+          // try {
+          //   var cvrmse = CrossValidate(parametricExpr, options.Likelihood, p, trainX, trainY, folds: 5);
+          //   cvrmseMean = cvrmse.Average();
+          //   cvrmseStd = Math.Sqrt(Util.Variance(cvrmse.ToArray()));
+          // } catch (Exception) { }
           var aicc = nlr.AICc;
           var bic = nlr.BIC;
-          System.Console.WriteLine($"{stats.SSR / refStats.SSR:e4},{stats.n},{rmseTrain:e4},{rmseTest:e4},{cvrmseMean:e4},{cvrmseStd:e4},{aicc:e4},{aicc - refAicc:e4},{bic:e4},{bic - refBic:e4},{Expr.ToString(parametricExpr, varNames, p)}");
+          System.Console.WriteLine($"{nlr.Deviance / refDeviance:e4},{stats.n},{aicc:e4},{aicc - refAicc:e4},{bic:e4},{bic - refBic:e4},{Expr.ToString(parametricExpr, varNames, p)}");
         }
       }
     }
@@ -390,9 +396,8 @@ namespace HEAL.NonlinearRegression.Console {
 
         // calculate ref stats for full model
         var nlr = new NonlinearRegression();
-        nlr.Fit(origParam, origExpr, options.Likelihood, trainX, trainY, options.MaxIterations);
+        nlr.Fit(origParam, origExpr, options.Likelihood, trainX, trainY, maxIterations: options.MaxIterations);
         var refStats = nlr.Statistics;
-        var noiseSigma = refStats.s; // assume RMSE of original model for noiseSigma
         if (refStats == null) {
           // could not fit expression
           System.Console.WriteLine($"deltaAICc: {double.NaN}, deltaN: {double.NaN}, {Expr.ToString(origExpr, varNames, origParam)}");
@@ -604,10 +609,19 @@ namespace HEAL.NonlinearRegression.Console {
 
         var tProfile = new TProfile(nlr.Statistics, nlr.NegLogLikelihoodFunc);
 
-        // TODO: output profile based confidence intervals
-
+        System.Console.WriteLine($"profile-based marginal confidence intervals (alpha={options.Alpha})");
         for (int pIdx = 0; pIdx < parameters.Length; pIdx++) {
           tProfile.GetProfile(pIdx, out var p, out var tau, out var p_stud);
+
+          var t = alglib.invstudenttdistribution(nlr.Statistics.m - nlr.Statistics.n, 1.0 - options.Alpha / 2);
+          alglib.spline1dbuildcubic(tau, p, out var tau2p);
+          double low, high;
+          if (tau.Min() > -t) low = double.NaN;
+          else low = alglib.spline1dcalc(tau2p, -t);
+          if (tau.Max() < t) high = double.NaN;
+          else high = alglib.spline1dcalc(tau2p, t);
+          System.Console.WriteLine($"p{pIdx} {parameters[pIdx],14:e4} {low,14:e4} {high,14:e4}");
+          // write to file
           var outfilename = Path.Combine(folder, filename + $"_profile_{pIdx}.csv");
           using (var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create))) {
             writer.WriteLine("tau,p,p_stud");
@@ -686,6 +700,9 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option('l', "likelihood", Required = false, HelpText = "The likelihood function for the model (Gaussian or Bernoulli) (default: Gaussian)", Default = LikelihoodEnum.Gaussian)]
       public LikelihoodEnum Likelihood { get; set; }
+
+      [Option("noiseSigma", Required = false, HelpText = "The standard error of observations for Gaussian likelihood. This has an effect on confidence intervals and model selection criteria. Ignored for other likelihoods.")]
+      public double? NoiseSigma { get; set; }
 
       [Option("train", Required = false, HelpText = "The training range <firstRow>:<lastRow> in the dataset (inclusive).")]
       public string TrainingRange { get; set; }
@@ -917,6 +934,8 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for profile calculation.")]
       public string TrainingRange { get; set; }
+      [Option("alpha", Required = false, Default = 0.05, HelpText = "The alpha parameter for the profile-based marginal confidence intervals of parameters.")]
+      public double Alpha { get; set; } = 0.05;
     }
 
     [Verb("rank", HelpText = "Determine numeric rank of Jacobian matrix")]
