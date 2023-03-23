@@ -78,9 +78,6 @@ namespace HEAL.NonlinearRegression {
       this.modelFunc = (double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible;
       this.modelJacobian = (double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
-      this.NegLogLikelihoodFunc = null;
-      Hessian fisherInformation = null;
-
       // TODO extract likelihoods in different base types?
       if (likelihood == LikelihoodEnum.Gaussian) {
         // TODO should we use specified noise error here?
@@ -91,10 +88,10 @@ namespace HEAL.NonlinearRegression {
         this.FisherInformation = Util.CreateBernoulliNegLogLikelihoodHessian(modelJacobian, y);
       }
 
-      Fit(p, fisherInformation, x, y, maxIterations, scale, stepMax, callback);
+      Fit(p, x, y, maxIterations, scale, stepMax, callback);
     }
 
-    private void Fit(double[] p, Hessian fisherInformation, double[,] x, double[] y,
+    private void Fit(double[] p, double[,] x, double[] y,
         int maxIterations = 0, double[]? scale = null, double stepMax = 0.0, Func<double[], double, bool>? callback = null) {
 
       this.x = (double[,])x.Clone();
@@ -129,7 +126,7 @@ namespace HEAL.NonlinearRegression {
           var r = y[i] - yPred[i];
           SSR += r * r;
         }
-        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, fisherInformation, x);
+        Statistics = new LaplaceApproximation(m, n, SSR, yPred, paramEst, FisherInformation, x);
 
         OptReport = new OptimizationReport() {
           Success = true,
@@ -179,6 +176,7 @@ namespace HEAL.NonlinearRegression {
         SSR += r * r;
       }
 
+      this.LikelihoodType = likelihood;
       if (likelihood == LikelihoodEnum.Gaussian) {
         // TODO: should we use the specified noise sigma here?
         var s = Math.Sqrt(SSR / (m - n));

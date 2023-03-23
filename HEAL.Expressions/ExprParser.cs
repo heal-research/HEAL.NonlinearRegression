@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -369,10 +370,10 @@ namespace HEAL.Expressions.Parser {
                 if (ch == 'f') {
                   NextCh();
                   Token = TokenEnum.Constant;
-                  NumberVal = double.Parse(sb.ToString());
+                  NumberVal = double.Parse(sb.ToString(), CultureInfo.InvariantCulture);
                 } else {
                   Token = TokenEnum.Parameter;
-                  NumberVal = double.Parse(sb.ToString());
+                  NumberVal = double.Parse(sb.ToString(), CultureInfo.InvariantCulture);
                 }
               } else Token = TokenEnum.None;
               break;

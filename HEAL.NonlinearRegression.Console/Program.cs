@@ -143,6 +143,15 @@ namespace HEAL.NonlinearRegression.Console {
     private static void Predict(PredictOptions options) {
       PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
 
+      if(options.Range != null) {
+        // calc predictions only for the specified range
+        var rangeTokens = options.Range.Split(":");
+        var predStart = int.Parse(rangeTokens[0]);
+        var predEnd = int.Parse(rangeTokens[1]);
+        Split(x, y, predStart, predEnd, 0, x.GetLength(0) - 1, out var predX, out var predY, out var _, out var _);
+        x = predX;
+        y = predY;
+      } 
       foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
@@ -698,6 +707,9 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("interval", Required = false, Default = IntervalEnum.LaplaceApproximation, HelpText = "Prediction interval type.")]
       public IntervalEnum Interval { get; set; }
+
+      [Option("range", Required = false, HelpText ="The range of index values for which the predictions should be calculated (default: whole dataset)")]
+      public string? Range { get; set; }
     }
 
     [Verb("fit", HelpText = "Fit a model using a dataset.")]
