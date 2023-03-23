@@ -19,7 +19,7 @@ namespace HEAL.NonlinearRegression.Console.Tests {
       // Laplace approximation lower and upper bounds are close to confidence intervals in R
       var expected = @"p_opt: 6.41213e-002 2.12684e+002
 Successful: True, NumIters: 3, NumFuncEvals: 44, NumJacEvals: 0
-Deviance: 1.0000e+001  Dispersion: 1.0934e+001 AICc: 19.0 BIC: 17.5 MDL: 21.5
+SSR: 1.1954e+003  s: 1.0934e+001 AICc: 19.0 BIC: 17.5 MDL: 21.5
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
     0    6.4121e-002    8.2809e-003   7.74e+000    4.5670e-002    8.2572e-002 1.00
     1    2.1268e+002    6.9472e+000   3.06e+001    1.9720e+002    2.2816e+002 0.77 1.00
@@ -94,7 +94,7 @@ p1    2.1268e+002    1.9730e+002    2.2929e+002
     public void FitLinearPuromycin() {
       var expected = @"p_opt: 1.10421e+002 1.03488e+002
 Successful: True, NumIters: 2, NumFuncEvals: 10, NumJacEvals: 0
-Deviance: 1.0000e+001  Dispersion: 3.0898e+001 AICc: 19.0 BIC: 17.5 MDL: 15.1
+SSR: 9.5471e+003  s: 3.0898e+001 AICc: 19.0 BIC: 17.5 MDL: 15.1
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
     0    1.1042e+002    2.3371e+001   4.72e+000    5.8347e+001    1.6249e+002 1.00
     1    1.0349e+002    1.2024e+001   8.61e+000    7.6697e+001    1.3028e+002 -0.67 1.00

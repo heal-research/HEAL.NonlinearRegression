@@ -251,9 +251,11 @@ namespace HEAL.NonlinearRegression {
 
     private void WriteStatistics(TextWriter writer) {
       var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, -NegLogLikelihood, Statistics.diagH);
-      var aicc = ModelSelection.AICc(-NegLogLikelihood, Statistics.n, Statistics.m);
-      var bic = ModelSelection.BIC(-NegLogLikelihood, Statistics.n, Statistics.m);
-      writer.WriteLine($"Deviance: {Deviance:e4}  Dispersion: {Dispersion:e4} AICc: {aicc:f1} BIC: {bic:f1} MDL: {mdl:f1}");
+      if (LikelihoodType == LikelihoodEnum.Gaussian) {
+        writer.WriteLine($"SSR: {Deviance * Dispersion * Dispersion:e4}  s: {Dispersion:e4} AICc: {AICc:f1} BIC: {BIC:f1} MDL: {mdl:f1}");
+      } else if(LikelihoodType == LikelihoodEnum.Bernoulli) {
+        writer.WriteLine($"Deviance: {Deviance:e4}  Dispersion: {Dispersion:e4} AICc: {AICc:f1} BIC: {BIC:f1} MDL: {mdl:f1}");
+      }
       var p = ParamEst;
       var se = Statistics.paramStdError;
       if (se != null) {
@@ -266,10 +268,5 @@ namespace HEAL.NonlinearRegression {
         writer.WriteLine();
       }
     }
-
-    #region helper
-
-
-    #endregion
   }
 }
