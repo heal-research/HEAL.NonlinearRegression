@@ -1,8 +1,6 @@
 ﻿
 using NUnit.Framework;
 using System.Globalization;
-using static alglib;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace HEAL.NonlinearRegression.Console.Tests {
   public class NLR_EndToEnd {
@@ -43,6 +41,13 @@ p0    6.4121e-002    4.6920e-002    8.6157e-002
 p1    2.1268e+002    1.9730e+002    2.2929e+002
 ";
       NlrProfile("Puromycin.csv", "x0 / (0.06412128165180965 + x0) * 212.68374312341493", "0:11", "y", "Gaussian", expected);
+    }
+
+    [Test]
+    public void EvaluatePuromycin() {
+      var expected = @"SSR: 1195.4488144393595 MSE: 99.62073453661328 RMSE: 9.981018712366653 NMSE: 0.03873916985979826 R2: 0.9612608301402017 LogLik: -4.999999999999999 AIC: 15.999999999999998 AICc: 19 BIC: 17.454719949363998 MDL: 21.516073714821182 MDL(freq): 19.710008327782482 DoF: 2
+";
+      NlrEvaluate("Puromycin.csv", "x0 / (0.06412128165180965 + x0) * 212.68374312341493", "0:11", "y", "Gaussian", expected);
     }
 
     [Test]
@@ -165,8 +170,7 @@ Optimized: ((110.42107672063618 * x0) + 103.48806186471386)
       //     Null deviance: 1326.98  on 960  degrees of freedom
       // Residual deviance:  784.38  on 955  degrees of freedom
       // AIC: 796.38
-      // TODO: check difference in AIC / AICc
-      // TODO: check/fix difference in standard error and z values
+      // TODO: check/fix difference in standard error, z values, and CI
 
       var expected = @"p_opt: 1.38378e+000 4.84833e-002 5.24299e-001 3.52511e-001 -6.84851e-002 -1.11809e+001
 Successful: True, NumIters: 195, NumFuncEvals: 614, NumJacEvals: 0
@@ -185,6 +189,21 @@ Optimized: Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * 
       NlrFit("mammography.csv",
         "Logistic(((((((2.2567076159618358 * BI_RADS) + (0.04380746945531807 * Age)) + (0.5000365292519695 * Shape)) + (0.3044656335194289 * Margin)) + (-0.024110900815627095 * Density)) + -14.579127936956462))", 
         "0:960", 
+        "Severity",
+        "Bernoulli",
+        expected);
+    }
+
+    [Test]
+    public void EvaluateMammography() {
+
+      // TODO: MDL incorrect
+      var expected = @"Deviance: 784.3750837455059 LogLik: -392.18754187275294 AIC: 798.3750837455059 AICc: 798.4926073551596 BIC: 832.450904608298 MDL: 450.7358700691587 MDL(freq): 444.8041189299324 DoF: 6
+";
+
+      NlrEvaluate("mammography.csv",
+        "Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))",
+        "0:960",
         "Severity",
         "Bernoulli",
         expected);
@@ -305,6 +324,9 @@ p5   -1.1198e+001   -1.3314e+001   -9.1743e+000
     }
     internal void NlrProfile(string dataFilename, string model, string trainRange, string target, string likelihood, string expected) {
       RunConsoleTest(() => Program.Main(new[] { "profile", "--dataset", dataFilename, "--model", model, "--target", target, "--likelihood", likelihood, "--train", trainRange }), expected);
+    }
+    internal void NlrEvaluate(string dataFilename, string model, string range, string target, string likelihood, string expected) {
+      RunConsoleTest(() => Program.Main(new[] { "evaluate", "--dataset", dataFilename, "--model", model, "--target", target, "--likelihood", likelihood, "--range", range }), expected);
     }
 
     internal void RunConsoleTest(Action action, string expected) {

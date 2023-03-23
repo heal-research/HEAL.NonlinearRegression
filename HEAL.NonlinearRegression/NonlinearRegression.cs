@@ -117,7 +117,10 @@ namespace HEAL.NonlinearRegression {
       #region Conjugate Gradient
       alglib.mincgcreate(p, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, maxIterations);
-      if (scale != null) alglib.mincgsetprecdiag(state, scale);
+      if (scale != null) {
+        alglib.mincgsetscale(state, scale);
+        alglib.mincgsetprecdiag(state, scale);
+      }
       if (stepMax > 0.0) alglib.mincgsetstpmax(state, stepMax);
 
       void _rep(double[] x, double f, object o) {
@@ -186,12 +189,12 @@ namespace HEAL.NonlinearRegression {
         this.Dispersion = Math.Sqrt(SSR / (m - n));
         this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, Dispersion);
         this.FisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJacobian, y, Dispersion);
-        Statistics = new LaplaceApproximation(m, n, paramEst, FisherInformation, x);
       } else if (likelihood == LikelihoodEnum.Bernoulli) {
+        this.Dispersion = 1.0;
         this.NegLogLikelihoodFunc = Util.CreateBernoulliNegLogLikelihood(modelJacobian, y, x);
         this.FisherInformation = Util.CreateBernoulliNegLogLikelihoodHessian(modelJacobian, y);
-        Statistics = new LaplaceApproximation(m, n, paramEst, FisherInformation, x);
       }
+      Statistics = new LaplaceApproximation(m, n, paramEst, FisherInformation, x);
     }
 
     public double[] Predict(double[,] x) {

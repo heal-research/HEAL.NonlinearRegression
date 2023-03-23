@@ -9,11 +9,8 @@ using HEAL.Expressions;
 using HEAL.Expressions.Parser;
 
 // TODO:
-//   - Remove everything that is specific to Gaussian likelihoods (s, SSR) (in model analysis, impact calculation, model evaluation, ...) use deviance instead
-//   - Option to set likelihood function on the command line
 //   - Clean up expression code to provide functions with inverses and derivatives via mapping functions (no special handling of inverse functions and derivatives within visitors)
 //   - Implement likelihoods symbolically (on top of the model functions) to support autodiff for likelihood gradients and likelihood Hessians. They are now hard-coded.
-//   - Numerically stable implementation for Bernoulli likelihood (using log1p() ?)
 //   - alglib is GPL, should switch to .NET numerics (MIT) instead.
 //   - iterative pruning based on subtree impacts or likelihood ratios for nested models
 //   - variable impacts for combinations of variables (tuples, triples). Contributions to individual variables via Shapely values?
@@ -21,7 +18,7 @@ using HEAL.Expressions.Parser;
 //   - If a range is specified (training, test) then only read the relevant rows of data
 
 namespace HEAL.NonlinearRegression.Console {
-  // Intended to be used together with Operon.
+  // Intended to be used together with Operon or HeuristicLab.
   // Use the suffix 'f' to mark real literals in the model as fixed instead of a parameter.
   // e.g. 10 * x^2f ,  2 is a fixed constant, 10 is a parameter of the model
   public class Program {
@@ -112,16 +109,16 @@ namespace HEAL.NonlinearRegression.Console {
           var stats = nlr.Statistics;
           // TODO this needs to be generalized to other likelihoods
           var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, -nlr.NegLogLikelihood, y, noiseSigma, x, approxHessian: true);
-          var freqMdl = MinimumDescriptionLength.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, y, noiseSigma, x, approxHessian: false);
+          var freqMdl = MinimumDescriptionLength.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, y, noiseSigma, x, approxHessian: true);
 
           var logLik = -nlr.NegLogLikelihood;
           var aicc = nlr.AICc;
           var bic = nlr.BIC;
 
           if (options.Likelihood == LikelihoodEnum.Gaussian) {
-            System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {logLik} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
+            System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {logLik} AIC: {nlr.AIC} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
           } else if(options.Likelihood == LikelihoodEnum.Bernoulli) {
-            System.Console.WriteLine($"Deviance: {nlr.Deviance} LogLik: {logLik} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
+            System.Console.WriteLine($"Deviance: {nlr.Deviance} LogLik: {logLik} AIC: {nlr.AIC} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
           }
         } catch (Exception e) {
           System.Console.WriteLine($"Could not evaluate model {model}");
@@ -751,6 +748,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("range", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive).")]
       public string Range { get; set; }
+
       [Option("noiseSigma", Required = false, HelpText = "The standard deviation of noise in the target if it is known.")]
       public double? NoiseSigma { get; set; } // TODO: only for Gaussian likelihood and allow string value to refer to a variable in the dataset
     }

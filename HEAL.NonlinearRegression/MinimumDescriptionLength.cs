@@ -77,6 +77,7 @@ namespace HEAL.NonlinearRegression {
         { "Math.Sqrt()", 4.78},
         { "Functions.Cbrt()", 6},
         { "Functions.AQ()", 6},
+        { "Functions.Logistic()", 6 }
       };
 
       double CodeLen(string sy) {
