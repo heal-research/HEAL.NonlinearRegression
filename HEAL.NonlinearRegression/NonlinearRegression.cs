@@ -45,6 +45,10 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
+    // deviance is 2* log likelihood for gaussian case
+    // deviance is 2 * (loglike(model) - loglike(optimalModel)) for general likelihoods where optimalModel has one parameter for each output and produces a perfect fit
+    // https://en.wikipedia.org/wiki/Deviance_(statistics)
+
     public double Deviance => 2.0 * NegLogLikelihood; // for Gaussian: Deviance = SSR /sErr^2
     public double Dispersion { get; set; } // for Gaussian: Dispersion = sErr (estimated as Math.Sqrt(SSR / (m-n))); for Bernoulli: Dispersion = 1;
     public double AIC => ModelSelection.AIC(-NegLogLikelihood, Statistics.n);
@@ -246,7 +250,7 @@ namespace HEAL.NonlinearRegression {
     }
 
     private void WriteStatistics(TextWriter writer) {
-      var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, -NegLogLikelihood, y, Dispersion, x, approxHessian: true);
+      var mdl = MinimumDescriptionLength.MDL(modelExpr, paramEst, -NegLogLikelihood, Statistics.diagH);
       var aicc = ModelSelection.AICc(-NegLogLikelihood, Statistics.n, Statistics.m);
       var bic = ModelSelection.BIC(-NegLogLikelihood, Statistics.n, Statistics.m);
       writer.WriteLine($"Deviance: {Deviance:e4}  Dispersion: {Dispersion:e4} AICc: {aicc:f1} BIC: {bic:f1} MDL: {mdl:f1}");

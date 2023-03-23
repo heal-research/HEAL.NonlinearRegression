@@ -125,10 +125,6 @@ namespace HEAL.NonlinearRegression {
             goto restart;
           }
 
-          // TODO: statistics of the NLS model should provide these (based on the likelihoods)
-          // deviance is 2* log likelihood for gaussian case
-          // deviance is 2 * (loglike(model) - loglike(optimalModel)) for general likelihoods where optimalModel has one parameter for each output and produces a perfect fit
-          // https://en.wikipedia.org/wiki/Deviance_(statistics)
           var deviance = 2 * nll;
           var devianceOriginal = 2 * nllOpt;
 

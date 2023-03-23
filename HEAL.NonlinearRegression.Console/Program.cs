@@ -108,8 +108,8 @@ namespace HEAL.NonlinearRegression.Console {
           
           var stats = nlr.Statistics;
           // TODO this needs to be generalized to other likelihoods
-          var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, -nlr.NegLogLikelihood, y, noiseSigma, x, approxHessian: true);
-          var freqMdl = MinimumDescriptionLength.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, y, noiseSigma, x, approxHessian: true);
+          var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, -nlr.NegLogLikelihood, nlr.Statistics.diagH);
+          var freqMdl = MinimumDescriptionLength.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, nlr.Statistics.diagH);
 
           var logLik = -nlr.NegLogLikelihood;
           var aicc = nlr.AICc;
