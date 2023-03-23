@@ -6,12 +6,6 @@ namespace HEAL.NonlinearRegression {
     public int m { get; internal set; } // number of observations
     public int n { get; internal set; } // number of parameters
 
-    // should be replaced by deviance https://en.wikipedia.org/wiki/Deviance_(statistics)
-    // public double SSR { get; internal set; } // sum of squared residuals, S(θ) in Bates and Watts
-
-    // s is used within this class because we use a Normal distribution to approximate the likelihood peak at maximum likelihood
-    // outside of this class s should not be used
-    // public double s => Math.Sqrt(SSR / (m - n)); // s²: residual mean square or variance estimate based on m-n degrees of freedom 
     public double[] paramEst { get; internal set; } // estimated values for parameters θ
     public double[] paramStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
     public double[,] correlation { get; internal set; }// correlation matrix for parameters

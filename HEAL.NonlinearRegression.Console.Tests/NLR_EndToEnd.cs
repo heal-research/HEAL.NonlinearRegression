@@ -209,6 +209,20 @@ Optimized: Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * 
     }
 
     [Test]
+    public void CrossValidateMammography() {
+
+      var expected = @"CV_score: 6.9391e-001 CV_stdev: 5.3068e-003 CV_se: 1.6782e-003
+";
+
+      NlrCrossValidate("mammography.csv",
+        "Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))",
+        "0:960",
+        "Severity",
+        "Bernoulli",
+        expected);
+    }
+
+    [Test]
     public void ProfileMammography() {
       // comparions with R:
       // confint(fit_glm, level = 0.95)
@@ -326,6 +340,9 @@ p5   -1.1198e+001   -1.3314e+001   -9.1743e+000
     }
     internal void NlrEvaluate(string dataFilename, string model, string range, string target, string likelihood, string expected) {
       RunConsoleTest(() => Program.Main(new[] { "evaluate", "--dataset", dataFilename, "--model", model, "--target", target, "--likelihood", likelihood, "--range", range }), expected);
+    }
+    internal void NlrCrossValidate(string dataFilename, string model, string range, string target, string likelihood, string expected) {
+      RunConsoleTest(() => Program.Main(new[] { "crossvalidate", "--dataset", dataFilename, "--model", model, "--target", target, "--likelihood", likelihood, "--train", range, "--folds", "10", "--shuffle", "--seed","1234"}), expected);
     }
 
     internal void RunConsoleTest(Action action, string expected) {

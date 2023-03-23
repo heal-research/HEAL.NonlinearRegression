@@ -19,9 +19,9 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target values</param>
     /// <param name="p">Initial parameter values for the full model</param>
     /// <returns></returns>
-    public static Dictionary<int, double> VariableImportance(Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] X, double[] y, double[] p) {
+    public static Dictionary<int, double> VariableImportance(Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double? noiseSigma, double[,] X, double[] y, double[] p) {
       var nlr = new NonlinearRegression();
-      nlr.Fit(p, expr, likelihood, X, y);
+      nlr.Fit(p, expr, likelihood, X, y, noiseSigma);
       var stats0 = nlr.Statistics;
       var referenceDeviance = nlr.Deviance;
       var m = y.Length;
@@ -40,7 +40,7 @@ namespace HEAL.NonlinearRegression {
         newExpr = Expr.FoldParameters(newExpr, newThetaValues, out newThetaValues);
 
         nlr = new NonlinearRegression();
-        nlr.Fit(newThetaValues, newExpr, likelihood, X, y);
+        nlr.Fit(newThetaValues, newExpr, likelihood, X, y, noiseSigma);
         if (nlr.Statistics == null) {
           Console.WriteLine("Problem while fitting");
           varExpl[varIdx] = 0.0;
@@ -65,7 +65,7 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target variable values</param>
     /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
-    public static IEnumerable<Tuple<Expression, double, double, double>> SubtreeImportance(Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] X, double[] y, double[] p) {
+    public static IEnumerable<Tuple<Expression, double, double, double>> SubtreeImportance(Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double? noiseSigma, double[,] X, double[] y, double[] p) {
       var m = X.GetLength(0);
       var pParam = expr.Parameters[0];
       var xParam = expr.Parameters[1];
@@ -77,7 +77,7 @@ namespace HEAL.NonlinearRegression {
       // fit the full model once for the baseline
       // TODO: we could skip this and get the baseline as parameter
       var nlr = new NonlinearRegression();
-      nlr.Fit(p, expr, likelihood, X, y);
+      nlr.Fit(p, expr, likelihood, X, y, noiseSigma);
       var referenceDeviance = nlr.Deviance;
       var stats0 = nlr.Statistics;
       p = (double[])stats0.paramEst.Clone();
@@ -97,7 +97,7 @@ namespace HEAL.NonlinearRegression {
 
 
         // fit reduced model
-        nlr.Fit(newTheta, reducedExpression, likelihood, X, y); // TODO make CLI parameter
+        nlr.Fit(newTheta, reducedExpression, likelihood, X, y, noiseSigma); // TODO make CLI parameter
         var reducedStats = nlr.Statistics;
 
         var impact = nlr.Deviance / referenceDeviance;
@@ -119,7 +119,8 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target variable values</param>
     /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
-    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] X, double[] y, double[] p, int maxIterations, bool verbose = false) {
+    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(Expression<Expr.ParametricFunction> expr, 
+      LikelihoodEnum likelihood, double? noiseSigma, double[,] X, double[] y, double[] p, int maxIterations, bool verbose = false) {
       var m = X.GetLength(0);
       var pParam = expr.Parameters[0];
       var xParam = expr.Parameters[1];
@@ -128,7 +129,7 @@ namespace HEAL.NonlinearRegression {
       // TODO: we could skip this and get the baseline as parameter
 
       var nlr = new NonlinearRegression();
-      nlr.Fit(p, expr, likelihood, X, y, maxIterations: maxIterations);
+      nlr.Fit(p, expr, likelihood, X, y, noiseSigma, maxIterations: maxIterations);
       var refDeviance = nlr.Deviance;
 
       var stats0 = nlr.Statistics;      
@@ -169,7 +170,7 @@ namespace HEAL.NonlinearRegression {
         // fit reduced model
         try {
           var nlr = new NonlinearRegression();
-          nlr.Fit(newP, reducedExpression, likelihood, X, y, maxIterations: maxIterations); // TODO make parameter
+          nlr.Fit(newP, reducedExpression, likelihood, X, y, noiseSigma, maxIterations: maxIterations); // TODO make parameter
           var reducedStats = nlr.Statistics;
 
           var ssrFactor = nlr.Deviance / refDeviance;

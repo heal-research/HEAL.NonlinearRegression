@@ -54,7 +54,7 @@ namespace HEAL.NonlinearRegression.Console {
 
         var nls = new NonlinearRegression();
         try {
-          nls.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, maxIterations: options.MaxIterations);
+          nls.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma, maxIterations: options.MaxIterations);
         } catch (Exception e) {
           System.Console.WriteLine("There was a problem while fitting.");
           continue;
@@ -98,18 +98,18 @@ namespace HEAL.NonlinearRegression.Console {
           GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
           var nlr = new NonlinearRegression();
-          nlr.SetModel(p, parametricExpr, options.Likelihood, x, y);
+          nlr.SetModel(p, parametricExpr, options.Likelihood, options.NoiseSigma, x, y);
           var m = y.Length;
-          
+
           var SSR = nlr.Deviance * nlr.Dispersion * nlr.Dispersion; // only valid for Gaussian!
 
           var noiseSigma = options.NoiseSigma ?? nlr.Dispersion; // use estimated noise standard error as default
           var nmse = SSR / y.Length / Util.Variance(y);
-          
+
           var stats = nlr.Statistics;
           // TODO this needs to be generalized to other likelihoods
-          var mdl = MinimumDescriptionLength.MDL(parametricExpr, p, -nlr.NegLogLikelihood, nlr.Statistics.diagH);
-          var freqMdl = MinimumDescriptionLength.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, nlr.Statistics.diagH);
+          var mdl = ModelSelection.MDL(parametricExpr, p, -nlr.NegLogLikelihood, nlr.Statistics.diagH);
+          var freqMdl = ModelSelection.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, nlr.Statistics.diagH);
 
           var logLik = -nlr.NegLogLikelihood;
           var aicc = nlr.AICc;
@@ -117,7 +117,7 @@ namespace HEAL.NonlinearRegression.Console {
 
           if (options.Likelihood == LikelihoodEnum.Gaussian) {
             System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {logLik} AIC: {nlr.AIC} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
-          } else if(options.Likelihood == LikelihoodEnum.Bernoulli) {
+          } else if (options.Likelihood == LikelihoodEnum.Bernoulli) {
             System.Console.WriteLine($"Deviance: {nlr.Deviance} LogLik: {logLik} AIC: {nlr.AIC} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
           }
         } catch (Exception e) {
@@ -146,7 +146,7 @@ namespace HEAL.NonlinearRegression.Console {
     private static void Predict(PredictOptions options) {
       PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
 
-      if(options.Range != null) {
+      if (options.Range != null) {
         // calc predictions only for the specified range
         var rangeTokens = options.Range.Split(":");
         var predStart = int.Parse(rangeTokens[0]);
@@ -154,15 +154,15 @@ namespace HEAL.NonlinearRegression.Console {
         Split(x, y, predStart, predEnd, 0, x.GetLength(0) - 1, out var predX, out var predY, out var _, out var _);
         x = predX;
         y = predY;
-      } 
+      }
       foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
         var nlr = new NonlinearRegression();
         if (options.NoOptimization) {
-          nlr.SetModel(p, parametricExpr, options.Likelihood, trainX, trainY);
+          nlr.SetModel(p, parametricExpr, options.Likelihood, options.NoiseSigma, trainX, trainY);
         } else {
-          nlr.Fit(p, parametricExpr, options.Likelihood, trainX, trainY);
+          nlr.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma);
         }
 
         var predict = nlr.PredictWithIntervals(x, options.Interval);
@@ -210,16 +210,18 @@ namespace HEAL.NonlinearRegression.Console {
         try {
           GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
-          var cvmse = CrossValidate(parametricExpr, options.Likelihood, p, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed);
-          var stddev = Math.Sqrt(Util.Variance(cvmse.ToArray()));
-          System.Console.WriteLine($"mean(MSE): {cvmse.Average():e4} stddev(MSE): {stddev:e4} se(MSE): {stddev / Math.Sqrt(cvmse.Count())}"); // Elements of Statistical Learning
+          // we have to use a fixed noise Sigma here. 
+          // NoiseSigma = 1 works well because in this case Deviance = SSR.
+          var cvMeanDeviance = CrossValidate(parametricExpr, options.Likelihood, noiseSigma: 1.0, p, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed);
+          var stddev = Math.Sqrt(Util.Variance(cvMeanDeviance.ToArray()));
+          System.Console.WriteLine($"CV_score: {cvMeanDeviance.Average():e4} CV_stdev: {stddev:e4} CV_se: {stddev / Math.Sqrt(cvMeanDeviance.Count):e4}"); // Elements of Statistical Learning
         } catch (Exception e) {
           System.Console.WriteLine($"Error in fitting model {model}");
         }
       }
     }
 
-    private static List<double> CrossValidate(Expression<Expr.ParametricFunction> parametricExpr, LikelihoodEnum likelihood, double[] p, double[,] X, double[] y, int folds = 10, bool shuffle = false, int? seed = null) {
+    private static List<double> CrossValidate(Expression<Expr.ParametricFunction> parametricExpr, LikelihoodEnum likelihood, double? noiseSigma, double[] p, double[,] X, double[] y, int folds = 10, bool shuffle = false, int? seed = null) {
       Random rand;
       if (seed.HasValue) {
         rand = new Random(seed.Value);
@@ -233,31 +235,42 @@ namespace HEAL.NonlinearRegression.Console {
 
 
       var foldSize = (int)Math.Truncate((y.Length + 1) / (double)folds);
-      var mse = new List<double>();
-      Parallel.For(0, folds, (f) => {
-        var foldStart = f * foldSize;
-        var foldEnd = (f + 1) * foldSize - 1;
-        if (f == folds - 1) {
-          foldEnd = y.Length - 1; // include remaining part in last fold
-        }
+      var avgLoss = new List<double>();
+      Parallel.For(0, folds, new ParallelOptions() { MaxDegreeOfParallelism = 1 },
+        (f) => {
+          var foldStart = f * foldSize;
+          var foldEnd = (f + 1) * foldSize - 1;
+          if (f == folds - 1) {
+            foldEnd = y.Length - 1; // include remaining part in last fold
+          }
 
-        DeletePartition(X, y, foldStart, foldEnd, out var foldTrainX, out var foldTrainY);
-        Split(X, y, foldStart, foldEnd, foldStart, foldEnd, out var foldTestX, out var foldTestY, out _, out _);
+          DeletePartition(X, y, foldStart, foldEnd, out var foldTrainX, out var foldTrainY);
+          Split(X, y, foldStart, foldEnd, foldStart, foldEnd, out var foldTestX, out var foldTestY, out _, out _);
 
-        var nls = new NonlinearRegression();
-        nls.Fit(p, parametricExpr, likelihood, foldTrainX, foldTrainY, maxIterations: 5000); // TODO make CLI parameter
+          var nls = new NonlinearRegression();
+          nls.Fit(p, parametricExpr, likelihood, foldTrainX, foldTrainY, noiseSigma, maxIterations: 5000); // TODO make CLI parameter
 
-        var foldPred = nls.Predict(foldTestX);
-        var SSRtest = 0.0;
-        for (int i = 0; i < foldTestY.Length; i++) {
-          var r = foldTestY[i] - foldPred[i];
-          SSRtest += r * r;
-        }
-        lock (mse) {
-          mse.Add(SSRtest / foldTestY.Length);
-        }
-      });
-      return mse;
+          var yPred = nls.Predict(foldTestX);
+
+          double loss = 0.0;
+          if (likelihood == LikelihoodEnum.Gaussian) {
+            // loss is SSR
+            for (int i = 0; i < yPred.Length; i++) {
+              var r = y[i] - yPred[i];
+              loss += r * r;
+            }
+          } else if (likelihood == LikelihoodEnum.Bernoulli) {
+            // loss is neg bernoulli likelihood?
+            for (int i = 0; i < yPred.Length; i++) {
+              loss -= foldTestY[i] * Math.Log(yPred[i]) + (1 - foldTestY[i]) * Math.Log(1 - yPred[i]);
+            }
+          }
+
+          lock (avgLoss) {
+            avgLoss.Add(loss / foldTestY.Length);
+          }
+        });
+      return avgLoss;
     }
 
     private static void Simplify(SimplifyOptions options) {
@@ -313,7 +326,7 @@ namespace HEAL.NonlinearRegression.Console {
 
         // calculate ref stats for full model
         var nlr = new NonlinearRegression();
-        nlr.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, maxIterations: options.MaxIterations);
+        nlr.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma, maxIterations: options.MaxIterations);
         var refStats = nlr.Statistics;
         var refDeviance = nlr.Deviance;
         var refAicc = nlr.AICc;
@@ -329,7 +342,7 @@ namespace HEAL.NonlinearRegression.Console {
 
           (parametricExpr, p) = modelQueue.Dequeue();
           allModels.Add(Tuple.Create(parametricExpr, p));
-          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, options.Likelihood, trainX, trainY, (double[])p.Clone(), options.MaxIterations, options.Verbose);
+          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, options.Likelihood, options.NoiseSigma, trainX, trainY, (double[])p.Clone(), options.MaxIterations, options.Verbose);
 
           // order by SSRfactor and use the best as an alternative (if it has delta AICc < deltaAIC)
           var alternative = impacts.OrderBy(tup => tup.Item2).Where(tup => tup.Item3 < options.DeltaAIC).FirstOrDefault();
@@ -349,7 +362,7 @@ namespace HEAL.NonlinearRegression.Console {
 
           // output training, CV, and test result for original model
           nlr = new NonlinearRegression();
-          nlr.SetModel(p, parametricExpr, options.Likelihood, trainX, trainY);
+          nlr.SetModel(p, parametricExpr, options.Likelihood, options.NoiseSigma, trainX, trainY);
           var stats = nlr.Statistics;
           var deviance = nlr.Deviance;
           // var rmseTrain = Math.Sqrt(deviance / trainY.Length);
@@ -393,7 +406,7 @@ namespace HEAL.NonlinearRegression.Console {
 
         // calculate ref stats for full model
         var nlr = new NonlinearRegression();
-        nlr.Fit(origParam, origExpr, options.Likelihood, trainX, trainY, maxIterations: options.MaxIterations);
+        nlr.Fit(origParam, origExpr, options.Likelihood, trainX, trainY, options.NoiseSigma, maxIterations: options.MaxIterations);
         var refStats = nlr.Statistics;
         if (refStats == null) {
           // could not fit expression
@@ -409,7 +422,7 @@ namespace HEAL.NonlinearRegression.Console {
 
           (var expr, var param) = modelQueue.Dequeue();
           allModels.Add(Tuple.Create(expr, param));
-          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(expr, options.Likelihood, trainX, trainY, (double[])param.Clone(), options.MaxIterations, options.Verbose);
+          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(expr, options.Likelihood, options.NoiseSigma, trainX, trainY, (double[])param.Clone(), options.MaxIterations, options.Verbose);
 
           // order by SSRfactor and use the best as an alternative (if it has delta AICc < deltaAIC)
           var alternative = impacts.OrderBy(tup => tup.Item2).Where(tup => tup.Item3 < options.DeltaAIC).FirstOrDefault();
@@ -435,7 +448,7 @@ namespace HEAL.NonlinearRegression.Console {
 
           // eval all models
           nlr = new NonlinearRegression();
-          nlr.SetModel(param, expr, options.Likelihood, trainX, trainY);
+          nlr.SetModel(param, expr, options.Likelihood, options.NoiseSigma, trainX, trainY);
           var stats = nlr.Statistics;
           var aicc = nlr.AICc;
           if (aicc - refAICc < options.DeltaAIC && stats.n <= bestNumParam) {
@@ -468,12 +481,13 @@ namespace HEAL.NonlinearRegression.Console {
       foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
-        var subExprImportance = ModelAnalysis.SubtreeImportance(parametricExpr, options.Likelihood, trainX, trainY, p);
+        var subExprImportance = ModelAnalysis.SubtreeImportance(parametricExpr, options.Likelihood, options.NoiseSigma, trainX, trainY, p);
 
         Dictionary<Expression, double> saturation = null;
         if (options.GraphvizFilename != null) {
-          saturation = new Dictionary<Expression, double>();
-          saturation[parametricExpr] = 0.0; // reference value for the importance
+          saturation = new Dictionary<Expression, double> {
+            [parametricExpr] = 0.0 // reference value for the importance
+          };
         }
 
         System.Console.WriteLine($"{"SSR_factor",-11} {"deltaAIC",-11} {"deltaBIC",-11} {"Subtree"}");
@@ -526,7 +540,7 @@ namespace HEAL.NonlinearRegression.Console {
       foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
-        var varImportance = ModelAnalysis.VariableImportance(parametricExpr, options.Likelihood, trainX, trainY, p);
+        var varImportance = ModelAnalysis.VariableImportance(parametricExpr, options.Likelihood, options.NoiseSigma, trainX, trainY, p);
 
 
         System.Console.WriteLine($"{"variable",-11} {"VarExpl",-11}");
@@ -556,7 +570,7 @@ namespace HEAL.NonlinearRegression.Console {
         GenerateExpression(model, varNames, out var parametricExpr, out var parameters);
 
         var nlr = new NonlinearRegression();
-        nlr.Fit(parameters, parametricExpr, options.Likelihood, trainX, trainY);
+        nlr.Fit(parameters, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma);
 
 
         var folder = Path.GetDirectoryName(options.Dataset);
@@ -600,7 +614,7 @@ namespace HEAL.NonlinearRegression.Console {
         GenerateExpression(model, varNames, out var parametricExpr, out var parameters);
 
         var nlr = new NonlinearRegression();
-        nlr.Fit(parameters, parametricExpr, options.Likelihood, trainX, trainY);
+        nlr.Fit(parameters, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma);
         var folder = Path.GetDirectoryName(options.Dataset);
         var filename = Path.GetFileNameWithoutExtension(options.Dataset);
 
@@ -652,7 +666,7 @@ namespace HEAL.NonlinearRegression.Console {
 
         if (!options.NoOptimization) {
           var nlr = new NonlinearRegression();
-          nlr.Fit(parameters,  parametricExpr, options.Likelihood, trainX, trainY, maxIterations: 3000);
+          nlr.Fit(parameters, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma, maxIterations: 3000);
         }
 
         var _jac = Expr.Jacobian(parametricExpr, parameters.Length).Compile();
@@ -722,7 +736,7 @@ namespace HEAL.NonlinearRegression.Console {
       [Option("interval", Required = false, Default = IntervalEnum.LaplaceApproximation, HelpText = "Prediction interval type.")]
       public IntervalEnum Interval { get; set; }
 
-      [Option("range", Required = false, HelpText ="The range of index values for which the predictions should be calculated (default: whole dataset)")]
+      [Option("range", Required = false, HelpText = "The range of index values for which the predictions should be calculated (default: whole dataset)")]
       public string? Range { get; set; }
     }
 
@@ -776,6 +790,9 @@ namespace HEAL.NonlinearRegression.Console {
       [Option('l', "likelihood", Required = false, HelpText = "The likelihood function for the model (Gaussian or Bernoulli) (default: Gaussian)", Default = LikelihoodEnum.Gaussian)]
       public LikelihoodEnum Likelihood { get; set; }
 
+      [Option("noiseSigma", Required = false, HelpText = "The standard error of observations for Gaussian likelihood. This has an effect on confidence intervals and model selection criteria. Ignored for other likelihoods.")]
+      public double? NoiseSigma { get; set; }
+
       [Option("train", Required = false, HelpText = "The training range <firstRow>:<lastRow> in the dataset (inclusive).")]
       public string TrainingRange { get; set; }
 
@@ -802,6 +819,9 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option('l', "likelihood", Required = false, HelpText = "The likelihood function for the model (Gaussian or Bernoulli) (default: Gaussian)", Default = LikelihoodEnum.Gaussian)]
       public LikelihoodEnum Likelihood { get; set; }
+
+      [Option("noiseSigma", Required = false, HelpText = "The standard error of observations for Gaussian likelihood. This has an effect on confidence intervals and model selection criteria. Ignored for other likelihoods.")]
+      public double? NoiseSigma { get; set; }
 
       [Option("train", Required = false, HelpText = "The training range <firstRow>:<lastRow> in the dataset (inclusive).")]
       public string TrainingRange { get; set; }
@@ -831,6 +851,9 @@ namespace HEAL.NonlinearRegression.Console {
       [Option('l', "likelihood", Required = false, HelpText = "The likelihood function for the model (Gaussian or Bernoulli) (default: Gaussian)", Default = LikelihoodEnum.Gaussian)]
       public LikelihoodEnum Likelihood { get; set; }
 
+      [Option("noiseSigma", Required = false, HelpText = "The standard error of observations for Gaussian likelihood. This has an effect on confidence intervals and model selection criteria. Ignored for other likelihoods.")]
+      public double? NoiseSigma { get; set; }
+
       [Option("train", Required = false, HelpText = "The training range <firstRow>:<lastRow> in the dataset (inclusive).")]
       public string TrainingRange { get; set; }
 
@@ -856,6 +879,9 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option('l', "likelihood", Required = false, HelpText = "The likelihood function for the model (Gaussian or Bernoulli) (default: Gaussian)", Default = LikelihoodEnum.Gaussian)]
       public LikelihoodEnum Likelihood { get; set; }
+
+      [Option("noiseSigma", Required = false, HelpText = "The standard error of observations for Gaussian likelihood. This has an effect on confidence intervals and model selection criteria. Ignored for other likelihoods.")]
+      public double? NoiseSigma { get; set; }
 
       [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for cross-validation.")]
       public string TrainingRange { get; set; }
@@ -886,6 +912,9 @@ namespace HEAL.NonlinearRegression.Console {
       [Option('l', "likelihood", Required = false, HelpText = "The likelihood function for the model (Gaussian or Bernoulli) (default: Gaussian)", Default = LikelihoodEnum.Gaussian)]
       public LikelihoodEnum Likelihood { get; set; }
 
+      [Option("noiseSigma", Required = false, HelpText = "The standard error of observations for Gaussian likelihood. This has an effect on confidence intervals and model selection criteria. Ignored for other likelihoods.")]
+      public double? NoiseSigma { get; set; }
+
       [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for variable impact calculation.")]
       public string TrainingRange { get; set; }
 
@@ -912,6 +941,9 @@ namespace HEAL.NonlinearRegression.Console {
       [Option('l', "likelihood", Required = false, HelpText = "The likelihood function for the model (Gaussian or Bernoulli) (default: Gaussian)", Default = LikelihoodEnum.Gaussian)]
       public LikelihoodEnum Likelihood { get; set; }
 
+      [Option("noiseSigma", Required = false, HelpText = "The standard error of observations for Gaussian likelihood. This has an effect on confidence intervals and model selection criteria. Ignored for other likelihoods.")]
+      public double? NoiseSigma { get; set; }
+
       [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for profile calculation.")]
       public string TrainingRange { get; set; }
     }
@@ -929,6 +961,9 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option('l', "likelihood", Required = false, HelpText = "The likelihood function for the model (Gaussian or Bernoulli) (default: Gaussian)", Default = LikelihoodEnum.Gaussian)]
       public LikelihoodEnum Likelihood { get; set; }
+
+      [Option("noiseSigma", Required = false, HelpText = "The standard error of observations for Gaussian likelihood. This has an effect on confidence intervals and model selection criteria. Ignored for other likelihoods.")]
+      public double? NoiseSigma { get; set; }
 
       [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for profile calculation.")]
       public string TrainingRange { get; set; }
@@ -949,7 +984,10 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option('l', "likelihood", Required = false, HelpText = "The likelihood function for the model (Gaussian or Bernoulli) (default: Gaussian)", Default = LikelihoodEnum.Gaussian)]
       public LikelihoodEnum Likelihood { get; set; }
-      
+
+      [Option("noiseSigma", Required = false, HelpText = "The standard error of observations for Gaussian likelihood. This has an effect on confidence intervals and model selection criteria. Ignored for other likelihoods.")]
+      public double? NoiseSigma { get; set; }
+
       [Option("train", Required = false, HelpText = "The range <firstRow>:<lastRow> in the dataset (inclusive) used for profile calculation.")]
       public string TrainingRange { get; set; }
 
@@ -993,7 +1031,7 @@ namespace HEAL.NonlinearRegression.Console {
         Shuffle(x, y, rand);
       }
 
-      Split(x, y, trainStart, trainEnd, testStart, testEnd, out trainX, out trainY, out var testX, out var testY);
+      Split(x, y, trainStart, trainEnd, testStart, testEnd, out trainX, out trainY, out var _, out var _);
     }
 
     // start and end are inclusive
@@ -1043,7 +1081,7 @@ namespace HEAL.NonlinearRegression.Console {
       var shufY = new double[y.Length];
       for (int i = 0; i < n; i++) {
         shufY[idx[i]] = y[i];
-        Buffer.BlockCopy(y, i * sizeof(double) * d, shufX, idx[i] * sizeof(double) * d, sizeof(double) * d); // copy a row shufX[idx[i], :] = x[i, :]
+        Buffer.BlockCopy(x, i * sizeof(double) * d, shufX, idx[i] * sizeof(double) * d, sizeof(double) * d); // copy a row shufX[idx[i], :] = x[i, :]
       }
 
       // overwrite x,y with shuffled data

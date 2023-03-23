@@ -17,7 +17,7 @@ namespace HEAL.Expressions {
     private readonly double[] x0;
     private int outParamIdx;
     public int OutParamIdx => outParamIdx;
-    private Stack<Expression> funcStack = new Stack<Expression>(); // collect all monotonic functions to create inverse transformation
+    private readonly Stack<Expression> funcStack = new Stack<Expression>(); // collect all monotonic functions to create inverse transformation
 
     // monotonic functions and inverses
     private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
