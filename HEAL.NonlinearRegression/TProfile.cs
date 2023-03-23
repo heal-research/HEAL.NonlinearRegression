@@ -92,6 +92,7 @@ namespace HEAL.NonlinearRegression {
       alglib.mincgcreate(paramEst, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, 0);
       alglib.mincgsetscale(state, paramStdError);
+      alglib.mincgsetprecdiag(state, statistics.diagH);
       // alglib.mincgoptguardgradient(state, 1e-8);
       #endregion
 

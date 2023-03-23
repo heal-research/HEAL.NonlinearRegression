@@ -18,6 +18,7 @@ namespace HEAL.NonlinearRegression {
 
 
     private double[,] invH; // covariance matrix for training set (required for prediction intervals)
+    public double[] diagH; // used for preconditioning of CG in profile likelihood
 
     public LaplaceApproximation(int m, int n, double[] paramEst, Hessian negLogLikeHessian, double[,] x) {
       this.m = m;
@@ -35,8 +36,10 @@ namespace HEAL.NonlinearRegression {
 
       var U = new double[n, n];
       negLogLikeHessian(pOpt, x, U); // Hessian is symmetric positive definite in pOpt
+      diagH = new double[n];
+      for (int i = 0; i < n; i++) diagH[i] = U[i, i];
       try {
-        
+
         if (alglib.spdmatrixcholesky(ref U, n, isupper: true) == false) {
           throw new InvalidOperationException("Cannot decompose Hessian (not SDP?)");
         }
@@ -122,7 +125,7 @@ namespace HEAL.NonlinearRegression {
       // point-wise interval
       for (int i = 0; i < numRows; i++) {
         low[i] = yPred[i] - resStdError[i] * t;
-        high[i] = yPred[i] + resStdError[i]* t;
+        high[i] = yPred[i] + resStdError[i] * t;
       }
     }
   }
