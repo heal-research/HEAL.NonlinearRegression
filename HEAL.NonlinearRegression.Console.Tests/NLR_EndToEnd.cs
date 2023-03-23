@@ -17,6 +17,8 @@ namespace HEAL.NonlinearRegression.Console.Tests {
     #region nonlinear Puromycin
     [Test]
     public void FitPuromycin() {
+      // standard error and z-score are the same as in R
+      // Laplace approximation lower and upper bounds are close to confidence intervals in R
       var expected = @"p_opt: 6.41213e-002 2.12684e+002
 Successful: True, NumIters: 3, NumFuncEvals: 44, NumJacEvals: 0
 Deviance: 1.1954e+003  Dispersion: 1.0934e+001 AICc: 1204.4 BIC: 1202.9 MDL: 614.2
@@ -27,6 +29,20 @@ Para       Estimate      Std. error     z Score          Lower          Upper Co
 Optimized: ((x0 / (0.06412128166090875 + x0)) * 212.68374312341493)
 ";
       NlrFit("Puromycin.csv", "x0 / (0.06412128165180965 + x0) * 212.68374312341493", "0:11", "y", "Gaussian", expected);
+    }
+
+    [Test]
+    public void ProfilePuromycin() {
+      // R:
+      //  confint(fit_nls, level = 0.95)
+      // #           2.5%        97.5%
+      // # a 197.30212848 229.29006490
+      // # b   0.04692517   0.08615995
+      var expected = @"profile-based marginal confidence intervals (alpha=0.05)
+p0    6.4121e-002    4.6920e-002    8.6157e-002
+p1    2.1268e+002    1.9730e+002    2.2929e+002
+";
+      NlrProfile("Puromycin.csv", "x0 / (0.06412128165180965 + x0) * 212.68374312341493", "0:11", "y", "Gaussian", expected);
     }
 
     [Test]

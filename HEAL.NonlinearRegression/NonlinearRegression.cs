@@ -81,7 +81,6 @@ namespace HEAL.NonlinearRegression {
 
       // TODO extract likelihoods in different base types?
       if (likelihood == LikelihoodEnum.Gaussian) {
-        // TODO should we use specified noise error here?
         this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, sErr: noiseSigma ?? 1.0);
         this.Dispersion = noiseSigma ?? 1.0;
       } else if (likelihood == LikelihoodEnum.Bernoulli) {
@@ -96,6 +95,7 @@ namespace HEAL.NonlinearRegression {
         if (likelihood == LikelihoodEnum.Gaussian) {
           // update dispersion with estimated value after fitting (if noiseSigma was not specified)
           this.Dispersion = noiseSigma ?? Math.Sqrt(Deviance / (y.Length - p.Length)); // s = Math.Sqrt(SSR / (m - n))
+          this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, this.Dispersion); // update because we may have an estimate for noise sigma now
           this.FisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJacobian, y, this.Dispersion);
         }
         else if(likelihood == LikelihoodEnum.Bernoulli) {
