@@ -132,7 +132,7 @@ namespace HEAL.NonlinearRegression {
       nlr.Fit(p, expr, likelihood, X, y, noiseSigma, maxIterations: maxIterations);
       var refDeviance = nlr.Deviance;
 
-      var stats0 = nlr.Statistics;      
+      var stats0 = nlr.Statistics;
       if (stats0 == null) return Enumerable.Empty<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>(); // cannot fit the expression
 
       p = stats0.ParamEst;

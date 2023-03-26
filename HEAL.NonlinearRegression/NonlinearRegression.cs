@@ -17,8 +17,8 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    internal Function? modelFunc; // for prediction
-    internal Jacobian? modelJacobian; // for Laplace approximation
+    internal Expr.ParametricVectorFunction? modelFunc; // for prediction
+    internal Expr.ParametricJacobianFunction? modelJacobian; // for Laplace approximation
 
     internal Expression<Expr.ParametricFunction>? modelExpr;
     // public LikelihoodEnum? LikelihoodType { get; private set; }
@@ -80,14 +80,11 @@ namespace HEAL.NonlinearRegression {
       this.modelFunc = (double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible;
       this.modelJacobian = (double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
-      // TODO extract likelihoods in different base types?
       if (likelihood == LikelihoodEnum.Gaussian) {
-        // this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, sErr: noiseSigma ?? 1.0);
         this.Likelihood = new SimpleGaussianLikelihood(x, y, expr, noiseSigma ?? 1.0);
         this.Dispersion = noiseSigma ?? 1.0;
       } else if (likelihood == LikelihoodEnum.Bernoulli) {
         this.Likelihood = new BernoulliLikelihood(x, y, expr, p.Length);
-        // this.NegLogLikelihoodFunc = Util.CreateBernoulliNegLogLikelihood(modelJacobian, y, x);
         this.Dispersion = 1.0; // assumed to be 1 for Bernoulli
       }
 
@@ -191,12 +188,8 @@ namespace HEAL.NonlinearRegression {
 
         this.Dispersion = noiseSigma ?? Math.Sqrt(SSR / (m - n));
         this.Likelihood = new SimpleGaussianLikelihood(x, y, modelExpr, this.Dispersion);
-        // this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, Dispersion);
-        // this.FisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJacobian, y, Dispersion);
       } else if (likelihood == LikelihoodEnum.Bernoulli) {
         this.Dispersion = 1.0;
-        // this.NegLogLikelihoodFunc = Util.CreateBernoulliNegLogLikelihood(modelJacobian, y, x);
-        // this.FisherInformation = Util.CreateBernoulliNegLogLikelihoodHessian(modelJacobian, y);
         this.Likelihood = new BernoulliLikelihood(x, y, modelExpr, p.Length);
       }
       Statistics = new LaplaceApproximation(m, n, paramEst, Likelihood);
@@ -262,7 +255,7 @@ namespace HEAL.NonlinearRegression {
       if (se != null) {
         Statistics.GetParameterIntervals(0.05, out var seLow, out var seHigh);
         writer.WriteLine($"{"Para"} {"Estimate",14}  {"Std. error",14} {"z Score",11} {"Lower",14} {"Upper",14} Correlation matrix");
-        for (int i = 0; i < Statistics.n; i++) {
+        for (int i = 0; i < p.Length; i++) {
           var j = Enumerable.Range(0, i + 1);
           writer.WriteLine($"{i,5} {p[i],14:e4} {se[i],14:e4} {p[i] / se[i],11:e2} {seLow[i],14:e4} {seHigh[i],14:e4} {string.Join(" ", j.Select(ji => Statistics.Correlation[i, ji].ToString("f2")))}");
         }

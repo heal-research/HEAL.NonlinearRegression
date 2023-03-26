@@ -86,12 +86,6 @@ namespace HEAL.NonlinearRegression {
       var constants = Expr.CollectConstants(modelExpr);
       int numParam = paramEst.Length;
 
-      double CodeLen(string sy) {
-        if (sy.StartsWith("var")) return codeLen["var"];
-        else return codeLen[sy];
-      }
-
-
       var usedVariables = Expr.CollectSymbols(modelExpr).Where(sy => sy.StartsWith("var")).ToArray();
       var distinctVariables = usedVariables.Distinct().ToArray();
 
@@ -102,6 +96,11 @@ namespace HEAL.NonlinearRegression {
         + constants.Sum(ci => Math.Log(Math.Abs(ci))) // constants
         - numParam / 2.0 * Math.Log(3.0) + Enumerable.Range(0, numParam).Sum(i => 0.5 * Math.Log(diagFisherInfo[i]) + Math.Log(Math.Abs(paramEst[i]))) // parameter values
         ;
+    }
+
+    private static double CodeLen(string sy) {
+      if (sy.StartsWith("var")) return codeLen["var"];
+      else return codeLen[sy];
     }
   }
 }

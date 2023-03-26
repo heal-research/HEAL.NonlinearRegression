@@ -34,7 +34,7 @@ namespace HEAL.NonlinearRegression.Demo {
       Console.WriteLine("-----------------");
 
       // fitting and prediction intervals
-      RunDemo(problem.X, problem.y, problem.ModelExpression, problem.Jacobian, problem.ThetaStart);
+      RunDemo(problem.X, problem.y, problem.ModelExpression, problem.ThetaStart);
 
       // model analysis
       if (problem is SymbolicProblemBase symbProb) {
@@ -80,7 +80,7 @@ namespace HEAL.NonlinearRegression.Demo {
     /// <param name="f">The function to fit.</param>
     /// <param name="jac">The Jacobian of f.</param>
     /// <param name="start">The starting point for parameter values.</param>
-    private static void RunDemo(double[,] x, double[] y, Expression<Expr.ParametricFunction> expr, Jacobian jac, double[] start) {
+    private static void RunDemo(double[,] x, double[] y, Expression<Expr.ParametricFunction> expr, double[] start) {
       var theta = (double[])start.Clone();
 
       var nls = new NonlinearRegression();

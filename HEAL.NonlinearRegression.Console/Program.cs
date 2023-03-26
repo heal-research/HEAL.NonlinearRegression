@@ -600,11 +600,14 @@ namespace HEAL.NonlinearRegression.Console {
 
         var tProfile = new TProfile(nlr.Statistics, nlr.Likelihood);
 
+        var n = parameters.Length;
+        var m = trainY.Length;
+
         System.Console.WriteLine($"profile-based marginal confidence intervals (alpha={options.Alpha})");
-        for (int pIdx = 0; pIdx < parameters.Length; pIdx++) {
+        for (int pIdx = 0; pIdx < n; pIdx++) {
           tProfile.GetProfile(pIdx, out var p, out var tau, out var p_stud);
 
-          var t = alglib.invstudenttdistribution(nlr.Statistics.m - nlr.Statistics.n, 1.0 - options.Alpha / 2);
+          var t = alglib.invstudenttdistribution(m - n, 1.0 - options.Alpha / 2);
           alglib.spline1dbuildcubic(tau, p, out var tau2p);
           double low, high;
           if (tau.Min() > -t) low = double.NaN;

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using HEAL.Expressions;
+using System;
 using System.Linq;
 
 namespace HEAL.NonlinearRegression {
@@ -89,7 +90,7 @@ namespace HEAL.NonlinearRegression {
 
 
 
-    public void GetPredictionIntervals(Jacobian modelJacobian, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high) {
+    public void GetPredictionIntervals(Expr.ParametricJacobianFunction modelJacobian, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high) {
       int numRows = x.GetLength(0);
       low = new double[numRows];
       high = new double[numRows];

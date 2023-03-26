@@ -2,6 +2,8 @@
 using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression {
+  // not necessary if we discover likelihood types automatically
+  public enum LikelihoodEnum { Gaussian, Bernoulli } // TODO: Poisson, Cauchy, Multinomial, ...
 
   // A likelihood function together with its model.
   // The likelihood has parameters (which are usually the model parameters)
@@ -30,17 +32,15 @@ namespace HEAL.NonlinearRegression {
         modelExpr = value;
 
         numModelParams = Expr.NumberOfParameters(modelExpr);
-        var _func = Expr.Broadcast(modelExpr).Compile();
-        var _jac = Expr.Jacobian(modelExpr, numModelParams).Compile();
+        ModelFunc = Expr.Broadcast(modelExpr).Compile();
+        ModelJacobian = Expr.Jacobian(modelExpr, numModelParams).Compile();
         // var _hess = Expr.Hessian(modelExpr, numModelParams).Compile();
-        ModelFunc = (double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible;
-        ModelJacobian = (double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
         // this.ModelHessian = (double[] p, double[,] X, double[,] hess) => _hess(p, X, hess);
       }
     }
-    protected Function ModelFunc { get; private set; }
-    protected Jacobian ModelJacobian { get; private set; }
-    // protected Hessian ModelHessian { get; private set; }
+    protected Expr.ParametricVectorFunction ModelFunc { get; private set; }
+    protected Expr.ParametricJacobianFunction ModelJacobian { get; private set; }
+    // protected  Expr.ParametricHessianFunction ModelHessian { get; private set; }
 
 
     public int NumberOfObservations { get; }

@@ -28,6 +28,7 @@ namespace HEAL.Expressions {
   }
 
   public static class Expr {
+    // TODO: check which types we actually need
     public delegate double ParametricFunction(double[] theta, double[] x);
 
     public delegate void ParametricVectorFunction(double[] theta, double[,] X, double[] f);
