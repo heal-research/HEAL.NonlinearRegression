@@ -191,7 +191,6 @@ namespace HEAL.NonlinearRegression {
           SSR += r * r;
         }
 
-        // TODO: should we use the noise sigma from CLI here?
         this.Dispersion = noiseSigma ?? Math.Sqrt(SSR / (m - n));
         this.NegLogLikelihoodFunc = Util.CreateGaussianNegLogLikelihood(modelJacobian, y, x, Dispersion);
         this.FisherInformation = Util.CreateGaussianNegLogLikelihoodHessian(modelJacobian, y, Dispersion);

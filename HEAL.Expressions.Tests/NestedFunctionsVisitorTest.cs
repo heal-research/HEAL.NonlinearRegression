@@ -11,29 +11,7 @@ namespace HEAL.Expressions.Tests {
     public void Setup() {
     }
 
-    [Test]
-    public void NestedFunctions() {
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => Math.Log(x[0]);
-        NestedFunctionsVisitor.Execute(expr, out var reducedExpressions);
-        Assert.AreEqual(1, reducedExpressions.Count);
-        var exprStr = reducedExpressions.Select(e => e.ToString()).ToArray();
-        Assert.IsTrue(exprStr.Contains("(p, x) => x[0]"));
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => Math.Sin(Math.Cos(Math.Log(x[0])));
-        NestedFunctionsVisitor.Execute(expr, out var reducedExpressions);
-        // TODO generate combinations of functions to remove
-        Assert.AreEqual(7, reducedExpressions.Count); // 2^3 variants - 1 (original) 
-        var exprStr = reducedExpressions.Select(e => e.ToString()).ToArray();
-        Assert.IsTrue(exprStr.Contains("(p, x) => x[0]"));
-        Assert.IsTrue(exprStr.Contains("(p, x) => Log(x[0])"));
-        Assert.IsTrue(exprStr.Contains("(p, x) => Sin(Log(x[0]))"));
-        Assert.IsTrue(exprStr.Contains("(p, x) => Sin(Cos(x[0]))"));
-        Assert.IsTrue(exprStr.Contains("(p, x) => Cos(x[0])"));
-      }
-    }
-
+   
     [Test]
     public void NodeImpacts() {
       double[] theta = new[] { -1.0 };

@@ -9,13 +9,13 @@ using HEAL.Expressions;
 using HEAL.Expressions.Parser;
 
 // TODO:
-//   - Clean up expression code to provide functions with inverses and derivatives via mapping functions (no special handling of inverse functions and derivatives within visitors)
-//   - Implement likelihoods symbolically (on top of the model functions) to support autodiff for likelihood gradients and likelihood Hessians. They are now hard-coded.
 //   - alglib is GPL, should switch to .NET numerics (MIT) instead.
 //   - iterative pruning based on subtree impacts or likelihood ratios for nested models
 //   - variable impacts for combinations of variables (tuples, triples). Contributions to individual variables via Shapely values?
 //   - nested model analysis for combinations of parameters (for the case where a parameter can only be set to zero if another parameter is also set to zero)
 //   - If a range is specified (training, test) then only read the relevant rows of data
+//   - Clean up expression code to provide functions with inverses and derivatives via mapping functions (no special handling of inverse functions and derivatives within visitors)
+//   - Implement likelihoods symbolically (on top of the model functions) to support autodiff for likelihood gradients and likelihood Hessians. They are now hard-coded.
 
 namespace HEAL.NonlinearRegression.Console {
   // Intended to be used together with Operon or HeuristicLab.
@@ -94,20 +94,13 @@ namespace HEAL.NonlinearRegression.Console {
 
       foreach (var model in GetModels(options.Model)) {
         try {
-          // TODO: most of the result values are specific to Gaussian likelihood
           GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
           var nlr = new NonlinearRegression();
           nlr.SetModel(p, parametricExpr, options.Likelihood, options.NoiseSigma, x, y);
           var m = y.Length;
 
-          var SSR = nlr.Deviance * nlr.Dispersion * nlr.Dispersion; // only valid for Gaussian!
-
-          var noiseSigma = options.NoiseSigma ?? nlr.Dispersion; // use estimated noise standard error as default
-          var nmse = SSR / y.Length / Util.Variance(y);
-
           var stats = nlr.Statistics;
-          // TODO this needs to be generalized to other likelihoods
           var mdl = ModelSelection.MDL(parametricExpr, p, -nlr.NegLogLikelihood, nlr.Statistics.diagH);
           var freqMdl = ModelSelection.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, nlr.Statistics.diagH);
 
@@ -116,6 +109,10 @@ namespace HEAL.NonlinearRegression.Console {
           var bic = nlr.BIC;
 
           if (options.Likelihood == LikelihoodEnum.Gaussian) {
+            var SSR = nlr.Deviance * nlr.Dispersion * nlr.Dispersion; // only valid for Gaussian!
+
+            var noiseSigma = options.NoiseSigma ?? nlr.Dispersion; // use estimated noise standard error as default
+            var nmse = SSR / y.Length / Util.Variance(y);
             System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {logLik} AIC: {nlr.AIC} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
           } else if (options.Likelihood == LikelihoodEnum.Bernoulli) {
             System.Console.WriteLine($"Deviance: {nlr.Deviance} LogLik: {logLik} AIC: {nlr.AIC} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
@@ -124,23 +121,6 @@ namespace HEAL.NonlinearRegression.Console {
           System.Console.WriteLine($"Could not evaluate model {model}");
         }
       }
-    }
-
-    public static double EvaluateSSR(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y, out double[] yPred) {
-      var func = Expr.Broadcast(parametricExpr).Compile();
-
-      int m;
-      double SSR;
-      m = y.Length;
-      yPred = new double[m];
-      func(p, x, yPred);
-
-      SSR = 0.0;
-      for (int i = 0; i < m; i++) {
-        var r = y[i] - yPred[i];
-        SSR += r * r;
-      }
-      return SSR;
     }
 
     private static void Predict(PredictOptions options) {

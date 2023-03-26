@@ -97,7 +97,7 @@ namespace HEAL.NonlinearRegression {
 
 
         // fit reduced model
-        nlr.Fit(newTheta, reducedExpression, likelihood, X, y, noiseSigma); // TODO make CLI parameter
+        nlr.Fit(newTheta, reducedExpression, likelihood, X, y, noiseSigma);
         var reducedStats = nlr.Statistics;
 
         var impact = nlr.Deviance / referenceDeviance;
@@ -170,7 +170,7 @@ namespace HEAL.NonlinearRegression {
         // fit reduced model
         try {
           var nlr = new NonlinearRegression();
-          nlr.Fit(newP, reducedExpression, likelihood, X, y, noiseSigma, maxIterations: maxIterations); // TODO make parameter
+          nlr.Fit(newP, reducedExpression, likelihood, X, y, noiseSigma, maxIterations: maxIterations);
           var reducedStats = nlr.Statistics;
 
           var ssrFactor = nlr.Deviance / refDeviance;
@@ -183,7 +183,6 @@ namespace HEAL.NonlinearRegression {
           var fRatio = s2Extra / (nlr.Dispersion * nlr.Dispersion);
 
           // "accept the partial value if the calculated ratio is lower than the table value"
-          // var f = alglib.invfdistribution(deltaDoF, fullDoF, 0.05);  // TODO make alpha CLI parameter
           var f = alglib.fdistribution(deltaDoF, fullDoF, fRatio);
 
           if(verbose)

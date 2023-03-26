@@ -122,15 +122,6 @@ namespace HEAL.NonlinearRegression.Demo {
         } catch (Exception e) {
           Console.WriteLine(e.Message);
         }
-
-        // // TODO: extend this to produce some relevant output for all parameters instead of only a pairwise contour
-        // if (report.Statistics.s > 1e-6) {
-        //   report.Statistics.ApproximateProfilePairContour(0, 1, alpha: 0.05, out _, out _, out var p1, out var p2);
-        //   Console.WriteLine("Approximate profile pair contour (p0 vs p1)");
-        //   for (int i = 0; i < p1.Length; i++) {
-        //     Console.WriteLine($"{p1[i]} {p2[i]}");
-        //   }
-        // }
       } else {
         Console.WriteLine("There was a problem while fitting.");
       }
