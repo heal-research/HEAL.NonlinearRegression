@@ -6,17 +6,15 @@ using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression {
   public static class ModelSelection {
-    public static double AIC(double logLikelihood, double modelDoF) {
-      return 2 * (modelDoF + 1) - 2 * logLikelihood; // also count noise sigma as a parameter
+    public static double AIC(double logLikelihood, double dof) {
+      return 2 * dof - 2 * logLikelihood;
     }
-    public static double AICc(double logLikelihood, double modelDoF, double numObservations) {
-      // noise sigma is counted as a parameter
-      // TODO not all likelihoods have an additional parameter that has to be counted.
-      return AIC(logLikelihood, modelDoF) + 2 * (modelDoF + 1) * (modelDoF + 2) / (numObservations - (modelDoF + 1) - 1);
+    public static double AICc(double logLikelihood, double dof, double numObservations) {
+      return AIC(logLikelihood, dof) + 2 * dof * (dof + 1) / (numObservations - dof - 1);
     }
 
-    public static double BIC(double logLikelihood, double modelDoF, double numObservations) {
-      return (modelDoF + 1) * Math.Log(numObservations) - 2 * logLikelihood;
+    public static double BIC(double logLikelihood, double dof, double numObservations) {
+      return dof * Math.Log(numObservations) - 2 * logLikelihood;
     }
 
     // as described in https://arxiv.org/abs/2211.11461
@@ -48,6 +46,8 @@ namespace HEAL.NonlinearRegression {
         + Enumerable.Range(0, numParam).Sum(i => 0.5 * Math.Log(diagFisherInfo[i]) + Math.Log(Math.Abs(paramEst[i])));
     }
 
+
+    // for experimental code which considers frequencies of symbols occuring in named expressions
     private static Dictionary<string, double> codeLen = new Dictionary<string, double>() {
         { "var", 0.66},
         { "param", 0.66},
@@ -66,6 +66,7 @@ namespace HEAL.NonlinearRegression {
         { "Functions.AQ()", 6},
         { "Functions.Logistic()", 6 }
       };
+    // for experimental code which considers frequencies of symbols occuring in named expressions
     public static double MDLFreq(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double logLikelihood, double[] diagFisherInfo) {
       // total description length:
       // L(D) = L(D|H) + L(H)

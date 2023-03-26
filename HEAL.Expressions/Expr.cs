@@ -445,6 +445,10 @@ namespace HEAL.Expressions {
       return CountNodesVisitor.Count(parametricExpr);
     }
 
+    public static int NumberOfParameters(Expression<ParametricFunction> parametricExpr) {
+      return CountParametersVisitor.Count(parametricExpr, parametricExpr.Parameters[0]);
+    }
+
     public static double[] CollectConstants(Expression<ParametricFunction> parametricExpr) {
       return CollectConstantsVisitor.CollectConstants(parametricExpr);
     }

@@ -34,7 +34,7 @@ namespace HEAL.NonlinearRegression {
 
       var varExpl = new Dictionary<int, double>();
       for (int varIdx = 0; varIdx < d; varIdx++) {
-        var newExpr = Expr.ReplaceVariableWithParameter(expr, (double[])stats0.paramEst.Clone(),
+        var newExpr = Expr.ReplaceVariableWithParameter(expr, (double[])stats0.ParamEst.Clone(),
           varIdx, mean[varIdx], out var newThetaValues);
 
         newExpr = Expr.FoldParameters(newExpr, newThetaValues, out newThetaValues);
@@ -80,7 +80,7 @@ namespace HEAL.NonlinearRegression {
       nlr.Fit(p, expr, likelihood, X, y, noiseSigma);
       var referenceDeviance = nlr.Deviance;
       var stats0 = nlr.Statistics;
-      p = (double[])stats0.paramEst.Clone();
+      p = (double[])stats0.ParamEst.Clone();
 
       var fullAICc = nlr.AICc;
       var fullBIC = nlr.BIC;
@@ -135,7 +135,7 @@ namespace HEAL.NonlinearRegression {
       var stats0 = nlr.Statistics;      
       if (stats0 == null) return Enumerable.Empty<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>(); // cannot fit the expression
 
-      p = stats0.paramEst;
+      p = stats0.ParamEst;
       var impacts = new List<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>();
 
       var fullAIC = nlr.AICc;

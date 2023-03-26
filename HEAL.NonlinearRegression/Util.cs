@@ -22,22 +22,22 @@ namespace HEAL.NonlinearRegression {
       };
     }
 
-    public static ResidualJacobian FixParameter(ResidualJacobian jacobian, int idx) {
-      return (p, f, jac) => {
-        jacobian(p, f, jac);
-        for (int i = 0; i < f.Length; i++) {
-          jac[i, idx] = 0.0; // derivative of fixed parameter is zero
-        }
-      };
-    }
-    public static alglib.ndimensional_grad FixParameter(alglib.ndimensional_grad funcGrad, int idx, double fixedVal) {
-      return (double[] p, ref double func, double[] grad, object obj) => {
-        p[idx] = fixedVal;
-        funcGrad(p, ref func, grad, obj);
-        grad[idx] = 0.0; // derivative of fixed parameter is zero
-      };
-    }
-
+    // public static ResidualJacobian FixParameter(ResidualJacobian jacobian, int idx) {
+    //   return (p, f, jac) => {
+    //     jacobian(p, f, jac);
+    //     for (int i = 0; i < f.Length; i++) {
+    //       jac[i, idx] = 0.0; // derivative of fixed parameter is zero
+    //     }
+    //   };
+    // }
+    // public static alglib.ndimensional_grad FixParameter(alglib.ndimensional_grad funcGrad, int idx, double fixedVal) {
+    //   return (double[] p, ref double func, double[] grad, object obj) => {
+    //     p[idx] = fixedVal;
+    //     funcGrad(p, ref func, grad, obj);
+    //     grad[idx] = 0.0; // derivative of fixed parameter is zero
+    //   };
+    // }
+    // 
     public static alglib.ndimensional_fvec CreateAlgibResidualFunction(ResidualFunction func) {
       return (double[] p, double[] f, object o) => {
         func(p, f);
@@ -141,93 +141,77 @@ namespace HEAL.NonlinearRegression {
 
 
     public static alglib.ndimensional_grad CreateGaussianNegLogLikelihood(Jacobian modelJac, double[] y, double[,] X, double sErr) {
-      return (double[] p, ref double f, double[] grad, object obj) => {
-        var m = y.Length;
-        var n = p.Length;
-        var yPred = new double[m];
-        var yJac = new double[m, n];
-        modelJac(p, X, yPred, yJac);
-
-        f = 0.0;
-        Array.Clear(grad, 0, n);
-        for (int i = 0; i < m; i++) {
-          var res = y[i] - yPred[i];
-          f += 0.5 * res * res / (sErr * sErr);
-          for (int j = 0; j < n; j++) {
-            grad[j] += -res * yJac[i, j] / (sErr * sErr);
-          }
-        }
-      };
+      throw new NotImplementedException(); // use SimpleGaussianLikelihood instead
+      // return (double[] p, ref double f, double[] grad, object obj) => {
+      //   var m = y.Length;
+      //   var n = p.Length;
+      //   var yPred = new double[m];
+      //   var yJac = new double[m, n];
+      //   modelJac(p, X, yPred, yJac);
+      // 
+      //   f = 0.0;
+      //   Array.Clear(grad, 0, n);
+      //   for (int i = 0; i < m; i++) {
+      //     var res = y[i] - yPred[i];
+      //     f += 0.5 * res * res / (sErr * sErr);
+      //     for (int j = 0; j < n; j++) {
+      //       grad[j] += -res * yJac[i, j] / (sErr * sErr);
+      //     }
+      //   }
+      // };
     }
     public static Hessian CreateGaussianNegLogLikelihoodHessian(Jacobian modelJac, double[] y, double sErr) {
-      return (double[] p, double[,] x, double[,] hess) => {
-        var m = y.Length;
-        var n = p.Length;
-        var yPred = new double[m];
-        var yJac = new double[m, n];
-        modelJac(p, x, yPred, yJac);
-
-        Array.Clear(hess, 0, n*n);
-        for (int i = 0; i < m; i++) {
-          var res = y[i] - yPred[i];
-          // f[i] += 0.5 * res * res / (sErr * sErr);
-          for (int j = 0; j < n; j++) {
-            for(int k=0;k<n;k++) {
-              hess[j, k] += yJac[i, j] * yJac[i, k] / (sErr * sErr);
-            }
-          }
-        }
-      };
+      throw new NotImplementedException(); // use SimpleGaussianLikelihood instead
+      // return (double[] p, double[,] x, double[,] hess) => {
+      //   var m = y.Length;
+      //   var n = p.Length;
+      //   var yPred = new double[m];
+      //   var yJac = new double[m, n];
+      //   modelJac(p, x, yPred, yJac);
+      // 
+      //   Array.Clear(hess, 0, n*n);
+      //   for (int i = 0; i < m; i++) {
+      //     var res = y[i] - yPred[i];
+      //     // f[i] += 0.5 * res * res / (sErr * sErr);
+      //     for (int j = 0; j < n; j++) {
+      //       for(int k=0;k<n;k++) {
+      //         hess[j, k] += yJac[i, j] * yJac[i, k] / (sErr * sErr);
+      //       }
+      //     }
+      //   }
+      // };
     }
 
     public static alglib.ndimensional_grad CreateBernoulliNegLogLikelihood(Jacobian modelJac, double[] y, double[,] X) {
-      return (double[] p, ref double f, double[] grad, object obj) => {
-        var m = y.Length;
-        var n = p.Length;
-        var yPred = new double[m];
-        var yJac = new double[m, n];
-        modelJac(p, X, yPred, yJac);
-
-        f = 0.0;
-        Array.Clear(grad, 0, n);
-        for (int i = 0; i < m; i++) {
-          if (y[i] != 0.0 && y[i] != 1.0) throw new ArgumentException("target variable must be binary (0/1) for Bernoulli likelihood");
-          if (y[i] == 1) {
-            f += -Math.Log(yPred[i]);
-          } else {
-            // y[i]==0
-            f += -Math.Log(1 - yPred[i]);
-          }
-          for (int j = 0; j < n; j++) {
-            grad[j] += -((y[i] - yPred[i]) * yJac[i, j]) / ((1 - yPred[i]) * yPred[i]);
-          }
-        }
-      };
+      throw new NotImplementedException();
+      // return (double[] p, ref double f, double[] grad, object obj) => {
+      //   var m = y.Length;
+      //   var n = p.Length;
+      //   var yPred = new double[m];
+      //   var yJac = new double[m, n];
+      //   modelJac(p, X, yPred, yJac);
+      // 
+      //   f = 0.0;
+      //   Array.Clear(grad, 0, n);
+      //   for (int i = 0; i < m; i++) {
+      //     if (y[i] != 0.0 && y[i] != 1.0) throw new ArgumentException("target variable must be binary (0/1) for Bernoulli likelihood");
+      //     if (y[i] == 1) {
+      //       f += -Math.Log(yPred[i]);
+      //     } else {
+      //       // y[i]==0
+      //       f += -Math.Log(1 - yPred[i]);
+      //     }
+      //     for (int j = 0; j < n; j++) {
+      //       grad[j] += -((y[i] - yPred[i]) * yJac[i, j]) / ((1 - yPred[i]) * yPred[i]);
+      //     }
+      //   }
+      // };
     }
 
     public static Hessian CreateBernoulliNegLogLikelihoodHessian(Jacobian modelJac, double[] y) {
       // approximation that ignores the Hessian of the model
       return (double[] p, double[,] x, double[,] hess) => {
-        var m = y.Length;
-        var n = p.Length;
-        var yPred = new double[m];
-        var yJac = new double[m, n];
-        modelJac(p, x, yPred, yJac);
-
-        Array.Clear(hess, 0, n * n);
-        for (int i = 0; i < m; i++) {
-          var res = y[i] - yPred[i];
-          var s = 1 / ((1 - yPred[i]) * (1 - yPred[i]) * yPred[i] * yPred[i]);
-
-          for (int j = 0; j < n; j++) {
-            for (int k = 0; k < n; k++) {
-              var hessianTerm = 0.0;
-              // var hessianTerm = (yPred[i] - 1) * yPred[i] * res * modelHessian[j, k]; TODO: modelHessian
-              var gradientTerm = (-2.0 * y[i] * yPred[i] + yPred[i] * yPred[i] + y[i]) * yJac[i, j] * yJac[i, k];
-              hess[j, k] += s * (hessianTerm + gradientTerm);
-            }
-          }
-        }
+       
       };
     }
 

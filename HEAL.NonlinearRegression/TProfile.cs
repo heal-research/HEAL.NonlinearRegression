@@ -1,4 +1,5 @@
 ﻿using HEAL.Expressions;
+using HEAL.NonlinearRegression.Likelihoods;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,16 +21,16 @@ namespace HEAL.NonlinearRegression {
     // Calculate t-profiles for all parameters.
     // Bates and Watts, Appendix A3.5
 
-    public TProfile(LaplaceApproximation statistics, alglib.ndimensional_grad negLogLikelihood) {
-      this.paramEst = statistics.paramEst;
-      this.paramStdError = statistics.paramStdError;
+    public TProfile(LaplaceApproximation statistics, LikelihoodBase likelihood) {
+      this.paramEst = statistics.ParamEst;
+      this.paramStdError = statistics.ParamStdError;
       this.m = statistics.m;
       this.n = statistics.n;
 
       t_profiles = new Tuple<double[], double[][]>[statistics.n]; // for each parameter the tau values and the matrix of parameters
 
       for (int pIdx = 0; pIdx < statistics.n; pIdx++) {
-        t_profiles[pIdx] = CalcTProfile(statistics, negLogLikelihood, pIdx);
+        t_profiles[pIdx] = CalcTProfile(statistics, likelihood, pIdx);
       }
 
 
@@ -54,15 +55,16 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    public static Tuple<double[], double[][]> CalcTProfile(LaplaceApproximation statistics, alglib.ndimensional_grad negLogLikelihood, int pIdx) {
-    restart:
-      var paramEst = statistics.paramEst;
-      var paramStdError = statistics.paramStdError; // approximate value, only used for scaling and to determine initial step size
-      var m = statistics.m;
-      var n = statistics.n;
-
+    public static Tuple<double[], double[][]> CalcTProfile(LaplaceApproximation statistics, LikelihoodBase likelihood, int pIdx) {
       const int kmax = 300;
       const int step = 16;
+
+    restart:
+      var paramEst = statistics.ParamEst;
+      int n = paramEst.Length;
+      var paramStdError = statistics.ParamStdError; // approximate value, only used for scaling and to determine initial step size
+
+
       // in R: (parameterization taken from: https://github.com/wch/r-source/blob/03f8775bf4ae55129fa76318de2394059613353f/src/library/stats/R/nls-profile.R#L144)
       // > qf(1 - 0.01, 1L, 12 - 2) 10.04429
       // > qf(1 - 0.02, 1L, 12 - 2) 7.638422
@@ -75,18 +77,13 @@ namespace HEAL.NonlinearRegression {
       // 7.6384216175965465
       // alglib.invfdistribution(1, 12 - 2, 0.05)
       // 4.964602743730711
-      var tmax = Math.Sqrt(alglib.invfdistribution(1, m - n, 0.001)); // use a small threshold here (alpha smaller or equal to the alpha we use for the query)
+      var tmax = Math.Sqrt(alglib.invfdistribution(1, likelihood.NumberOfObservations - n, 0.001)); // use a small threshold here (alpha smaller or equal to the alpha we use for the query)
 
-      // buffers
-      var yPred_cond = new double[m];
-      var J = new double[m, n];
       var tau = new List<double>();
       var M = new List<double[]>();
       var delta = -paramStdError[pIdx] / step;
 
-      var nllOpt = 0.0;
-      var tempGrad = new double[n];
-      negLogLikelihood(paramEst, ref nllOpt, tempGrad, null); // calculate maximum likelihood
+      var nllOpt = likelihood.NegLogLikelihood(paramEst); // calculate maximum likelihood
 
       #region CG configuration
       alglib.mincgcreate(paramEst, out var state);
@@ -106,7 +103,14 @@ namespace HEAL.NonlinearRegression {
 
           // minimize
           p_cond[pIdx] = curP;
-          var negLogLikeFixed = Util.FixParameter(negLogLikelihood, pIdx, curP);
+
+          // objective function for alglib cgoptimize
+          // likelihood but with p[pIdx] = curP fixed
+          void negLogLikeFixed(double[] p, ref double f, double[] grad, object obj) {
+            p[pIdx] = curP;
+            likelihood.NegLogLikelihoodGradient(p, out f, grad);
+            grad[pIdx] = 0.0;
+          }
 
           #region parameter optimization (CG)
           alglib.mincgrestartfrom(state, p_cond);
@@ -115,13 +119,12 @@ namespace HEAL.NonlinearRegression {
           // alglib.mincgoptguardresults(state, out var optGuardRep);
           if (report.terminationtype < 0) break;
 
-          double nll = 0.0;
-          var grad = new double[n];
-          negLogLikelihood(p_cond, ref nll, grad, null);
-          var zv = grad[pIdx];
+          var nll_grad = new double[n];
+          likelihood.NegLogLikelihoodGradient(p_cond, out var nll, nll_grad);
+          var zv = nll_grad[pIdx];
 
           if (nll < nllOpt) {
-            System.Console.Error.WriteLine($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
+            Console.Error.WriteLine($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
             goto restart;
           }
 
@@ -233,17 +236,15 @@ namespace HEAL.NonlinearRegression {
 
     public static void GetPredictionIntervals(double[,] x, NonlinearRegression nls, out double[] low, out double[] high, double alpha = 0.05) {
       var predRows = x.GetLength(0); // the points for which we calculate the prediction interval
-      var trainRows = nls.Statistics.m;
-      var n = nls.Statistics.n; // number of parameters
+      var trainRows = nls.y.Length;
+      var n = nls.ParamEst.Length; // number of model parameters
       var d = x.GetLength(1); // number of features
 
       var _low = new double[predRows];
       var _high = new double[predRows];
 
       // calc predicted values
-      var yPred = new double[predRows];
-      nls.modelFunc(nls.Statistics.paramEst, x, yPred);
-
+      var yPred = nls.Predict(x);
 
       // we only calculate pointwise intervals
       // in R:
@@ -262,37 +263,19 @@ namespace HEAL.NonlinearRegression {
       Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
         (i, loopState) => {
           // buffer
-          // actually they are only needed once for the whole loop but with parallel for we need to make copies
           double[] paramEstExt = new double[n];
-          Array.Copy(nls.ParamEst, paramEstExt, nls.ParamEst.Length);
-          var xi = new double[d];
+          Array.Copy(nls.ParamEst, paramEstExt, n);
 
+          var xi = new double[d];
           Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
 
           var reparameterizedModel = Expr.ReparameterizeExpr(nls.modelExpr, xi, out var outputParamIdx);
           paramEstExt[outputParamIdx] = yPred[i];
 
-          // TODO compilation can be done outside of the loop if reparameterizedModel has x,x0,theta as parameters (needs new expression type)
-          var _func = Expr.Broadcast(reparameterizedModel).Compile();
-          void modelFunc(double[] p, double[,] X, double[] f) => _func(p, X, f); // TODO wrapper only necessary because return values are incompatible 
-          var _jac = Expr.Jacobian(reparameterizedModel, n).Compile();
-          void modelJac(double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
+          var likelihoodExt = nls.Likelihood.Clone();
+          likelihoodExt.ModelExpr = reparameterizedModel; // leads to recompilation (TODO: we can reuse one model if x parameter is extended to include x0)
 
-          LaplaceApproximation statisticsExt = null; // for the re-parameterized model
-          alglib.ndimensional_grad negLogLikelihood = null;
-          // here we need to create our own functions because we have reparameterized the model
-          if (nls.LikelihoodType == LikelihoodEnum.Gaussian) {
-            negLogLikelihood = Util.CreateGaussianNegLogLikelihood(modelJac, nls.y, nls.x, nls.Dispersion);
-            statisticsExt = new LaplaceApproximation(trainRows, n, paramEstExt,
-              Util.CreateGaussianNegLogLikelihoodHessian(modelJac, nls.y, nls.Dispersion), nls.x);
-
-          } else if(nls.LikelihoodType == LikelihoodEnum.Bernoulli) {
-            negLogLikelihood = Util.CreateBernoulliNegLogLikelihood(modelJac, nls.y, nls.x);
-            statisticsExt = new LaplaceApproximation(trainRows, n, paramEstExt,
-               Util.CreateBernoulliNegLogLikelihoodHessian(modelJac, nls.y), nls.x);
-          }
-
-          var profile = CalcTProfile(statisticsExt, negLogLikelihood, outputParamIdx); // only for the function output parameter
+          var profile = CalcTProfile(new LaplaceApproximation(trainRows, n, paramEstExt, likelihoodExt), likelihoodExt, outputParamIdx); // only for the function output parameter
 
           var tau = profile.Item1;
           var theta = new double[tau.Length];

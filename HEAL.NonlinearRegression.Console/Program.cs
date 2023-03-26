@@ -463,7 +463,7 @@ namespace HEAL.NonlinearRegression.Console {
 
         var subExprImportance = ModelAnalysis.SubtreeImportance(parametricExpr, options.Likelihood, options.NoiseSigma, trainX, trainY, p);
 
-        Dictionary<Expression, double> saturation = null;
+        Dictionary<Expression, double>? saturation = null;
         if (options.GraphvizFilename != null) {
           saturation = new Dictionary<Expression, double> {
             [parametricExpr] = 0.0 // reference value for the importance
@@ -556,7 +556,7 @@ namespace HEAL.NonlinearRegression.Console {
         var folder = Path.GetDirectoryName(options.Dataset);
         var filename = Path.GetFileNameWithoutExtension(options.Dataset);
 
-        var tProfile = new TProfile(nlr.Statistics, nlr.NegLogLikelihoodFunc);
+        var tProfile = new TProfile(nlr.Statistics, nlr.Likelihood);
         var numPairs = (parameters.Length * (parameters.Length - 1) / 2.0);
         for (int i = 0; i < parameters.Length - 1; i++) {
           for (int j = i + 1; j < parameters.Length; j++) {
@@ -598,7 +598,7 @@ namespace HEAL.NonlinearRegression.Console {
         var folder = Path.GetDirectoryName(options.Dataset);
         var filename = Path.GetFileNameWithoutExtension(options.Dataset);
 
-        var tProfile = new TProfile(nlr.Statistics, nlr.NegLogLikelihoodFunc);
+        var tProfile = new TProfile(nlr.Statistics, nlr.Likelihood);
 
         System.Console.WriteLine($"profile-based marginal confidence intervals (alpha={options.Alpha})");
         for (int pIdx = 0; pIdx < parameters.Length; pIdx++) {

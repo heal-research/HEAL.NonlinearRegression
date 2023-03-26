@@ -174,7 +174,7 @@ Optimized: ((110.42107672063618 * x0) + 103.48806186471386)
 
       var expected = @"p_opt: 1.38378e+000 4.84833e-002 5.24299e-001 3.52511e-001 -6.84851e-002 -1.11809e+001
 Successful: True, NumIters: 195, NumFuncEvals: 614, NumJacEvals: 0
-Deviance: 7.8438e+002  Dispersion: 1.0000e+000 AICc: 798.5 BIC: 832.5 MDL: 455.9
+Deviance: 7.8438e+002  Dispersion: 1.0000e+000 AICc: 808.7 BIC: 866.8 MDL: 455.9
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
     0    1.3838e+000    1.0288e-001   1.35e+001    1.1819e+000    1.5857e+000 1.00
     1    4.8483e-002    8.0659e-003   6.01e+000    3.2654e-002    6.4312e-002 0.11 1.00
@@ -197,7 +197,7 @@ Optimized: Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * 
     [Test]
     public void EvaluateMammography() {
 
-      var expected = @"Deviance: 784.3750837455059 LogLik: -392.18754187275294 AIC: 798.3750837455059 AICc: 798.4926073551596 BIC: 832.450904608298 MDL: 455.9073697707563 MDL(freq): 449.97561863153 DoF: 6
+      var expected = @"Deviance: 784.3750837455059 LogLik: -392.18754187275294 AIC: 808.3750837455059 AICc: 808.7041976695565 BIC: 866.7907766531494 MDL: 455.9073697707563 MDL(freq): 449.97561863153 DoF: 6
 ";
 
       NlrEvaluate("mammography.csv",

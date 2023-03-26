@@ -42,7 +42,7 @@ namespace HEAL.NonlinearRegression.Demo {
 
         Console.WriteLine("Variable importance (SSR ratio)");
         var varImportance =
-          ModelAnalysis.VariableImportance(symbProb.ModelExpression, LikelihoodEnum.Gaussian, symbProb.X, symbProb.y, symbProb.ThetaStart);
+          ModelAnalysis.VariableImportance(symbProb.ModelExpression, LikelihoodEnum.Gaussian, noiseSigma: null, symbProb.X, symbProb.y, symbProb.ThetaStart);
         foreach (var kvp in varImportance.OrderByDescending(kvp => kvp.Value)) {
           Console.WriteLine($"x{kvp.Key} {kvp.Value,-11:e4}");
         }
@@ -50,7 +50,7 @@ namespace HEAL.NonlinearRegression.Demo {
 
         Console.WriteLine("Subtree importance (SSR ratio)");
         var expr = symbProb.ModelExpression;
-        var subExprImportance = ModelAnalysis.SubtreeImportance(expr, LikelihoodEnum.Gaussian, symbProb.X, symbProb.y, symbProb.ThetaStart);
+        var subExprImportance = ModelAnalysis.SubtreeImportance(expr, LikelihoodEnum.Gaussian, noiseSigma: null, symbProb.X, symbProb.y, symbProb.ThetaStart);
         var sat = new Dictionary<Expression, double>();
         sat[expr] = 0.0; // reference value for the importance
         foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item1)) {
@@ -64,7 +64,7 @@ namespace HEAL.NonlinearRegression.Demo {
         Console.WriteLine();
 
         Console.WriteLine("Nested models (set parameters zero) (SSR ratio)");
-        ModelAnalysis.NestedModelLiklihoodRatios(symbProb.ModelExpression, LikelihoodEnum.Gaussian, symbProb.X, symbProb.y, symbProb.ThetaStart, maxIterations: 10000);
+        ModelAnalysis.NestedModelLiklihoodRatios(symbProb.ModelExpression, LikelihoodEnum.Gaussian, noiseSigma: null, symbProb.X, symbProb.y, symbProb.ThetaStart, maxIterations: 10000);
       }
 
 
@@ -92,7 +92,7 @@ namespace HEAL.NonlinearRegression.Demo {
         nls.WriteStatistics();
 
 
-        var tProfile = new TProfile(nls.Statistics, nls.NegLogLikelihoodFunc);
+        var tProfile = new TProfile(nls.Statistics, nls.Likelihood);
 
 
         var pred = nls.PredictWithIntervals(x, IntervalEnum.LaplaceApproximation, 0.05);

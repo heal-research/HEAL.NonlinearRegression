@@ -3,37 +3,38 @@ using System.Linq;
 
 namespace HEAL.NonlinearRegression {
   public class LaplaceApproximation {
-    public int m { get; internal set; } // number of observations
-    public int n { get; internal set; } // number of parameters
+    public int m { get; internal set; } // number of observations (TODO: should be removed)
+    public int n { get; internal set; } // number of parameters (TODO: should be removed)
 
-    public double[] paramEst { get; internal set; } // estimated values for parameters θ
-    public double[] paramStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
-    public double[,] correlation { get; internal set; }// correlation matrix for parameters
+    public double[] ParamEst { get; internal set; } // estimated values for parameters θ
+    public double[] ParamStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
+    public double[,] Correlation { get; internal set; }// correlation matrix for parameters
 
 
     private double[,] invH; // covariance matrix for training set (required for prediction intervals)
-    public double[] diagH; // used for preconditioning of CG in profile likelihood
+    public double[] diagH; // used for preconditioning of CG in profile likelihood (TODO: public visibility problematic)
 
-    public LaplaceApproximation(int m, int n, double[] paramEst, Hessian negLogLikeHessian, double[,] x) {
+    public LaplaceApproximation(int m, int n, double[] paramEst, LikelihoodBase likelihood) {
       this.m = m;
       this.n = n;
-      this.paramEst = (double[])paramEst.Clone();
+      this.ParamEst = (double[])paramEst.Clone();
       try {
-        CalcParameterStatistics(negLogLikeHessian, x);
-      } catch (Exception e) {
-        System.Console.Error.WriteLine($"Problem while calculating statistics. Prediction intervals will not work.");
+        CalcParameterStatistics(likelihood);
+      } catch (Exception) {
+        Console.Error.WriteLine($"Problem while calculating statistics. Prediction intervals will not work.");
       }
     }
 
-    private void CalcParameterStatistics(Hessian negLogLikeHessian, double[,] x) {
-      var pOpt = paramEst;
+    private void CalcParameterStatistics(LikelihoodBase likelihood) {
+      var pOpt = ParamEst;
 
-      var U = new double[n, n];
-      negLogLikeHessian(pOpt, x, U); // Hessian is symmetric positive definite in pOpt
+      var U = likelihood.FisherInformation(pOpt); // Hessian is symmetric positive definite in pOpt
+      
+      // copy diagonal of Fisher information (for preconditioning in CG)
       diagH = new double[n];
       for (int i = 0; i < n; i++) diagH[i] = U[i, i];
-      try {
 
+      try {
         if (alglib.spdmatrixcholesky(ref U, n, isupper: true) == false) {
           throw new InvalidOperationException("Cannot decompose Hessian (not SDP?)");
         }
@@ -42,13 +43,13 @@ namespace HEAL.NonlinearRegression {
           throw new InvalidOperationException("Cannot invert Hessian");
         }
       } catch (alglib.alglibexception) {
-        System.Console.Error.WriteLine("LaplaceApproximation: Cannot decompose or invert Hessian");
+        Console.Error.WriteLine("LaplaceApproximation: Cannot decompose or invert Hessian");
         throw;
       }
 
-
       invH = U; U = null; // rename 
-                          // fill up rest of invH because alglib only works on the upper triangle (prevents problems below)
+
+      // fill up rest of invH because alglib only works on the upper triangle (prevents problems below)
       for (int i = 0; i < n - 1; i++) {
         for (int j = i + 1; j < n; j++) {
           invH[j, i] = invH[i, j];
@@ -70,20 +71,19 @@ namespace HEAL.NonlinearRegression {
         }
       }
 
-      correlation = C;
-      paramStdError = se.ToArray();
+      Correlation = C;
+      ParamStdError = se.ToArray();
     }
 
     public void GetParameterIntervals(double alpha, out double[] low, out double[] high) {
       low = new double[n];
       high = new double[n];
 
-      // for approximate confidence interval of each parameter
       var t = -alglib.invstudenttdistribution(m - n, alpha / 2.0);
 
       for (int i = 0; i < n; i++) {
-        low[i] = paramEst[i] - paramStdError[i] * t;
-        high[i] = paramEst[i] + paramStdError[i] * t;
+        low[i] = ParamEst[i] - ParamStdError[i] * t;
+        high[i] = ParamEst[i] + ParamStdError[i] * t;
       }
     }
 
@@ -97,7 +97,7 @@ namespace HEAL.NonlinearRegression {
 
       var yPred = new double[numRows];
       var J = new double[numRows, n];
-      modelJacobian(paramEst, x, yPred, J);
+      modelJacobian(ParamEst, x, yPred, J);
 
       for (int i = 0; i < numRows; i++) {
         resStdError[i] = 0.0;
@@ -113,10 +113,10 @@ namespace HEAL.NonlinearRegression {
         resStdError[i] = Math.Sqrt(resStdError[i]);
       }
 
+      // point-wise interval
       // https://en.wikipedia.org/wiki/Confidence_and_prediction_bands
       var t = -alglib.invstudenttdistribution(this.m - n, alpha / 2);
 
-      // point-wise interval
       for (int i = 0; i < numRows; i++) {
         low[i] = yPred[i] - resStdError[i] * t;
         high[i] = yPred[i] + resStdError[i] * t;
