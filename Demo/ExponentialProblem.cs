@@ -18,7 +18,8 @@ namespace HEAL.NonlinearRegression.Demo {
         X[i, 0] = i / (double)m;
       }
 
-      Func(pOpt, X, y); // calculate target (without noise)
+      var func = Expr.Broadcast(ModelExpression).Compile();
+      func(pOpt, X, y);
     }
 
     public double[,] X { get; private set; }
@@ -29,22 +30,5 @@ namespace HEAL.NonlinearRegression.Demo {
 
     public Expression<Expr.ParametricFunction> ModelExpression => (double[] theta, double[] x) => theta[0] * Math.Exp(x[0] * theta[1]);
 
-    public void Func(double[] theta, double[,] X, double[] f) {
-      int m = X.GetLength(0);
-      int d = X.GetLength(1);
-      for (int i = 0; i < m; i++) {
-        f[i] = theta[0] * Math.Exp(X[i, 0] * theta[1]);
-      }
-    }
-
-    public void Jacobian(double[] theta, double[,] X, double[] f, double[,] jac) {
-      int m = X.GetLength(0);
-      int d = X.GetLength(1);
-      Func(theta, X, f);
-      for (int i = 0; i < m; i++) {
-        jac[i, 0] = Math.Exp(X[i, 0] * theta[1]);
-        jac[i, 1] = X[i, 0] * f[i];
-      }
-    }
   }
 }

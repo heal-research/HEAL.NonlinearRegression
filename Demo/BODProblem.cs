@@ -25,20 +25,5 @@ namespace HEAL.NonlinearRegression.Demo {
 
     public Expression<Expr.ParametricFunction> ModelExpression => (double[] theta, double[] x) => theta[0] * (1 - Math.Exp(-theta[1] * x[0]));
 
-    public void Func(double[] theta, double[,] X, double[] f) {
-      var m = X.GetLength(0);
-      for (int i = 0; i < m; i++) {
-        f[i] = theta[0] * (1 - Math.Exp(-theta[1] * X[i, 0]));
-      }
-    }
-
-    public void Jacobian(double[] theta, double[,] X, double[] f, double[,] jac) {
-      Func(theta, X, f);
-      var m = X.GetLength(0);
-      for (int i = 0; i < m; i++) {
-        jac[i, 0] = 1 - Math.Exp(-theta[1] * X[i, 0]);
-        jac[i, 1] = theta[0] * X[i, 0] * Math.Exp(-theta[1] * X[i, 0]);
-      }
-    }
   }
 }

@@ -1,10 +1,7 @@
-﻿using System.Data.Common;
-using System.Linq;
-using System;
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 
 namespace HEAL.Expressions {
-  internal static class ExpressionExtrensions {
+  internal static class ExpressionExtensions {
     // Deconstruct methods for switch pattern matching
     public static void Deconstruct(this UnaryExpression expr, out ExpressionType nodeType, out Expression operand) {
       nodeType = expr.NodeType;

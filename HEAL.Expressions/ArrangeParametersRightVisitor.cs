@@ -86,22 +86,7 @@ namespace HEAL.Expressions {
     }
 
 
-    
-    /*
-    // fold unary operations on parameters
-    protected override Expression VisitUnary(UnaryExpression node) {
-      var operand = Visit(node.Operand);
-      if (IsParam(operand, out var arrayIdxExpr, out var paramIdx)) {
-        switch (node.NodeType) {
-          case ExpressionType.Negate: {
-              pValues[paramIdx] *= -1;
-              return arrayIdxExpr;
-            }
-          default: throw new NotSupportedException($"node");
-        }
-      } else return node.Update(operand);
-    }
-    */
+
     
     
     protected override Expression VisitUnary(UnaryExpression node) {

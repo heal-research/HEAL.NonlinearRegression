@@ -17,6 +17,7 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
+    // TODO: these are duplicated in the likelihood 
     internal Expr.ParametricVectorFunction? modelFunc; // for prediction
     internal Expr.ParametricJacobianFunction? modelJacobian; // for Laplace approximation
 
@@ -27,9 +28,6 @@ namespace HEAL.NonlinearRegression {
 
     // results
     private double[]? paramEst;
-    // public alglib.ndimensional_grad? NegLogLikelihoodFunc { get; private set; } // mainly for internal use
-
-    // public Hessian? FisherInformation { get; private set; }
 
     public double[]? ParamEst { get { return paramEst?.Clone() as double[]; } }
 

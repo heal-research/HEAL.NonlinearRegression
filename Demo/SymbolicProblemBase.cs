@@ -15,7 +15,7 @@ namespace HEAL.NonlinearRegression.Demo {
     public abstract double[] ThetaStart { get; }
 
     // compile the expressions only once
-    private object compiledModelLocker = new object();
+    private object compiledModelLocker = new();
     private Expr.ParametricVectorFunction compiledModel;
     private Expr.ParametricJacobianFunction compiledJacobian;
     
@@ -41,14 +41,5 @@ namespace HEAL.NonlinearRegression.Demo {
     }
 
     public abstract Expression<Expr.ParametricFunction> ModelExpression { get; }
-
-    public void Func(double[] theta, double[,] X, double[] f) {
-      Model(theta, X, f);
-    }
-
-    public void Jacobian(double[] theta, double[,] X, double[] f, double[,] jac) {
-      ModelJacobian(theta, X, f, jac);
-    }
-
   }
 }
