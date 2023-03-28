@@ -9,6 +9,8 @@ using HEAL.Expressions;
 using HEAL.Expressions.Parser;
 
 // TODO:
+//   - Unify options for different verbs.
+//   - Move code for verbs into separate 'plugins'
 //   - alglib is GPL, should switch to .NET numerics (MIT) instead.
 //   - iterative pruning based on subtree impacts or likelihood ratios for nested models
 //   - variable impacts for combinations of variables (tuples, triples). Contributions to individual variables via Shapely values?
@@ -109,8 +111,7 @@ namespace HEAL.NonlinearRegression.Console {
           var bic = nlr.BIC;
 
           if (options.Likelihood == LikelihoodEnum.Gaussian) {
-            var SSR = nlr.Deviance * nlr.Dispersion * nlr.Dispersion; // only valid for Gaussian!
-
+            var SSR = nlr.Deviance * nlr.Dispersion * nlr.Dispersion; // only valid for Gaussian
             var noiseSigma = options.NoiseSigma ?? nlr.Dispersion; // use estimated noise standard error as default
             var nmse = SSR / y.Length / Util.Variance(y);
             System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {logLik} AIC: {nlr.AIC} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
