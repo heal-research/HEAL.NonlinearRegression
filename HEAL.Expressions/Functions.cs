@@ -10,19 +10,27 @@ namespace HEAL.Expressions {
       return a / Math.Sqrt(1 + b * b);
     }
 
-    // TODO: prevent numerical problems when using Bernoulli log likelihood with logistic link function
-    // uses a threshold to prevent numeric problems
     public static double Logistic(double x) {
-      // var xLim = Math.Max(-15, Math.Min(15, x));
-      var xLim = x;
-      return 1.0 / (1 + Math.Exp(-xLim));
+      return 1.0 / (1 + Math.Exp(-x));
     }
 
-    // use same threshold as above
     public static double LogisticPrime(double x) {
-      // if (x > 15 || x < -15) return 0.0;
-      // else 
-        return Math.Exp(x) / Math.Pow(Math.Exp(x) + 1, 2);
+      var expx = Math.Exp(-x);
+      var expx1 = expx + 1;
+      return expx / (expx1 * expx);
+    }
+
+    /*
+                                  - 2 x          - x
+                               2 %e             %e
+    (%o31)                    ------------ - ------------
+                                 - x     3      - x     2
+                              (%e    + 1)    (%e    + 1)
+    */
+    public static double LogisticPrimePrime(double x) {
+      var expx = Math.Exp(-x);
+      var expx1 = expx + 1;
+      return 2 * expx * expx / (expx1 * expx1 * expx1) - expx / (expx1 * expx1);
     }
 
     public static double InvLogistic(double p) {

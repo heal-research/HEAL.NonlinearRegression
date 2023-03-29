@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 
 namespace HEAL.NonlinearRegression {
   public static class Util {
@@ -11,6 +12,13 @@ namespace HEAL.NonlinearRegression {
         SSR += r * r;
       }
       return SSR / x.Length;
+    }
+
+    internal static void CopyRow(double[,] x, int rowIdx, double[] xi) {
+      var m = x.GetLength(0);
+      if (rowIdx >= m) throw new ArgumentException();
+      var n = x.GetLength(1);
+      Buffer.BlockCopy(x, sizeof(double) * n * rowIdx, xi, 0, sizeof(double) * n);
     }
   }
 }

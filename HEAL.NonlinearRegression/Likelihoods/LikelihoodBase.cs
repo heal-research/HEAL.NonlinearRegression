@@ -34,13 +34,12 @@ namespace HEAL.NonlinearRegression {
         numModelParams = Expr.NumberOfParameters(modelExpr);
         ModelFunc = Expr.Broadcast(modelExpr).Compile();
         ModelJacobian = Expr.Jacobian(modelExpr, numModelParams).Compile();
-        // var _hess = Expr.Hessian(modelExpr, numModelParams).Compile();
-        // this.ModelHessian = (double[] p, double[,] X, double[,] hess) => _hess(p, X, hess);
+        ModelHessian = Expr.Hessian(modelExpr, numModelParams).Compile();
       }
     }
     protected Expr.ParametricVectorFunction ModelFunc { get; private set; }
     protected Expr.ParametricJacobianFunction ModelJacobian { get; private set; }
-    // protected  Expr.ParametricHessianFunction ModelHessian { get; private set; }
+    protected  Expr.ParametricHessianFunction ModelHessian { get; private set; }
 
 
     public int NumberOfObservations { get; }

@@ -76,6 +76,7 @@ namespace HEAL.Expressions {
     private readonly MethodInfo logistic = typeof(Functions).GetMethod("Logistic", new[] { typeof(double) });
     private readonly MethodInfo invlogistic = typeof(Functions).GetMethod("InvLogistic", new[] { typeof(double) });
     private readonly MethodInfo logisticPrime = typeof(Functions).GetMethod("LogisticPrime", new[] { typeof(double) }); // deriv of logistic
+    private readonly MethodInfo logisticPrimePrime = typeof(Functions).GetMethod("LogisticPrimePrime", new[] { typeof(double) }); // deriv of logistic
     private readonly MethodInfo invlogisticPrime = typeof(Functions).GetMethod("InvLogisticPrime", new[] { typeof(double) });
 
     //private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
@@ -114,7 +115,7 @@ namespace HEAL.Expressions {
         if (exponent.NodeType == ExpressionType.Constant) {
           var expVal = (double)((ConstantExpression)exponent).Value;
           dfx = Expression.Multiply(exponent, Expression.Call(pow, b, Expression.Constant(expVal - 1)));
-        } else if (exponent is BinaryExpression binaryExpression && binaryExpression.Left == param){
+        } else if (exponent is BinaryExpression binaryExpression && binaryExpression.Left == param) {
           return Expression.Multiply(node, Expression.Add(Expression.Divide(Expression.Multiply(exponent, dx), b), Expression.Call(log, b)));
         } else {
           throw new NotSupportedException("Exponents can only be parameters or constants.");
@@ -126,6 +127,8 @@ namespace HEAL.Expressions {
         dfx = Expression.Call(logisticPrime, x);
       } else if (node.Method == invlogistic) {
         dfx = Expression.Call(invlogisticPrime, x);
+      } else if (node.Method == logisticPrime) {
+        dfx = Expression.Call(logisticPrimePrime, x);
       } else throw new NotSupportedException($"Unsupported method call {node.Method.Name}");
 
       return Expression.Multiply(dfx, dx);

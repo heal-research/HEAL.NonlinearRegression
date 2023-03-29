@@ -17,14 +17,15 @@ namespace HEAL.NonlinearRegression.Likelihoods {
       ModelJacobian(p, x, yPred, yJac);
 
       var hess = new double[n,n];
+      var xi = new double[n];
+      var modelHess = new double[n, n];
       for (int i = 0; i < m; i++) {
         var res = y[i] - yPred[i];
         var s = 1 / ((1 - yPred[i]) * (1 - yPred[i]) * yPred[i] * yPred[i]);
-
+        Util.CopyRow(x, i, xi);
         for (int j = 0; j < n; j++) {
           for (int k = 0; k < n; k++) {
-            var hessianTerm = 0.0;
-            // var hessianTerm = (yPred[i] - 1) * yPred[i] * res * modelHessian[j, k]; TODO: modelHessian
+            var hessianTerm = (yPred[i] - 1) * yPred[i] * res * modelHess[j, k]; 
             var gradientTerm = (-2.0 * y[i] * yPred[i] + yPred[i] * yPred[i] + y[i]) * yJac[i, j] * yJac[i, k];
             hess[j, k] += s * (hessianTerm + gradientTerm);
           }

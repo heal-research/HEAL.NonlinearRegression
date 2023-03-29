@@ -11,7 +11,7 @@ namespace HEAL.NonlinearRegression.Likelihoods {
     internal SimpleGaussianLikelihood(SimpleGaussianLikelihood original) : base(original) {
       this.sErr = original.sErr;
     }
-    public SimpleGaussianLikelihood(double[,] x, double[] y, Expression<Expr.ParametricFunction> modelExpr, double noiseSigma = 1.0) 
+    public SimpleGaussianLikelihood(double[,] x, double[] y, Expression<Expr.ParametricFunction> modelExpr, double noiseSigma = 1.0)
       : base(modelExpr, x, y, numLikelihoodParams: 1) {
       this.sErr = noiseSigma;
     }
@@ -22,16 +22,18 @@ namespace HEAL.NonlinearRegression.Likelihoods {
       var yPred = new double[m];
       var yJac = new double[m, n];
       ModelJacobian(p, x, yPred, yJac);
-      
-      // TODO: include Hessian of the model (in case we do not evaluate this only in the MLE where the contribution of the Hessian is small)
 
       var hess = new double[n, n];
+      var modelHess = new double[n, n];
+      var xi = new double[n];
       for (int i = 0; i < m; i++) {
         var res = y[i] - yPred[i];
-        // f[i] += 0.5 * res * res / (sErr * sErr);
+        // evalute Hessian for current row
+        Util.CopyRow(x, i, xi);
+        ModelHessian(p, xi, modelHess);
         for (int j = 0; j < n; j++) {
           for (int k = 0; k < n; k++) {
-            hess[j, k] += yJac[i, j] * yJac[i, k] / (sErr * sErr);
+            hess[j, k] += (yJac[i, j] * yJac[i, k] - res * modelHess[j, k]) / (sErr * sErr);
           }
         }
       }
