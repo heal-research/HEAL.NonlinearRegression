@@ -78,6 +78,7 @@ namespace HEAL.Expressions {
     private readonly MethodInfo logisticPrime = typeof(Functions).GetMethod("LogisticPrime", new[] { typeof(double) }); // deriv of logistic
     private readonly MethodInfo logisticPrimePrime = typeof(Functions).GetMethod("LogisticPrimePrime", new[] { typeof(double) }); // deriv of logistic
     private readonly MethodInfo invlogisticPrime = typeof(Functions).GetMethod("InvLogisticPrime", new[] { typeof(double) });
+    private readonly MethodInfo invlogisticPrimePrime = typeof(Functions).GetMethod("InvLogisticPrimePrime", new[] { typeof(double) });
 
     //private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
     //private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
@@ -129,6 +130,8 @@ namespace HEAL.Expressions {
         dfx = Expression.Call(invlogisticPrime, x);
       } else if (node.Method == logisticPrime) {
         dfx = Expression.Call(logisticPrimePrime, x);
+      } else if (node.Method == invlogisticPrime) {
+        dfx = Expression.Call(invlogisticPrimePrime, x);
       } else throw new NotSupportedException($"Unsupported method call {node.Method.Name}");
 
       return Expression.Multiply(dfx, dx);

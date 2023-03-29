@@ -27,6 +27,7 @@ namespace HEAL.Expressions {
       typeof(Functions).GetMethod("Logistic", new [] { typeof(double) }),
       typeof(Functions).GetMethod("InvLogistic", new [] { typeof(double) }),
       typeof(Functions).GetMethod("LogisticPrime", new [] { typeof(double) }),
+      typeof(Functions).GetMethod("InvLogisticPrime", new [] { typeof(double) }),
     };
 
     private CheckExprVisitor(ParameterExpression theta, ParameterExpression x) {

@@ -41,5 +41,14 @@ namespace HEAL.Expressions {
       return 1.0 / (p - p * p);
     }
 
+    //                                      1 - 2 p
+    // (%o1)                             - ---------
+    //                                           2 2
+    //                                     (p - p )
+    public static double InvLogisticPrimePrime(double p) {
+      var denom = p - p * p;
+      return -(1 - 2 * p) / (denom * denom);
+    }
+
   }
 }
