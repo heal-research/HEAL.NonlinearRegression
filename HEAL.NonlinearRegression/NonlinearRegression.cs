@@ -2,7 +2,9 @@
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using HEAL.Expressions;
+using HEAL.Expressions.Parser;
 using HEAL.NonlinearRegression.Likelihoods;
 
 namespace HEAL.NonlinearRegression {
@@ -57,10 +59,42 @@ namespace HEAL.NonlinearRegression {
     /// Least-squares fitting for func with Jacobian to target y using initial values p.
     /// Uses Levenberg-Marquardt algorithm.
     /// </summary>
+    /// <param name="modelExpr">The expression to fit including initial parameter values (e.g. 0.1 * x^2f / (1 + 0.2 * x) )</param> 
+    /// <param name="variableNames">The variable names occuring in the expression</param> 
+    /// <param name="likelihood">The likelihood type.</param> 
+    /// <param name="noiseSigma">The noise sigma for the Gaussian likelihood (if known)</param>
+    /// <param name="x">Matrix of input values</param>
+    /// <param name="y">Vector of target values</param>
+    /// <param name="report">Report with fitting results and statistics</param>
+    /// <param name="maxIterations"></param>
+    /// <param name="scale">Optional parameter to set parameter scale. Useful if parameters are given on very different measurement scales.</param>
+    /// <param name="stepMax">Optional parameter to limit the step size in Levenberg-Marquardt. Can be useful on quickly changing functions (e.g. exponentials).</param>
+    /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
+    /// <exception cref="InvalidProgramException"></exception>
+    public void Fit(string modelExpr, string[] variableNames, LikelihoodEnum likelihood, double[,] x, double[] y, double? noiseSigma = null,
+      int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
+      Func<double[], double, bool>? callback = null) {
+
+      // parse expression and extract parameter values
+      var variablesParameter = Expression.Parameter(typeof(double[]), "x");
+      var parametersParameter = Expression.Parameter(typeof(double[]), "p");
+      var parser = new ExprParser(modelExpr, variableNames, variablesParameter, parametersParameter);
+      var parametricExpr = parser.Parse();
+      var p = parser.ParameterValues;
+
+      Fit(p, parametricExpr, likelihood, x, y, noiseSigma, maxIterations, scale, stepMax, callback);
+    }
+
+    /// <summary>
+    /// Least-squares fitting for func with Jacobian to target y using initial values p.
+    /// Uses Levenberg-Marquardt algorithm.
+    /// </summary>
     /// <param name="p">Initial values and optimized parameters on exit. Initial parameters are overwritten.</param>
     /// <param name="expr">The expression (p, x) => to fit. Where p is the parameter vector to be optimized.</param> 
     /// <param name="likelihood">The likelihood type.</param> 
-    /// <param name="y">Target values</param>
+    /// <param name="noiseSigma">The noise sigma for the Gaussian likelihood (if known)</param>
+    /// <param name="x">Matrix of input values</param>
+    /// <param name="y">Vector of target values</param>
     /// <param name="report">Report with fitting results and statistics</param>
     /// <param name="maxIterations"></param>
     /// <param name="scale">Optional parameter to set parameter scale. Useful if parameters are given on very different measurement scales.</param>
@@ -68,8 +102,8 @@ namespace HEAL.NonlinearRegression {
     /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
     /// <exception cref="InvalidProgramException"></exception>
     public void Fit(double[] p, Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] x, double[] y, double? noiseSigma = null,
-      int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
-      Func<double[], double, bool>? callback = null) {
+    int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
+    Func<double[], double, bool>? callback = null) {
 
       this.modelExpr = expr;
 
