@@ -17,7 +17,7 @@ namespace HEAL.Expressions {
     public static double LogisticPrime(double x) {
       var expx = Math.Exp(-x);
       var expx1 = expx + 1;
-      return expx / (expx1 * expx);
+      return expx / (expx1 * expx1);
     }
 
     /*
