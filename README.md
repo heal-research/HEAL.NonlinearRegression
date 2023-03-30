@@ -90,7 +90,7 @@ Passed!  - Failed:     0, Passed:     2, Skipped:     0, Total:     2, Duration:
 # Usage
 To call the library you have to provide an expression for the model as well as a dataset to fit to.
 
-```
+```csharp
 var x = new double[,] {
                        { 0.02 },
                        { 0.02 },
