@@ -15,14 +15,30 @@ namespace HEAL.NonlinearRegression.Console.Tests {
     #region nonlinear Puromycin
     [Test]
     public void FitPuromycin() {
+      // result in R;
+      // Parameter intervals are profile based
+      // Formula: y ~ a * x0/(b + x0)
+      // 
+      // Parameters:
+      //    Estimate Std. Error t value Pr(>|t|)    
+      // a 2.127e+02  6.947e+00  30.615 3.24e-11 ***
+      // b 6.412e-02  8.281e-03   7.743 1.57e-05 ***
+      // ---
+      // Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+      // 
+      // Residual standard error: 10.93 on 10 degrees of freedom
+      // 
+      // Number of iterations to convergence: 5 
+      // Achieved convergence tolerance: 8.824e-06
+
       // standard error and z-score are the same as in R
       // Laplace approximation lower and upper bounds are close to confidence intervals in R
       var expected = @"p_opt: 6.41213e-002 2.12684e+002
 Successful: True, NumIters: 3, NumFuncEvals: 44, NumJacEvals: 0
 SSR: 1.1954e+003  s: 1.0934e+001 AICc: 19.0 BIC: 17.5 MDL: 21.5
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
-    0    6.4121e-002    8.2809e-003   7.74e+000    4.5670e-002    8.2572e-002 1.00
-    1    2.1268e+002    6.9472e+000   3.06e+001    1.9720e+002    2.2816e+002 0.77 1.00
+    0    6.4121e-002    8.7112e-003   7.36e+000    4.4711e-002    8.3531e-002 1.00
+    1    2.1268e+002    7.1607e+000   2.97e+001    1.9673e+002    2.2864e+002 0.78 1.00
 
 Optimized: ((x0 / (0.06412128166090875 + x0)) * 212.68374312341493)
 ";
@@ -170,24 +186,24 @@ Optimized: ((110.42107672063618 * x0) + 103.48806186471386)
       //     Null deviance: 1326.98  on 960  degrees of freedom
       // Residual deviance:  784.38  on 955  degrees of freedom
       // AIC: 796.38
-      // TODO: check/fix difference in standard error, z values, and CI
 
+      // exactly the same result as in R (using full Hessian for FisherInformationMatrix)
       var expected = @"p_opt: 1.38378e+000 4.84833e-002 5.24299e-001 3.52511e-001 -6.84851e-002 -1.11809e+001
-Successful: True, NumIters: 195, NumFuncEvals: 614, NumJacEvals: 0
-Deviance: 7.8438e+002  Dispersion: 1.0000e+000 AICc: 808.7 BIC: 866.8 MDL: 455.9
+Successful: True, NumIters: 2, NumFuncEvals: 41, NumJacEvals: 0
+Deviance: 7.8438e+002  Dispersion: 1.0000e+000 AICc: 808.7 BIC: 866.8 MDL: 456.0
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
-    0    1.3838e+000    1.0288e-001   1.35e+001    1.1819e+000    1.5857e+000 1.00
-    1    4.8483e-002    8.0659e-003   6.01e+000    3.2654e-002    6.4312e-002 0.11 1.00
-    2    5.2430e-001    1.0718e-001   4.89e+000    3.1397e-001    7.3463e-001 0.05 0.01 1.00
-    3    3.5251e-001    8.6040e-002   4.10e+000    1.8366e-001    5.2136e-001 -0.10 -0.07 -0.67 1.00
-    4   -6.8485e-002    2.3370e-001  -2.93e-001   -5.2712e-001    3.9015e-001 -0.01 -0.03 -0.08 -0.03 1.00
-    5   -1.1181e+001    9.4196e-001  -1.19e+001   -1.3029e+001   -9.3324e+000 -0.49 -0.50 -0.12 0.04 -0.67 1.00
+    0    1.3838e+000    1.7042e-001   8.12e+000    1.0493e+000    1.7182e+000 1.00
+    1    4.8483e-002    7.5999e-003   6.38e+000    3.3569e-002    6.3398e-002 -0.04 1.00
+    2    5.2430e-001    9.7525e-002   5.38e+000    3.3291e-001    7.1569e-001 -0.08 0.02 1.00
+    3    3.5251e-001    8.0993e-002   4.35e+000    1.9357e-001    5.1145e-001 -0.16 -0.08 -0.55 1.00
+    4   -6.8485e-002    2.4032e-001  -2.85e-001   -5.4009e-001    4.0312e-001 -0.04 0.00 0.02 -0.10 1.00
+    5   -1.1181e+001    1.0533e+000  -1.06e+001   -1.3248e+001   -9.1140e+000 -0.60 -0.38 -0.11 0.12 -0.62 1.00
 
-Optimized: Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))
+Optimized: Logistic(((((((1.3837834757792504 * BI_RADS) + (0.04848326870703262 * Age)) + (0.5242993934295344 * Shape)) + (0.35251072256817134 * Margin)) + (-0.06848513367625395 * Density)) + -11.180915607397576))
 ";
 
       NlrFit("mammography.csv",
-        "Logistic(((((((2.2567076159618358 * BI_RADS) + (0.04380746945531807 * Age)) + (0.5000365292519695 * Shape)) + (0.3044656335194289 * Margin)) + (-0.024110900815627095 * Density)) + -14.579127936956462))", 
+        "Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))", 
         "0:960", 
         "Severity",
         "Bernoulli",
@@ -244,7 +260,7 @@ p5   -1.1198e+001   -1.3314e+001   -9.1743e+000
 ";
       // -> very close match
       NlrProfile("mammography.csv",
-        "Logistic(((((((2.2567076159618358 * BI_RADS) + (0.04380746945531807 * Age)) + (0.5000365292519695 * Shape)) + (0.3044656335194289 * Margin)) + (-0.024110900815627095 * Density)) + -14.579127936956462))",
+        "Logistic(((((((1.38378347577933 * BI_RADS) + (0.04848326870687731 * Age)) + (0.5242993934295488 * Shape)) + (0.3525107225682143 * Margin)) + (-0.06848513367624065 * Density)) + -11.180915607397594))",
         "0:960",
         "Severity",
         "Bernoulli",
