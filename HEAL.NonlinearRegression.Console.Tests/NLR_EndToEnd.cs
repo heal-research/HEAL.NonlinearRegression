@@ -342,6 +342,65 @@ p5   -1.1181e+001   -1.3314e+001   -9.1744e+000
         "Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))",
         "0:960", "0:19", "Severity", "Bernoulli", "TProfile", expected);
     }
+
+    [Test]
+    public void RankMammography() {
+      
+      var expected = @"Num param: 6 rank: 6 log10_K(J): 2.896365501198681 log10_K(J_rank): 2.896365501198681
+";
+      NlrRank("mammography.csv",
+        "Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))",
+        "0:960", "Severity", "Bernoulli", expected);
+    }
+
+    [Test]
+    public void VariableImporanceMammography() {
+
+      var expected = @"variable    VarExpl    
+BI_RADS     9.39       %
+Age         4.64       %
+Shape       2.99       %
+Margin      1.99       %
+Density     0.01       %
+";
+      NlrVariableImpact("mammography.csv",
+        "Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))",
+        "0:960", "Severity", "Bernoulli", expected);
+    }
+    [Test]
+    public void NestedMammography() {
+
+      var expected = @"
+Deviance_Factor,numPar,AICc,dAICc,BIC,dBIC,Model
+1.0000e+000,6,8.0870e+002,0.0000e+000,8.6679e+002,0.0000e+000,Logistic(((((((1.3837834757792504 * BI_RADS) + (0.04848326870703262 * Age)) + (0.5242993934295344 * Shape)) + (0.35251072256817134 * Margin)) + (-0.06848513367625395 * Density)) + -11.180915607397576))
+1.0001e+000,5,8.0469e+002,-4.0165e+000,8.5314e+002,-1.3655e+001,Logistic((((((Age * 0.048492802511927176) + (Shape * 0.5247998194896707)) + (Margin * 0.35034484638723523)) + (BI_RADS * 1.382285850509489)) + -11.36921169209686))
+";
+      NlrNested("mammography.csv",
+        "Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))",
+        "0:960", "Severity", "Bernoulli", expected);
+    }
+    [Test]
+    public void SubtreesMammography() {
+
+      var expected = @"SSR_factor  deltaAIC    deltaBIC    Subtree
+1.6880e+000 523.4       484.7       ((((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2])) + (p[3] * x[3]))
+1.2735e+000 202.3       173.3       (((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2]))
+1.1984e+000 147.5       128.2       ((p[0] * x[0]) + (p[1] * x[1]))
+1.1150e+000 86.1        76.5        (p[0] * x[0])
+1.1150e+000 86.1        76.5        x[0]
+1.0569e+000 40.5        30.9        (p[1] * x[1])
+1.0569e+000 40.5        30.9        x[1]
+1.0367e+000 24.7        15.0        (p[2] * x[2])
+1.0367e+000 24.7        15.0        x[2]
+1.0244e+000 15.0        5.4         x[3]
+1.0244e+000 15.0        5.4         (p[3] * x[3])
+1.0001e+000 -4.0        -13.7       (p[4] * x[4])
+1.0001e+000 -4.0        -13.7       x[4]
+";
+      NlrSubtrees("mammography.csv",
+        "Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))",
+        "0:960", "Severity", "Bernoulli", expected);
+    }
     #endregion
 
     internal void NlrFit(string dataFilename, string model, string trainRange, string target, string likelihood, string expected) {
@@ -359,7 +418,21 @@ p5   -1.1181e+001   -1.3314e+001   -9.1744e+000
     internal void NlrCrossValidate(string dataFilename, string model, string range, string target, string likelihood, string expected) {
       RunConsoleTest(() => Program.Main(new[] { "crossvalidate", "--dataset", dataFilename, "--model", model, "--target", target, "--likelihood", likelihood, "--train", range, "--folds", "10", "--shuffle", "--seed","1234"}), expected);
     }
+    internal void NlrRank(string dataFilename, string model, string trainRange, string target, string likelihood, string expected) {
+      RunConsoleTest(() => Program.Main(new[] { "rank", "--dataset", dataFilename, "--model", model, "--target", target, "--likelihood", likelihood, "--train", trainRange}), expected);
+    }
 
+    internal void NlrNested(string dataFilename, string model, string trainRange, string target, string likelihood, string expected) {
+      RunConsoleTest(() => Program.Main(new[] { "nested", "--dataset", dataFilename, "--model", model, "--target", target, "--likelihood", likelihood, "--train", trainRange }), expected);
+    }
+
+    internal void NlrVariableImpact(string dataFilename, string model, string trainRange, string target, string likelihood, string expected) {
+      RunConsoleTest(() => Program.Main(new[] { "variableimpact", "--dataset", dataFilename, "--model", model, "--target", target, "--likelihood", likelihood, "--train", trainRange }), expected);
+    }
+
+    internal void NlrSubtrees(string dataFilename, string model, string trainRange, string target, string likelihood, string expected) {
+      RunConsoleTest(() => Program.Main(new[] { "subtrees", "--dataset", dataFilename, "--model", model, "--target", target, "--likelihood", likelihood, "--train", trainRange }), expected);
+    }
     internal void RunConsoleTest(Action action, string expected) {
       var randFilename = Path.GetRandomFileName();
       try {
