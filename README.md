@@ -91,7 +91,36 @@ Passed!  - Failed:     0, Passed:     2, Skipped:     0, Total:     2, Duration:
 To call the library you have to provide an expression for the model as well as a dataset to fit to.
 
 ```
+var x = new double[,] {
+                       { 0.02 },
+                       { 0.02 },
+                       { 0.06 },
+                       { 0.06 },
+                       { 0.11 },
+                       { 0.11 },
+                       { 0.22 },
+                       { 0.22 },
+                       { 0.56 },
+                       { 0.56 },
+                       { 1.10 },
+                       { 1.10 }};
+var y = new double[] {76
+                     ,47
+                     ,97
+                     ,107
+                     ,123
+                     ,139
+                     ,159
+                     ,152
+                     ,191
+                     ,201
+                     ,207
+                     ,200 };
 
+var nlr = new NonlinearRegression();
+nlr.Fit("0.1 * x0 / (1.0f + 0.1 * x0)", new[] { "x0" }, LikelihoodEnum.Gaussian, x, y);
+var prediction = nlr.PredictWithIntervals(x, IntervalEnum.LaplaceApproximation);
+System.Console.WriteLine($"pred: {prediction[0, 0]}, low: {prediction[0, 2]}, high: {prediction[0, 3]}");
 ```
 
 # Dependencies
