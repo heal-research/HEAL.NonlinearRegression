@@ -98,12 +98,14 @@ namespace HEAL.NonlinearRegression {
 
         // fit reduced model
         nlr.Fit(newTheta, reducedExpression, likelihood, X, y, noiseSigma);
-        var reducedStats = nlr.Statistics;
+        if (nlr.ParamEst != null) {
+          var reducedStats = nlr.Statistics;
 
-        var impact = nlr.Deviance / referenceDeviance;
+          var impact = nlr.Deviance / referenceDeviance;
 
-        yield return Tuple.Create(subExpr, impact,nlr.AICc - fullAICc,
-          nlr.BIC - fullBIC);
+          yield return Tuple.Create(subExpr, impact, nlr.AICc - fullAICc,
+            nlr.BIC - fullBIC);
+        }
       }
     }
 
@@ -119,7 +121,7 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target variable values</param>
     /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
-    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(Expression<Expr.ParametricFunction> expr, 
+    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(Expression<Expr.ParametricFunction> expr,
       LikelihoodEnum likelihood, double? noiseSigma, double[,] X, double[] y, double[] p, int maxIterations, bool verbose = false) {
       var m = X.GetLength(0);
       var pParam = expr.Parameters[0];
@@ -185,16 +187,15 @@ namespace HEAL.NonlinearRegression {
           // "accept the partial value if the calculated ratio is lower than the table value"
           var f = alglib.fdistribution(deltaDoF, fullDoF, fRatio);
 
-          if(verbose)
-            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaDeviance,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1-f,-10:e3}, " +
+          if (verbose)
+            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaDeviance,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1 - f,-10:e3}, " +
               $"{nlr.AICc - fullAIC,-11:f1} " +
               $"{nlr.BIC - fullBIC,-11:f1}");
 
           lock (impacts) {
             impacts.Add(Tuple.Create(paramIdx, ssrFactor, nlr.AICc - fullAIC, reducedExpression, newP));
           }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
           // Console.WriteLine($"Exception {e.Message} for {reducedExpression}");
         }
       }
