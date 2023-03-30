@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -221,6 +222,7 @@ namespace HEAL.Expressions.Parser {
       { "floor", typeof(Math).GetMethod("Floor", new Type[] { typeof(double) }) },
       { "log10", typeof(Math).GetMethod("Log10", new Type[] { typeof(double) }) },
       { "sign", typeof(Math).GetMethod("Sign", new Type[] { typeof(double) }) },
+      { "logistic", typeof(Functions).GetMethod("Logistic", new Type[] { typeof(double) }) },
 
       #endregion
     };
@@ -368,10 +370,10 @@ namespace HEAL.Expressions.Parser {
                 if (ch == 'f') {
                   NextCh();
                   Token = TokenEnum.Constant;
-                  NumberVal = double.Parse(sb.ToString());
+                  NumberVal = double.Parse(sb.ToString(), CultureInfo.InvariantCulture);
                 } else {
                   Token = TokenEnum.Parameter;
-                  NumberVal = double.Parse(sb.ToString());
+                  NumberVal = double.Parse(sb.ToString(), CultureInfo.InvariantCulture);
                 }
               } else Token = TokenEnum.None;
               break;

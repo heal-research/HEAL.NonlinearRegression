@@ -20,7 +20,7 @@ namespace HEAL.Expressions {
     public readonly ParameterExpression p;
     public readonly double[] pValues;
 
-    public ParameterizedExpression(Expression<Expr.ParametricFunction>  expr, ParameterExpression p, double[] pValues) {
+    public ParameterizedExpression(Expression<Expr.ParametricFunction> expr, ParameterExpression p, double[] pValues) {
       this.expr = expr;
       this.p = p;
       this.pValues = pValues;
@@ -28,6 +28,7 @@ namespace HEAL.Expressions {
   }
 
   public static class Expr {
+    // TODO: check which types we actually need
     public delegate double ParametricFunction(double[] theta, double[] x);
 
     public delegate void ParametricVectorFunction(double[] theta, double[,] X, double[] f);
@@ -374,7 +375,7 @@ namespace HEAL.Expressions {
       parameterizedExpr = FoldParametersVisitor.FoldParameters(parameterizedExpr);
       parameterizedExpr = ExpandProductsVisitor.Expand(parameterizedExpr);
       // Console.WriteLine($"Folded parameters: {newExpr}");
-      
+
       // deconstruct expression for the following visitors
       expr = parameterizedExpr.expr;
       newParameterValues = parameterizedExpr.pValues;
@@ -445,6 +446,10 @@ namespace HEAL.Expressions {
       return CountNodesVisitor.Count(parametricExpr);
     }
 
+    public static int NumberOfParameters(Expression<ParametricFunction> parametricExpr) {
+      return CountParametersVisitor.Count(parametricExpr, parametricExpr.Parameters[0]);
+    }
+
     public static double[] CollectConstants(Expression<ParametricFunction> parametricExpr) {
       return CollectConstantsVisitor.CollectConstants(parametricExpr);
     }
@@ -462,6 +467,16 @@ namespace HEAL.Expressions {
     // returns k if expression has structure f(x) * p_k and p is the vector of parameters
     public static int FindScalingParameterIndex(Expression<ParametricFunction> expr) {
       return FindScalingParameterVisitor.FindScalingParameter(expr.Body, expr.Parameters[0]);
+    }
+
+    // reparameterizes the function f(x,\theta) such that fx = f(x0, \theta) when theta[paramIdx] = paramValue
+    // for a model with intercept f(x,\theta) = g(x,\theta) + \theta[paramIdx] this returns g(x,\theta) - g(x0,\theta) + theta[paramIdx] with theta[paramIdx] == fx
+    public static Expression<ParametricFunction> ReparameterizeExpr(Expression<ParametricFunction> modelExpr, double[] x0, out int paramIdx) {
+      var visitor = new ReparameterizeExprVisitor(modelExpr.Parameters[0], modelExpr.Parameters[1], x0);
+      var expr = (Expression<ParametricFunction>)visitor.Visit(modelExpr);
+
+      paramIdx = visitor.OutParamIdx;
+      return expr;
     }
   }
 }

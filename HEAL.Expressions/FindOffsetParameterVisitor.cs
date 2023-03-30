@@ -36,6 +36,11 @@ namespace HEAL.Expressions {
       else return node;
     }
 
+    protected override Expression VisitMethodCall(MethodCallExpression node) {
+      // do not descent into non-linear functions
+      return node;
+    }
+
     private bool TryGetParameterIndex(Expression expr, out int index) {
       if (expr is BinaryExpression binaryExpression && binaryExpression.NodeType == ExpressionType.ArrayIndex && binaryExpression.Left == theta) {
         index = (int)((ConstantExpression)binaryExpression.Right).Value;
