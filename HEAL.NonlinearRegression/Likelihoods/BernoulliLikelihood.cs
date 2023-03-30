@@ -12,12 +12,13 @@ namespace HEAL.NonlinearRegression.Likelihoods {
     public override double[,] FisherInformation(double[] p) {
       var m = y.Length;
       var n = p.Length;
+      var d = x.GetLength(0);
       var yPred = new double[m];
       var yJac = new double[m, n];
       ModelJacobian(p, x, yPred, yJac);
 
       var hess = new double[n, n];
-      var xi = new double[n];
+      var xi = new double[d];
       var modelHess = new double[n, n];
       for (int i = 0; i < m; i++) {
         var s = 1 / ((1 - yPred[i]) * (1 - yPred[i]) * yPred[i] * yPred[i]);
