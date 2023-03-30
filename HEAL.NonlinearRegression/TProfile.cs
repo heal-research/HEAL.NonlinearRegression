@@ -59,7 +59,7 @@ namespace HEAL.NonlinearRegression {
       const int kmax = 300;
       const int step = 16;
 
-    restart:
+      restart:
       var paramEst = statistics.ParamEst;
       int n = paramEst.Length;
       var paramStdError = statistics.ParamStdError; // approximate value, only used for scaling and to determine initial step size
@@ -131,8 +131,12 @@ namespace HEAL.NonlinearRegression {
           var deviance = 2 * nll;
           var devianceOriginal = 2 * nllOpt;
 
-           var tau_i = Math.Sign(delta) * Math.Sqrt(deviance - devianceOriginal);
+
+          var tau_i = Math.Sign(delta) * Math.Sqrt(deviance - devianceOriginal);
           invSlope = Math.Abs(tau_i / (paramStdError[pIdx] * zv));
+
+          // For deviance plot
+          // System.Console.WriteLine($"{pIdx},{paramEst[pIdx]},{curP},{deviance - devianceOriginal},{tau_i},{invSlope}");
           #endregion
 
 
@@ -258,7 +262,7 @@ namespace HEAL.NonlinearRegression {
 
       var t = -alglib.invstudenttdistribution(trainRows - n, alpha / 2); // source: https://github.com/cran/MASS/blob/1767aca83144264dac95606edff420855fac260b/R/confint.R#L80
 
-      
+
       // prediction intervals for each point in x
       Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
         (i, loopState) => {
