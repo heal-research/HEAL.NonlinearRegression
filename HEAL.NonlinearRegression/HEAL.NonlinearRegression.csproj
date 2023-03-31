@@ -1,9 +1,25 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <Nullable>enable</Nullable>
+    <Description>Fit and evaluate nonlinear regression models.</Description>
+    <PackageProjectUrl>https://github.com/heal-research/HEAL.NonlinearRegression</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+    <Version>0.1.0-rc.1</Version>
+    <Authors>Gabriel Kronberger</Authors>
+    <Company>Heuristic and Evolutionary Algorithms Laboratory (HEAL)</Company>
+    <RepositoryUrl>https://github.com/heal-research/HEAL.NonlinearRegression.git</RepositoryUrl>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="alglib.net" Version="3.18.2" />
