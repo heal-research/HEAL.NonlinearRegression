@@ -57,11 +57,8 @@ Para       Estimate      Std. error     z Score          Lower          Upper Co
 
 Optimized: ((x0 / (0.06412128166090875 + x0)) * 212.68374312341493)
 
-
-
 Passed!  - Failed:     0, Passed:     3, Skipped:     0, Total:     3, Duration: 274 ms - HEAL.NonlinearRegression.Console.Tests.dll (net6.0)
 ```
-
 
 Run the tests for profile likelihood confidence intervals:
 ```
@@ -85,8 +82,6 @@ profile-based marginal confidence intervals (alpha=0.05)
 p0    6.4121e-002    4.6920e-002    8.6157e-002
 p1    2.1268e+002    1.9730e+002    2.2929e+002
 
-
-
 Passed!  - Failed:     0, Passed:     2, Skipped:     0, Total:     2, Duration: 5 s - HEAL.NonlinearRegression.Console.Tests.dll (net6.0)
 ```
 
@@ -94,31 +89,8 @@ Passed!  - Failed:     0, Passed:     2, Skipped:     0, Total:     2, Duration:
 To call the library you have to provide an expression for the model as well as a dataset to fit to.
 
 ```csharp
-var x = new double[,] {
-                       { 0.02 },
-                       { 0.02 },
-                       { 0.06 },
-                       { 0.06 },
-                       { 0.11 },
-                       { 0.11 },
-                       { 0.22 },
-                       { 0.22 },
-                       { 0.56 },
-                       { 0.56 },
-                       { 1.10 },
-                       { 1.10 }};
-var y = new double[] {76
-                     ,47
-                     ,97
-                     ,107
-                     ,123
-                     ,139
-                     ,159
-                     ,152
-                     ,191
-                     ,201
-                     ,207
-                     ,200 };
+var x = new double[,] { { 0.02 }, { 0.02 }, { 0.06 }, { 0.06 }, { 0.11 }, { 0.11 }, { 0.22 }, { 0.22 }, { 0.56 }, { 0.56 }, { 1.10 }, { 1.10 } };
+var y = new double[] {76, 47, 97, 107, 123, 139, 159, 152, 191, 201, 207, 200 };
 
 var nlr = new NonlinearRegression();
 nlr.Fit("0.1 * x0 / (1.0f + 0.1 * x0)", new[] { "x0" }, LikelihoodEnum.Gaussian, x, y);
