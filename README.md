@@ -6,6 +6,9 @@ Implementation is based on:
 
 `[1] Douglas Bates and Donald Watts, Nonlinear Regression and Its Applications, John Wiley and Sons, 1988`
 
+
+[![build and test](https://github.com/heal-research/HEAL.NonlinearRegression/actions/workflows/build_and_test.yml/badge.svg?branch=main)](https://github.com/heal-research/HEAL.NonlinearRegression/actions/workflows/build_and_test.yml)
+
 # Building
 ```
 git clone https://github.com/heal-research/HEAL.NonlinearRegression
