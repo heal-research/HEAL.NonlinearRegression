@@ -114,9 +114,9 @@ namespace HEAL.NonlinearRegression.Console {
             var SSR = nlr.Deviance * nlr.Dispersion * nlr.Dispersion; // only valid for Gaussian
             var noiseSigma = options.NoiseSigma ?? nlr.Dispersion; // use estimated noise standard error as default
             var nmse = SSR / y.Length / Util.Variance(y);
-            System.Console.WriteLine($"SSR: {SSR} MSE: {SSR / y.Length} RMSE: {Math.Sqrt(SSR / y.Length)} NMSE: {nmse} R2: {1 - nmse} LogLik: {logLik} AIC: {nlr.AIC} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
+            System.Console.WriteLine($"SSR: {SSR:g6} MSE: {SSR / y.Length:g6} RMSE: {Math.Sqrt(SSR / y.Length):g6} NMSE: {nmse:g6} R2: {1 - nmse:g4} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} MDL: {mdl:f2} MDL(freq): {freqMdl:f2} DoF: {p.Length}");
           } else if (options.Likelihood == LikelihoodEnum.Bernoulli) {
-            System.Console.WriteLine($"Deviance: {nlr.Deviance} LogLik: {logLik} AIC: {nlr.AIC} AICc: {aicc} BIC: {bic} MDL: {mdl} MDL(freq): {freqMdl} DoF: {p.Length}");
+            System.Console.WriteLine($"Deviance: {nlr.Deviance:g6} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} MDL: {mdl:f2} MDL(freq): {freqMdl:f2} DoF: {p.Length}");
           }
         } catch (Exception e) {
           System.Console.WriteLine($"Could not evaluate model {model}");
@@ -156,15 +156,15 @@ namespace HEAL.NonlinearRegression.Console {
         }
         for (int i = 0; i < x.GetLength(0); i++) {
           for (int j = 0; j < x.GetLength(1); j++) {
-            System.Console.Write($"{x[i, j]},");
+            System.Console.Write($"{x[i, j]:g6},");
           }
-          System.Console.Write($"{y[i]},");
-          System.Console.Write($"{y[i] - predict[i, 0]},");
-          System.Console.Write($"{predict[i, 0]},");
+          System.Console.Write($"{y[i]:g6},");
+          System.Console.Write($"{y[i] - predict[i, 0]:g6},");
+          System.Console.Write($"{predict[i, 0]:g6},");
           if (options.Interval == IntervalEnum.LaplaceApproximation)
-            System.Console.Write($"{predict[i, 2]},{predict[i, 3]},");
+            System.Console.Write($"{predict[i, 2]:g6},{predict[i, 3]:g6},");
           else if (options.Interval == IntervalEnum.TProfile)
-            System.Console.Write($"{predict[i, 1]},{predict[i, 2]},");
+            System.Console.Write($"{predict[i, 1]:g6},{predict[i, 2]:g6},");
           System.Console.Write($"{((i >= trainStart && i <= trainEnd) ? 1 : 0)},"); // isTrain
           System.Console.Write($"{((i >= testStart && i <= testEnd) ? 1 : 0)}"); // isTest
           System.Console.WriteLine();
@@ -676,7 +676,7 @@ namespace HEAL.NonlinearRegression.Console {
           // full condition number largest singular value over smallest singular value
           var k = w[0] / w[n - 1];
           var k_subset = w[0] / w[rank - 1]; // condition number without the redundant parameters
-          System.Console.WriteLine($"Num param: {n} rank: {rank} log10_K(J): {Math.Log10(k)} log10_K(J_rank): {Math.Log10(k_subset)}");
+          System.Console.WriteLine($"Num param: {n} rank: {rank} log10_K(J): {Math.Log10(k):g6} log10_K(J_rank): {Math.Log10(k_subset):g6}");
         }
       }
     }
