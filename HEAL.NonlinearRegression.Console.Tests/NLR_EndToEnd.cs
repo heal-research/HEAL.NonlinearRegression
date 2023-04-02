@@ -226,7 +226,7 @@ Optimized: Logistic(((((((1.38378 * BI_RADS) + (0.0484833 * Age)) + (0.524299 * 
     [Test]
     public void CrossValidateMammography() {
 
-      var expected = @"CV_score: 6.9391e-001 CV_stdev: 5.3066e-003 CV_se: 1.6781e-003
+      var expected = @"CV_score: 1.2400e+001 CV_stdev: 4.8117e-002 CV_se: 1.5216e-002
 ";
 
       NlrCrossValidate("mammography.csv",
@@ -392,8 +392,8 @@ Deviance_Factor,numPar,AICc,dAICc,BIC,dBIC,Model
 1.0569e+000 40.5        30.9        x[1]
 1.0367e+000 24.7        15.0        (p[2] * x[2])
 1.0367e+000 24.7        15.0        x[2]
-1.0244e+000 15.0        5.4         x[3]
 1.0244e+000 15.0        5.4         (p[3] * x[3])
+1.0244e+000 15.0        5.4         x[3]
 1.0001e+000 -4.0        -13.7       (p[4] * x[4])
 1.0001e+000 -4.0        -13.7       x[4]
 ";

@@ -217,7 +217,7 @@ namespace HEAL.NonlinearRegression.Console {
 
       var foldSize = (int)Math.Truncate((y.Length + 1) / (double)folds);
       var avgLoss = new List<double>();
-      Parallel.For(0, folds, new ParallelOptions() { MaxDegreeOfParallelism = 1 },
+      Parallel.For(0, folds,
         (f) => {
           var foldStart = f * foldSize;
           var foldEnd = (f + 1) * foldSize - 1;
@@ -231,21 +231,7 @@ namespace HEAL.NonlinearRegression.Console {
           var nls = new NonlinearRegression();
           nls.Fit(p, parametricExpr, likelihood, foldTrainX, foldTrainY, noiseSigma, maxIterations: 5000); // TODO make CLI parameter
 
-          var yPred = nls.Predict(foldTestX);
-
-          double loss = 0.0;
-          if (likelihood == LikelihoodEnum.Gaussian) {
-            // loss is SSR
-            for (int i = 0; i < yPred.Length; i++) {
-              var r = y[i] - yPred[i];
-              loss += r * r;
-            }
-          } else if (likelihood == LikelihoodEnum.Bernoulli) {
-            // loss is neg bernoulli likelihood?
-            for (int i = 0; i < yPred.Length; i++) {
-              loss -= foldTestY[i] * Math.Log(yPred[i]) + (1 - foldTestY[i]) * Math.Log(1 - yPred[i]);
-            }
-          }
+          var loss = nls.Deviance;
 
           lock (avgLoss) {
             avgLoss.Add(loss / foldTestY.Length);
@@ -472,7 +458,7 @@ namespace HEAL.NonlinearRegression.Console {
         }
 
         System.Console.WriteLine($"{"SSR_factor",-11} {"deltaAIC",-11} {"deltaBIC",-11} {"Subtree"}");
-        foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item2)) { // TODO better interface
+        foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item2).ThenByDescending(tup => tup.Item1.ToString().Length)) { // TODO better interface
           System.Console.WriteLine($"{tup.Item2,-11:e4} {tup.Item3,-11:f1} {tup.Item4,-11:f1} {tup.Item1}");
           if (saturation != null) {
             saturation[tup.Item1] = Math.Max(0, Math.Log(tup.Item2)); // use log scale for coloring
