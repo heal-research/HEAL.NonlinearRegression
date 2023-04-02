@@ -458,7 +458,7 @@ namespace HEAL.NonlinearRegression.Console {
         }
 
         System.Console.WriteLine($"{"SSR_factor",-11} {"deltaAIC",-11} {"deltaBIC",-11} {"Subtree"}");
-        foreach (var tup in subExprImportance.OrderByDescending(tup => tup.Item2).ThenByDescending(tup => tup.Item1.ToString().Length)) { // TODO better interface
+        foreach (var tup in subExprImportance.OrderByDescending(tup => Math.Round(tup.Item2, 3)).ThenByDescending(tup => tup.Item1.ToString().Length)) { // TODO better interface
           System.Console.WriteLine($"{tup.Item2,-11:e4} {tup.Item3,-11:f1} {tup.Item4,-11:f1} {tup.Item1}");
           if (saturation != null) {
             saturation[tup.Item1] = Math.Max(0, Math.Log(tup.Item2)); // use log scale for coloring
