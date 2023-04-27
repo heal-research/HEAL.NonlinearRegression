@@ -39,7 +39,22 @@ namespace HEAL.NonlinearRegression {
       var numSymbols = Expr.CollectSymbols(modelExpr).Distinct().Count();
       int numParam = paramEst.Length;
 
-      // TODO: for negative constants and negative parameters we would need to account for an unary sign in the expression
+      // TODO: check if parameter estimate is significantly different from zero
+      for (int i = 0; i < numParam; i++) {
+        // if the parameter estimate is not significanlty different from zero
+        if (paramEst[i] / Math.Sqrt(12.0 / diagFisherInfo[i]) < 1.0) {
+          // TODO: set param to zero and calculate MDL for the manipulated expression
+          
+        }
+      }
+
+      System.Console.WriteLine($"numNodes {numNodes}");
+      System.Console.WriteLine($"constants {string.Join(" ", constants.Select(ci => ci.ToString()))}");
+      System.Console.WriteLine($"numSymbols {numSymbols}");
+      System.Console.WriteLine($"numParam {numParam}");
+      System.Console.WriteLine($"diagFisherInfo {string.Join(" ", diagFisherInfo.Select(di => di.ToString()))}");
+
+      // TODO: for negative constants we would need to account for an unary sign in the expression
       return -logLikelihood
         + numNodes * Math.Log(numSymbols) + constants.Sum(ci => Math.Log(Math.Abs(ci)))
         - numParam / 2.0 * Math.Log(3.0)

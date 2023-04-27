@@ -45,6 +45,8 @@ namespace HEAL.NonlinearRegression {
     public int NumberOfObservations { get; }
     public int NumberOfParameters => numLikelihoodParams + numModelParams;
 
+    public abstract double BestNegLogLikelihood { get; } // the likelihood of a perfect model (with zero residuals)
+
     public abstract double NegLogLikelihood(double[] p);
     public abstract void NegLogLikelihoodGradient(double[] p, out double nll, double[]? nll_grad = null);
 

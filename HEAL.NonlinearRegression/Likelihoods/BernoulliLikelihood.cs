@@ -35,6 +35,7 @@ namespace HEAL.NonlinearRegression.Likelihoods {
       return hess;
     }
 
+    public override double BestNegLogLikelihood => 0.0; // TODO
     public override double NegLogLikelihood(double[] p) {
       NegLogLikelihoodGradient(p, out var nll, nll_grad: null);
       return nll;
@@ -46,7 +47,7 @@ namespace HEAL.NonlinearRegression.Likelihoods {
       var yPred = new double[m];
       var yJac = new double[m, n];
 
-      nll = 0.0;
+      nll = BestNegLogLikelihood;
       if (nll_grad == null) {
         ModelFunc(p, x, yPred);
       } else {

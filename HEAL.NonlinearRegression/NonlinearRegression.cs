@@ -45,7 +45,7 @@ namespace HEAL.NonlinearRegression {
     // https://en.wikipedia.org/wiki/Deviance_(statistics)
 
     // for MLE and training data
-    public double Deviance => 2.0 * NegLogLikelihood; // for Gaussian: Deviance = SSR /sErr^2
+    public double Deviance => 2.0 * NegLogLikelihood - 2.0 * Likelihood.BestNegLogLikelihood; // for Gaussian: Deviance = SSR /sErr^2
 
     public LikelihoodBase Likelihood { get; private set; }
     public double Dispersion { get; set; } // for Gaussian: Dispersion = sErr (estimated as Math.Sqrt(SSR / (m-n))); for Bernoulli: Dispersion = 1;
