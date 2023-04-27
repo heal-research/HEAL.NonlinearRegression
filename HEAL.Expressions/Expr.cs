@@ -323,6 +323,26 @@ namespace HEAL.Expressions {
       return Broadcast(Gradient(expr, numParam));
     }
 
+
+    public static double[] Evaluate(Expression<ParametricFunction> expr, double[] theta, double[,] x, ref double[,] jac) {
+      if (jac == null) jac = new double[x.GetLength(0), theta.Length];
+
+      // evaluate (forward)
+      var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x);
+      evalVisitor.Visit(expr);
+
+      // fill jacobian using reverse mode autodiff
+      var ones = new double[x.GetLength(0)];
+      for (int i = 0; i < ones.Length; i++) ones[i] = 1.0;
+      evalVisitor.NodeValues[expr.Body] = ones;
+      var backpropVisitor = new BackpropagationVisitor(expr.Parameters[0], evalVisitor.NodeValues, jac);
+      backpropVisitor.Visit(expr);
+
+      return evalVisitor.NodeValues[expr.Body];
+    }
+
+
+
     /// <summary>
     /// Takes an expression and folds double constants. 
     /// </summary>
