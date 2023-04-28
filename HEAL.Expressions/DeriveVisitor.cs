@@ -72,7 +72,7 @@ namespace HEAL.Expressions {
     private readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
     private readonly MethodInfo cbrt = typeof(Functions).GetMethod("Cbrt", new[] { typeof(double) });
     private readonly MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
-    private readonly MethodInfo sign = typeof(Math).GetMethod("Sign", new[] { typeof(double) }); // for deriv abs(x)
+    private readonly MethodInfo sign = typeof(Functions).GetMethod("Sign", new[] { typeof(double) }); // for deriv abs(x)
     private readonly MethodInfo logistic = typeof(Functions).GetMethod("Logistic", new[] { typeof(double) });
     private readonly MethodInfo invlogistic = typeof(Functions).GetMethod("InvLogistic", new[] { typeof(double) });
     private readonly MethodInfo logisticPrime = typeof(Functions).GetMethod("LogisticPrime", new[] { typeof(double) }); // deriv of logistic
@@ -131,7 +131,9 @@ namespace HEAL.Expressions {
         }
 
       } else if (node.Method == abs) {
-        dfx = Expression.Convert(Expression.Call(sign, x), typeof(double));
+        dfx = Expression.Call(sign, x);
+      } else if (node.Method == sign) {
+        dfx = Expression.Constant(0.0);
       } else if (node.Method == logistic) {
         dfx = Expression.Call(logisticPrime, x);
       } else if (node.Method == invlogistic) {

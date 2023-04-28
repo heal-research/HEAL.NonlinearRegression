@@ -50,5 +50,9 @@ namespace HEAL.Expressions {
       return -(1 - 2 * p) / (denom * denom);
     }
 
+    public static double Sign(double x) {
+      return (double)Math.Sign(x); // a version of sign that returns double
+    }
+
   }
 }
