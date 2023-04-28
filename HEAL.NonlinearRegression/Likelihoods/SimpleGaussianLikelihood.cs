@@ -29,7 +29,7 @@ namespace HEAL.NonlinearRegression.Likelihoods {
       var xi = new double[d];
       for (int i = 0; i < m; i++) {
         var res = y[i] - yPred[i];
-        // evalute Hessian for current row
+        // evaluate Hessian for current row
         Util.CopyRow(x, i, xi);
         ModelHessian(p, xi, modelHess);
         for (int j = 0; j < n; j++) {
