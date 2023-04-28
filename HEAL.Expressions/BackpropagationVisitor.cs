@@ -138,7 +138,7 @@ namespace HEAL.Expressions {
         var a2 = nodeValues[exponent];
         var newA1 = new double[a1.Length];
         for (int i = 0; i < batchSize; i++) { newA1[i] = res[i] * a2[i] * Math.Pow(a1[i], a2[i] - 1); }
-        for (int i = 0; i < batchSize; i++) { a2[i] = res[i] * res[i] * Math.Log(a1[i]); }
+        for (int i = 0; i < batchSize; i++) { a2[i] = res[i] * Math.Pow(a1[i], a2[i]) * Math.Log(a1[i]); }
         nodeValues[node.Arguments[0]] = newA1;
         Visit(exponent);
       } else if (node.Method == abs) {
