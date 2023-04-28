@@ -14,7 +14,7 @@ namespace HEAL.Expressions {
 
     internal EvaluationVisitor(ParameterExpression param, double[] theta, double[,] x) {
       this.param = param;
-      this.batchSize = x.GetLength(0);
+      this.batchSize = x.GetLength(0); // TODO: batched evaluation
       this.x = x;
       this.theta = theta;
       this.evalResult = new Dictionary<Expression, double[]>();
@@ -98,65 +98,35 @@ namespace HEAL.Expressions {
       var a1 = evalResult[node.Arguments[0]];
       if (node.Method == sin) {
         for (int i = 0; i < batchSize; i++) { res[i] = Math.Sin(a1[i]); }
-        //dfx = Expression.Call(cos, x);
       } else if (node.Method == cos) {
         for (int i = 0; i < batchSize; i++) { res[i] = Math.Cos(a1[i]); }
-        //dfx = Expression.Negate(Expression.Call(sin, x));
       } else if (node.Method == exp) {
         for (int i = 0; i < batchSize; i++) { res[i] = Math.Exp(a1[i]); }
-        //dfx = node;
       } else if (node.Method == log) {
         for (int i = 0; i < batchSize; i++) { res[i] = Math.Log(a1[i]); }
-        //dfx = Expression.Divide(Expression.Constant(1.0), x);
       } else if (node.Method == tanh) {
         for (int i = 0; i < batchSize; i++) { res[i] = Math.Tanh(a1[i]); }
-        //dfx = Expression.Divide(
-        //  Expression.Constant(2.0),
-        //  Expression.Add(
-        //    Expression.Call(cosh,
-        //      Expression.Multiply(Expression.Constant(2.0), x)),
-        //    Expression.Constant(1.0)));
       } else if (node.Method == sqrt) {
         for (int i = 0; i < batchSize; i++) { res[i] = Math.Sqrt(a1[i]); }
-        //dfx = Expression.Multiply(Expression.Constant(0.5), Expression.Divide(Expression.Constant(1.0), node));
       } else if (node.Method == cbrt) {
         for (int i = 0; i < batchSize; i++) { res[i] = Math.Cbrt(a1[i]); }
-        // 1/3 * 1/cbrt(...)^2
-        //dfx = Expression.Divide(Expression.Constant(1.0 / 3.0),
-        //  Expression.Call(pow, node, Expression.Constant(2.0)));
       } else if (node.Method == pow) {
         Visit(node.Arguments[1]);
         var a2 = evalResult[node.Arguments[1]];
         for (int i = 0; i < batchSize; i++) { res[i] = Math.Pow(a1[i], a2[i]); }
-        // var exponent = node.Arguments[1];
-        // if (exponent.NodeType == ExpressionType.Constant) {
-        //   var expVal = (double)((ConstantExpression)exponent).Value;
-        //   dfx = Expression.Multiply(exponent, Expression.Call(pow, b, Expression.Constant(expVal - 1)));
-        // } else if (exponent is BinaryExpression binaryExpression && binaryExpression.Left == param) {
-        //   return Expression.Multiply(node, Expression.Add(Expression.Divide(Expression.Multiply(exponent, dx), b), Expression.Call(log, b)));
-        // } else {
-        //   throw new NotSupportedException("Exponents can only be parameters or constants.");
-        // }
-
       } else if (node.Method == abs) {
         for (int i = 0; i < batchSize; i++) { res[i] = Math.Abs(a1[i]); }
-        // dfx = Expression.Multiply(Expression.Call(sign, x), Expression.Constant(1.0)); // int -> double
       } else if (node.Method == logistic) {
         for (int i = 0; i < batchSize; i++) { res[i] = Functions.Logistic(a1[i]); }
-        // dfx = Expression.Call(logisticPrime, x);
       } else if (node.Method == invlogistic) {
         for (int i = 0; i < batchSize; i++) { res[i] = Functions.InvLogistic(a1[i]); }
-        // dfx = Expression.Call(invlogisticPrime, x);
       } else if (node.Method == logisticPrime) {
         for (int i = 0; i < batchSize; i++) { res[i] = Functions.LogisticPrime(a1[i]); }
-        // dfx = Expression.Call(logisticPrimePrime, x);
       } else if (node.Method == invlogisticPrime) {
         for (int i = 0; i < batchSize; i++) { res[i] = Functions.InvLogisticPrime(a1[i]); }
-        // dfx = Expression.Call(invlogisticPrimePrime, x);
       } else throw new NotSupportedException($"Unsupported method call {node.Method.Name}");
 
       return node;
-      // return Expression.Multiply(dfx, dx);
     }
   }
 }

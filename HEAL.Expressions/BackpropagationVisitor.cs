@@ -14,7 +14,7 @@ namespace HEAL.Expressions {
 
     internal BackpropagationVisitor(ParameterExpression param, Dictionary<Expression, double[]> nodeValues, double[,] jac) {
       this.param = param;
-      this.batchSize = jac.GetLength(0);
+      this.batchSize = jac.GetLength(0); // TODO: batched evaluation
       this.nodeValues = nodeValues;
       this.jac = jac;
       Array.Clear(jac, 0, jac.Length);
@@ -110,29 +110,16 @@ namespace HEAL.Expressions {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] * Math.Cos(a1[i]); }
       } else if (node.Method == cos) {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] * -Math.Sin(a1[i]); }
-        //dfx = Expression.Negate(Expression.Call(sin, x));
       } else if (node.Method == exp) {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] * Math.Exp(a1[i]); }
-        //dfx = node;
       } else if (node.Method == log) {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] / a1[i]; }
-        //dfx = Expression.Divide(Expression.Constant(1.0), x);
       } else if (node.Method == tanh) {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] * 2.0 / (Math.Cosh(2.0 * a1[i]) + 1); }
-        //dfx = Expression.Divide(
-        //  Expression.Constant(2.0),
-        //  Expression.Add(
-        //    Expression.Call(cosh,
-        //      Expression.Multiply(Expression.Constant(2.0), x)),
-        //    Expression.Constant(1.0)));
       } else if (node.Method == sqrt) {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] * 0.5  / Math.Sqrt(a1[i]); }
-        //dfx = Expression.Multiply(Expression.Constant(0.5), Expression.Divide(Expression.Constant(1.0), node));
       } else if (node.Method == cbrt) {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] / 3.0 / Math.Pow(Math.Cbrt(a1[i]), 2); }
-        // 1/3 * 1/cbrt(...)^2
-        //dfx = Expression.Divide(Expression.Constant(1.0 / 3.0),
-        //  Expression.Call(pow, node, Expression.Constant(2.0)));
       } else if (node.Method == pow) {
         var exponent = node.Arguments[1];
         var a2 = nodeValues[exponent];
@@ -143,19 +130,14 @@ namespace HEAL.Expressions {
         Visit(exponent);
       } else if (node.Method == abs) {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] * Math.Sign(a1[i]); }
-        // dfx = Expression.Multiply(Expression.Call(sign, x), Expression.Constant(1.0)); // int -> double
       } else if (node.Method == logistic) {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] * Functions.LogisticPrime(a1[i]); }
-        // dfx = Expression.Call(logisticPrime, x);
       } else if (node.Method == invlogistic) {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] * Functions.InvLogisticPrime(a1[i]); }
-        // dfx = Expression.Call(invlogisticPrime, x);
       } else if (node.Method == logisticPrime) {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] * Functions.LogisticPrimePrime(a1[i]); }
-        // dfx = Expression.Call(logisticPrimePrime, x);
       } else if (node.Method == invlogisticPrime) {
         for (int i = 0; i < batchSize; i++) { a1[i] = res[i] * Functions.InvLogisticPrimePrime(a1[i]); }
-        // dfx = Expression.Call(invlogisticPrimePrime, x);
       } else throw new NotSupportedException($"Unsupported method call {node.Method.Name}");
 
       Visit(node.Arguments[0]); // backpropagate
