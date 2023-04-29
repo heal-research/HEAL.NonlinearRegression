@@ -34,7 +34,7 @@ namespace HEAL.NonlinearRegression.Console.Tests {
       // Laplace approximation lower and upper bounds are close to confidence intervals in R
       var expected = @"p_opt: 6.41213e-002 2.12684e+002
 Successful: True, NumIters: 3, NumFuncEvals: 44, NumJacEvals: 0
-SSR: 1.1954e+003  s: 1.0934e+001 AICc: 19.0 BIC: 17.5 MDL: 21.5
+SSR: 1.1954e+003  s: 1.0934e+001 AICc: 98.5 BIC: 96.9 MDL: 61.2
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
     0    6.4121e-002    8.7112e-003   7.36e+000    4.4711e-002    8.3531e-002 1.00
     1    2.1268e+002    7.1607e+000   2.97e+001    1.9673e+002    2.2864e+002 0.78 1.00
@@ -60,7 +60,7 @@ p1    2.1268e+002    1.9730e+002    2.2929e+002
 
     [Test]
     public void EvaluatePuromycin() {
-      var expected = @"SSR: 1195.45 MSE: 99.6207 RMSE: 9.98102 NMSE: 0.0387392 R2: 0.9613 LogLik: -5 AIC: 16.00 AICc: 19.00 BIC: 17.45 MDL: 21.50 MDL(freq): 19.69 DoF: 2
+      var expected = @"SSR: 1195.45 MSE: 99.6207 RMSE: 9.98102 NMSE: 0.0387392 R2: 0.9613 LogLik: -44.7294 AIC: 95.46 AICc: 98.46 BIC: 96.91 MDL: 61.23 MDL(freq): 59.42 DoF: 2
 ";
       NlrEvaluate("Puromycin.csv", "x0 / (0.06412128165180965 + x0) * 212.68374312341493", "0:11", "y", "Gaussian", expected);
     }
@@ -109,7 +109,7 @@ p1    2.1268e+002    1.9730e+002    2.2929e+002
     public void FitLinearPuromycin() {
       var expected = @"p_opt: 1.10421e+002 1.03488e+002
 Successful: True, NumIters: 2, NumFuncEvals: 10, NumJacEvals: 0
-SSR: 9.5471e+003  s: 3.0898e+001 AICc: 19.0 BIC: 17.5 MDL: 15.1
+SSR: 9.5471e+003  s: 3.0898e+001 AICc: 123.4 BIC: 121.8 MDL: 67.3
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
     0    1.1042e+002    2.3371e+001   4.72e+000    5.8347e+001    1.6249e+002 1.00
     1    1.0349e+002    1.2024e+001   8.61e+000    7.6697e+001    1.3028e+002 -0.67 1.00
