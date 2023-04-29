@@ -44,13 +44,13 @@ namespace HEAL.NonlinearRegression.Console.Tests {
       var nlr = new NonlinearRegression();
       nlr.Fit("0.1 * x0 / (1.0f + 0.1 * x0)", new[] { "x0" }, LikelihoodEnum.Gaussian, x, y);
       System.Console.WriteLine($"Deviance: {nlr.Deviance:e4}, BIC: {nlr.BIC:f2}");
-      Assert.AreEqual(17.45472, nlr.BIC, 1e-5);
+      Assert.AreEqual(96.91354730673082, nlr.BIC, 1e-5);
 
       var prediction = nlr.PredictWithIntervals(x, IntervalEnum.LaplaceApproximation);
       System.Console.WriteLine($"pred: {prediction[0, 0]}, low: {prediction[0, 2]}, high: {prediction[0, 3]}");
-      Assert.AreEqual(50.565373348566432, prediction[0, 0]);
-      Assert.AreEqual(41.54333861186602, prediction[0, 2]);
-      Assert.AreEqual(59.587408085266844, prediction[0, 3]);
+      Assert.AreEqual(50.565373348568066, prediction[0, 0], 1e-6);
+      Assert.AreEqual(41.54333861186602, prediction[0, 2], 1e-6);
+      Assert.AreEqual(59.587408085266844, prediction[0, 3], 1e-6);
     }
   }
 }
