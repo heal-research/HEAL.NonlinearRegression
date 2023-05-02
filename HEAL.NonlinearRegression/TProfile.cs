@@ -10,8 +10,8 @@ namespace HEAL.NonlinearRegression {
   public class TProfile {
     private readonly double[] paramEst;
     private readonly double[] paramStdError;
-    private readonly int m;
     private readonly int n;
+    private readonly int m;
 
     private readonly Tuple<double[], double[][]>[] t_profiles;
     private readonly alglib.spline1dinterpolant[] spline_tau2p;
@@ -24,12 +24,12 @@ namespace HEAL.NonlinearRegression {
     public TProfile(LaplaceApproximation statistics, LikelihoodBase likelihood) {
       this.paramEst = statistics.ParamEst;
       this.paramStdError = statistics.ParamStdError;
-      this.m = statistics.m;
-      this.n = statistics.n;
+      this.n = paramEst.Length;
+      this.m = likelihood.Y.Length;
 
-      t_profiles = new Tuple<double[], double[][]>[statistics.n]; // for each parameter the tau values and the matrix of parameters
+      t_profiles = new Tuple<double[], double[][]>[n]; // for each parameter the tau values and the matrix of parameters
 
-      for (int pIdx = 0; pIdx < statistics.n; pIdx++) {
+      for (int pIdx = 0; pIdx < n; pIdx++) {
         t_profiles[pIdx] = CalcTProfile(statistics, likelihood, pIdx);
       }
 
@@ -59,7 +59,7 @@ namespace HEAL.NonlinearRegression {
       const int kmax = 300;
       const int step = 16;
 
-      restart:
+    restart:
       var paramEst = statistics.ParamEst;
       int n = paramEst.Length;
       var paramStdError = statistics.ParamStdError; // approximate value, only used for scaling and to determine initial step size
@@ -240,7 +240,7 @@ namespace HEAL.NonlinearRegression {
 
     public static void GetPredictionIntervals(double[,] x, NonlinearRegression nls, out double[] low, out double[] high, double alpha = 0.05) {
       var predRows = x.GetLength(0); // the points for which we calculate the prediction interval
-      var trainRows = nls.y.Length;
+      var trainRows = nls.Likelihood.Y.Length;
       var n = nls.ParamEst.Length; // number of model parameters
       var d = x.GetLength(1); // number of features
 
@@ -279,7 +279,7 @@ namespace HEAL.NonlinearRegression {
           var likelihoodExt = nls.Likelihood.Clone();
           likelihoodExt.ModelExpr = reparameterizedModel; // leads to recompilation (TODO: we can reuse one model if x parameter is extended to include x0)
 
-          var profile = CalcTProfile(new LaplaceApproximation(trainRows, n, paramEstExt, likelihoodExt), likelihoodExt, outputParamIdx); // only for the function output parameter
+          var profile = CalcTProfile(new LaplaceApproximation(paramEstExt, likelihoodExt), likelihoodExt, outputParamIdx); // only for the function output parameter
 
           var tau = profile.Item1;
           var theta = new double[tau.Length];

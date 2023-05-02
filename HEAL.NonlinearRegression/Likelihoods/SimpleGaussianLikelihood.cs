@@ -5,8 +5,9 @@ using System.Linq.Expressions;
 namespace HEAL.NonlinearRegression.Likelihoods {
 
   // errors are iid N(0, noise_sigma)
-  internal class SimpleGaussianLikelihood : LikelihoodBase {
-    private readonly double sErr;
+  public class SimpleGaussianLikelihood : LikelihoodBase {
+    private double sErr;
+    public override double Dispersion { get { return sErr; } set { sErr = value; } }
 
     internal SimpleGaussianLikelihood(SimpleGaussianLikelihood original) : base(original) {
       this.sErr = original.sErr;

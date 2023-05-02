@@ -19,35 +19,35 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target values</param>
     /// <param name="p">Initial parameter values for the full model</param>
     /// <returns></returns>
-    public static Dictionary<int, double> VariableImportance(Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double? noiseSigma, double[,] X, double[] y, double[] p) {
+    public static Dictionary<int, double> VariableImportance(LikelihoodBase likelihood, double[] p) {
       var nlr = new NonlinearRegression();
-      nlr.Fit(p, expr, likelihood, X, y, noiseSigma);
+      nlr.Fit(p, likelihood);
+      var origExpr = likelihood.ModelExpr;
       var stats0 = nlr.Statistics;
       var referenceDeviance = nlr.Deviance;
-      var m = y.Length;
-      var d = X.GetLength(1);
+      var m = likelihood.X.GetLength(0);
+      var d = likelihood.X.GetLength(1);
 
       var mean = new double[d];
       for (int i = 0; i < d; i++) {
-        mean[i] = Enumerable.Range(0, m).Select(r => X[r, i]).Average();
+        mean[i] = Enumerable.Range(0, m).Select(r => likelihood.X[r, i]).Average();
       }
 
       var varExpl = new Dictionary<int, double>();
       for (int varIdx = 0; varIdx < d; varIdx++) {
-        var newExpr = Expr.ReplaceVariableWithParameter(expr, (double[])stats0.ParamEst.Clone(),
+        var newExpr = Expr.ReplaceVariableWithParameter(origExpr, (double[])stats0.ParamEst.Clone(),
           varIdx, mean[varIdx], out var newThetaValues);
-
         newExpr = Expr.FoldParameters(newExpr, newThetaValues, out newThetaValues);
-
+        likelihood.ModelExpr = newExpr;
         nlr = new NonlinearRegression();
-        nlr.Fit(newThetaValues, newExpr, likelihood, X, y, noiseSigma);
+        nlr.Fit(newThetaValues, likelihood);
         if (nlr.Statistics == null) {
           Console.WriteLine("Problem while fitting");
           varExpl[varIdx] = 0.0;
         } else {
           var newStats = nlr.Statistics;
           // increase in variance for the reduced feature = variance explained by the feature
-          varExpl[varIdx] = (nlr.Deviance - referenceDeviance) / y.Length;
+          varExpl[varIdx] = (nlr.Deviance - referenceDeviance) / likelihood.Y.Length;
         }
       }
 
@@ -65,8 +65,8 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target variable values</param>
     /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
-    public static IEnumerable<Tuple<Expression, double, double, double>> SubtreeImportance(Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double? noiseSigma, double[,] X, double[] y, double[] p) {
-      var m = X.GetLength(0);
+    public static IEnumerable<Tuple<Expression, double, double, double>> SubtreeImportance(LikelihoodBase likelihood, double[] p) {
+      var expr = likelihood.ModelExpr;
       var pParam = expr.Parameters[0];
       var xParam = expr.Parameters[1];
       var expressions = FlattenExpressionVisitor.Execute(expr.Body);
@@ -77,7 +77,7 @@ namespace HEAL.NonlinearRegression {
       // fit the full model once for the baseline
       // TODO: we could skip this and get the baseline as parameter
       var nlr = new NonlinearRegression();
-      nlr.Fit(p, expr, likelihood, X, y, noiseSigma);
+      nlr.Fit(p, likelihood);
       var referenceDeviance = nlr.Deviance;
       var stats0 = nlr.Statistics;
       p = (double[])stats0.ParamEst.Clone();
@@ -88,23 +88,24 @@ namespace HEAL.NonlinearRegression {
       var impacts = new Dictionary<Expression, double>();
 
       foreach (var subExpr in subexpressions) {
+        // TODO: remove compilation
         var subExprForEval = Expr.Broadcast(Expression.Lambda<Expr.ParametricFunction>(subExpr, pParam, xParam)).Compile();
-        var eval = new double[m];
-        subExprForEval(p, X, eval);
+        var eval = new double[likelihood.X.GetLength(0)];
+        subExprForEval(p, likelihood.X, eval);
         var replValue = eval.Average();
         var reducedExpression = ReplaceSubexpressionWithParameterVisitor.Execute(expr, subExpr, p, replValue, out var newTheta);
         reducedExpression = Expr.FoldParameters(reducedExpression, newTheta, out newTheta);
 
 
         // fit reduced model
-        nlr.Fit(newTheta, reducedExpression, likelihood, X, y, noiseSigma);
+        likelihood.ModelExpr = reducedExpression;
+        nlr.Fit(newTheta, likelihood);
         if (nlr.ParamEst != null) {
           var reducedStats = nlr.Statistics;
 
           var impact = nlr.Deviance / referenceDeviance;
 
-          yield return Tuple.Create(subExpr, impact, nlr.AICc - fullAICc,
-            nlr.BIC - fullBIC);
+          yield return Tuple.Create(subExpr, impact, nlr.AICc - fullAICc, nlr.BIC - fullBIC);
         }
       }
     }
@@ -121,9 +122,9 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target variable values</param>
     /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
-    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(Expression<Expr.ParametricFunction> expr,
-      LikelihoodEnum likelihood, double? noiseSigma, double[,] X, double[] y, double[] p, int maxIterations, bool verbose = false) {
-      var m = X.GetLength(0);
+    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(LikelihoodBase likelihood, 
+      double[] p, int maxIterations, bool verbose = false) {
+      var expr = likelihood.ModelExpr;
       var pParam = expr.Parameters[0];
       var xParam = expr.Parameters[1];
 
@@ -131,13 +132,15 @@ namespace HEAL.NonlinearRegression {
       // TODO: we could skip this and get the baseline as parameter
 
       var nlr = new NonlinearRegression();
-      nlr.Fit(p, expr, likelihood, X, y, noiseSigma, maxIterations: maxIterations);
+      nlr.Fit(p, likelihood, maxIterations: maxIterations);
       var refDeviance = nlr.Deviance;
 
       var stats0 = nlr.Statistics;
       if (stats0 == null) return Enumerable.Empty<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>(); // cannot fit the expression
 
       p = stats0.ParamEst;
+      var n = p.Length; // number of parameters
+      var m = likelihood.Y.Length; // number of observations
       var impacts = new List<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>();
 
       var fullAIC = nlr.AICc;
@@ -145,7 +148,7 @@ namespace HEAL.NonlinearRegression {
       if (verbose) {
         Console.WriteLine(expr.Body);
         Console.WriteLine($"theta: {string.Join(", ", p.Select(p => p.ToString("e2")))}");
-        Console.WriteLine($"Full model deviance: {refDeviance,-11:e4}, mean deviance: {refDeviance / stats0.m,-11:e4}, AICc: {fullAIC,-11:f1} BIC: {fullBIC,-11:f1}");
+        Console.WriteLine($"Full model deviance: {refDeviance,-11:e4}, mean deviance: {refDeviance / m,-11:e4}, AICc: {fullAIC,-11:f1} BIC: {fullBIC,-11:f1}");
         Console.WriteLine($"p{"idx",-5} {"val",-11} {"SSR_factor",-11} {"deltaDoF",-6} {"deltaSSR",-11} {"s2Extra":e3} {"fRatio",-11} {"p value",10} {"deltaAICc"} {"deltaBIC"}");
       }
 
@@ -172,14 +175,16 @@ namespace HEAL.NonlinearRegression {
         // fit reduced model
         try {
           var nlr = new NonlinearRegression();
-          nlr.Fit(newP, reducedExpression, likelihood, X, y, noiseSigma, maxIterations: maxIterations);
+          likelihood.ModelExpr = reducedExpression;
+          nlr.Fit(newP, likelihood, maxIterations: maxIterations);
           var reducedStats = nlr.Statistics;
 
           var ssrFactor = nlr.Deviance / refDeviance;
 
+          var reducedN = newP.Length; // number of parameters
           // likelihood ratio test
-          var fullDoF = stats0.m - stats0.n;
-          var deltaDoF = stats0.n - reducedStats.n; // number of fewer parameters
+          var fullDoF = m - n;
+          var deltaDoF = n - reducedN; // number of fewer parameters
           var deltaDeviance = nlr.Deviance - refDeviance;
           var s2Extra = deltaDeviance / deltaDoF; // increase in deviance per parameter
           var fRatio = s2Extra / (nlr.Dispersion * nlr.Dispersion);

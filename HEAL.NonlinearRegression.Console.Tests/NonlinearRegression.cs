@@ -1,4 +1,7 @@
-﻿using NUnit.Framework;
+﻿using CommandLine;
+using HEAL.Expressions;
+using HEAL.NonlinearRegression.Likelihoods;
+using NUnit.Framework;
 using System.Globalization;
 
 namespace HEAL.NonlinearRegression.Console.Tests {
@@ -42,7 +45,14 @@ namespace HEAL.NonlinearRegression.Console.Tests {
       #endregion
 
       var nlr = new NonlinearRegression();
-      nlr.Fit("0.1 * x0 / (1.0f + 0.1 * x0)", new[] { "x0" }, LikelihoodEnum.Gaussian, x, y);
+      var modelExpr = "0.1 * x0 / (1.0f + 0.1 * x0)";
+      var parser = new HEAL.Expressions.Parser.ExprParser(modelExpr, 
+        new[] { "x0" },
+        System.Linq.Expressions.Expression.Parameter(typeof(double[]), "x"), 
+        System.Linq.Expressions.Expression.Parameter(typeof(double[]), "p"));
+      var likelihood = new SimpleGaussianLikelihood(x, y, parser.Parse());
+      nlr.Fit(parser.ParameterValues, likelihood);
+
       System.Console.WriteLine($"Deviance: {nlr.Deviance:e4}, BIC: {nlr.BIC:f2}");
       Assert.AreEqual(96.91354730673082, nlr.BIC, 1e-5);
 

@@ -4,9 +4,6 @@ using System.Linq;
 
 namespace HEAL.NonlinearRegression {
   public class LaplaceApproximation {
-    public int m { get; internal set; } // number of observations (TODO: should be removed)
-    public int n { get; internal set; } // number of parameters (TODO: should be removed)
-
     public double[] ParamEst { get; internal set; } // estimated values for parameters θ
     public double[] ParamStdError { get; internal set; } // standard error for parameters (se(θ) in Bates and Watts)
     public double[,] Correlation { get; internal set; }// correlation matrix for parameters
@@ -14,11 +11,11 @@ namespace HEAL.NonlinearRegression {
 
     private double[,] invH; // covariance matrix for training set (required for prediction intervals)
     public double[] diagH; // used for preconditioning of CG in profile likelihood (TODO: public visibility problematic)
+    private int m; // number of observations
 
-    public LaplaceApproximation(int m, int n, double[] paramEst, LikelihoodBase likelihood) {
-      this.m = m;
-      this.n = n;
+    public LaplaceApproximation(double[] paramEst, LikelihoodBase likelihood) {
       this.ParamEst = (double[])paramEst.Clone();
+      this.m = likelihood.Y.Length;
       try {
         CalcParameterStatistics(likelihood);
       } catch (Exception) {
@@ -28,6 +25,7 @@ namespace HEAL.NonlinearRegression {
 
     private void CalcParameterStatistics(LikelihoodBase likelihood) {
       var pOpt = ParamEst;
+      var n = pOpt.Length;
 
       var U = likelihood.FisherInformation(pOpt); // Hessian is symmetric positive definite in pOpt
       
@@ -77,6 +75,8 @@ namespace HEAL.NonlinearRegression {
     }
 
     public void GetParameterIntervals(double alpha, out double[] low, out double[] high) {
+      var n = ParamEst.Length;
+
       low = new double[n];
       high = new double[n];
 
@@ -91,6 +91,7 @@ namespace HEAL.NonlinearRegression {
 
 
     public void GetPredictionIntervals(Expr.ParametricJacobianFunction modelJacobian, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high) {
+      var n = ParamEst.Length;
       int numRows = x.GetLength(0);
       low = new double[numRows];
       high = new double[numRows];

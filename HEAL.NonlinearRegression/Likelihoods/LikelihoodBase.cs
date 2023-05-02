@@ -1,4 +1,5 @@
 ﻿using HEAL.Expressions;
+using System;
 using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression {
@@ -14,6 +15,11 @@ namespace HEAL.NonlinearRegression {
     protected readonly int numLikelihoodParams; // additional parameters of the likelihood function (not part of the model) e.g. sErr for Gaussian likelihood
     private int numModelParams;
 
+    public double[,] X => x;
+    public double[] Y => y;
+
+    public virtual double Dispersion { get { return 1.0; } set { throw new NotSupportedException($"cannot set dispersion of {this.GetType().Name}"); } }
+
     protected LikelihoodBase(LikelihoodBase original) : this(original.modelExpr, original.x, original.y, original.numLikelihoodParams) { }
     protected LikelihoodBase(Expression<Expr.ParametricFunction> modelExpr, double[,] x, double[] y, int numLikelihoodParams) {
       this.x = x;
@@ -26,7 +32,7 @@ namespace HEAL.NonlinearRegression {
 
     private Expression<Expr.ParametricFunction> modelExpr;
     public Expression<Expr.ParametricFunction> ModelExpr {
-      get => modelExpr; 
+      get => modelExpr;
       internal set {
         // updating the modelExpr also requires updating Jacobian and Hessian
         modelExpr = value;
@@ -39,7 +45,7 @@ namespace HEAL.NonlinearRegression {
     }
     protected Expr.ParametricVectorFunction ModelFunc { get; private set; }
     protected Expr.ParametricJacobianFunction ModelJacobian { get; private set; }
-    protected  Expr.ParametricHessianFunction ModelHessian { get; private set; }
+    protected Expr.ParametricHessianFunction ModelHessian { get; private set; }
 
 
     public int NumberOfObservations { get; }

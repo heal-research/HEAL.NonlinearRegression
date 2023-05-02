@@ -2,9 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
 using HEAL.Expressions;
-using HEAL.Expressions.Parser;
 using HEAL.NonlinearRegression.Likelihoods;
 
 namespace HEAL.NonlinearRegression {
@@ -24,9 +22,6 @@ namespace HEAL.NonlinearRegression {
     internal Expr.ParametricJacobianFunction? modelJacobian; // for Laplace approximation
 
     internal Expression<Expr.ParametricFunction>? modelExpr;
-    // public LikelihoodEnum? LikelihoodType { get; private set; }
-    internal double[,]? x;
-    internal double[]? y;
 
     // results
     private double[]? paramEst;
@@ -48,42 +43,12 @@ namespace HEAL.NonlinearRegression {
     public double Deviance => 2.0 * NegLogLikelihood - 2.0 * Likelihood.BestNegLogLikelihood; // for Gaussian: Deviance = SSR /sErr^2
 
     public LikelihoodBase Likelihood { get; private set; }
-    public double Dispersion { get; set; } // for Gaussian: Dispersion = sErr (estimated as Math.Sqrt(SSR / (m-n))); for Bernoulli: Dispersion = 1;
+    public double Dispersion => Likelihood.Dispersion;
     public double AIC => ModelSelection.AIC(-NegLogLikelihood, Likelihood.NumberOfParameters);
     public double AICc => ModelSelection.AICc(-NegLogLikelihood, Likelihood.NumberOfParameters, Likelihood.NumberOfObservations);
     public double BIC => ModelSelection.BIC(-NegLogLikelihood, Likelihood.NumberOfParameters, Likelihood.NumberOfObservations);
 
     public NonlinearRegression() { }
-
-    /// <summary>
-    /// Least-squares fitting for func with Jacobian to target y using initial values p.
-    /// Uses Levenberg-Marquardt algorithm.
-    /// </summary>
-    /// <param name="modelExpr">The expression to fit including initial parameter values (e.g. 0.1 * x^2f / (1 + 0.2 * x) )</param> 
-    /// <param name="variableNames">The variable names occuring in the expression</param> 
-    /// <param name="likelihood">The likelihood type.</param> 
-    /// <param name="noiseSigma">The noise sigma for the Gaussian likelihood (if known)</param>
-    /// <param name="x">Matrix of input values</param>
-    /// <param name="y">Vector of target values</param>
-    /// <param name="report">Report with fitting results and statistics</param>
-    /// <param name="maxIterations"></param>
-    /// <param name="scale">Optional parameter to set parameter scale. Useful if parameters are given on very different measurement scales.</param>
-    /// <param name="stepMax">Optional parameter to limit the step size in Levenberg-Marquardt. Can be useful on quickly changing functions (e.g. exponentials).</param>
-    /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
-    /// <exception cref="InvalidProgramException"></exception>
-    public void Fit(string modelExpr, string[] variableNames, LikelihoodEnum likelihood, double[,] x, double[] y, double? noiseSigma = null,
-      int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
-      Func<double[], double, bool>? callback = null) {
-
-      // parse expression and extract parameter values
-      var variablesParameter = Expression.Parameter(typeof(double[]), "x");
-      var parametersParameter = Expression.Parameter(typeof(double[]), "p");
-      var parser = new ExprParser(modelExpr, variableNames, variablesParameter, parametersParameter);
-      var parametricExpr = parser.Parse();
-      var p = parser.ParameterValues;
-
-      Fit(p, parametricExpr, likelihood, x, y, noiseSigma, maxIterations, scale, stepMax, callback);
-    }
 
     /// <summary>
     /// Least-squares fitting for func with Jacobian to target y using initial values p.
@@ -101,45 +66,32 @@ namespace HEAL.NonlinearRegression {
     /// <param name="stepMax">Optional parameter to limit the step size in Levenberg-Marquardt. Can be useful on quickly changing functions (e.g. exponentials).</param>
     /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
     /// <exception cref="InvalidProgramException"></exception>
-    public void Fit(double[] p, Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double[,] x, double[] y, double? noiseSigma = null,
-    int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
+    public void Fit(double[] p, LikelihoodBase likelihood, int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
     Func<double[], double, bool>? callback = null) {
 
-      this.modelExpr = expr;
+      this.modelExpr = likelihood.ModelExpr;
 
-      var _func = Expr.Broadcast(expr).Compile();
-      var _jac = Expr.Jacobian(expr, p.Length).Compile();
+      // TODO: we still use symbolic differentiation and compilation here
+      var _func = Expr.Broadcast(modelExpr).Compile();
+      var _jac = Expr.Jacobian(modelExpr, p.Length).Compile();
       this.modelFunc = (double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible;
       this.modelJacobian = (double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
-      if (likelihood == LikelihoodEnum.Gaussian) {
-        this.Likelihood = new SimpleGaussianLikelihood(x, y, expr, noiseSigma ?? 1.0);
-        this.Dispersion = noiseSigma ?? 1.0;
-      } else if (likelihood == LikelihoodEnum.Bernoulli) {
-        this.Likelihood = new BernoulliLikelihood(x, y, expr, p.Length);
-        this.Dispersion = 1.0; // assumed to be 1 for Bernoulli
-      }
+      this.Likelihood = likelihood;
 
-      Fit(p, x, y, maxIterations, scale, stepMax, callback);
+      Fit(p, maxIterations, scale, stepMax, callback);
 
       // if successful
       if (paramEst != null) {
-        if (likelihood == LikelihoodEnum.Gaussian && noiseSigma == null) {
-          // update dispersion with estimated value after fitting (if noiseSigma was not specified)
-          this.Dispersion = Math.Sqrt(Deviance / (y.Length - p.Length)); // s = Math.Sqrt(SSR / (m - n))
-          this.Likelihood = new SimpleGaussianLikelihood(x, y, expr, this.Dispersion); // update because we may have an estimate for noise sigma now
+        // update dispersion with estimated value after fitting (if dispersion is at the default value for Gaussian likelihood)
+        if (likelihood is SimpleGaussianLikelihood && likelihood.Dispersion == 1.0) {
+          likelihood.Dispersion = Math.Sqrt(Deviance / (likelihood.Y.Length - p.Length)); // s = Math.Sqrt(SSR / (m - n))
         }
-        Statistics = new LaplaceApproximation(y.Length, paramEst.Length, paramEst, Likelihood);
+        Statistics = new LaplaceApproximation(paramEst, Likelihood);
       }
     }
 
-    private void Fit(double[] p, double[,] x, double[] y,
-        int maxIterations = 0, double[]? scale = null, double stepMax = 0.0, Func<double[], double, bool>? callback = null) {
-
-      this.x = (double[,])x.Clone();
-      this.y = (double[])y.Clone();
-
-      int m = y.Length;
+    private void Fit(double[] p, int maxIterations = 0, double[]? scale = null, double stepMax = 0.0, Func<double[], double, bool>? callback = null) {
       int n = p.Length;
 
       #region Conjugate Gradient
@@ -194,37 +146,21 @@ namespace HEAL.NonlinearRegression {
     /// <param name="parametricExpr"></param>
     /// <param name="trainX"></param>
     /// <param name="trainY"></param>
-    public void SetModel(double[] p, Expression<Expr.ParametricFunction> expr, LikelihoodEnum likelihood, double? noiseSigma, double[,] x, double[] y) {
-      var m = y.Length;
+    public void SetModel(double[] p, LikelihoodBase likelihood) {
       int n = p.Length;
 
-
-      this.modelExpr = expr;
-      var _func = Expr.Broadcast(expr).Compile();
-      var _jac = Expr.Jacobian(expr, p.Length).Compile();
+      this.modelExpr = likelihood.ModelExpr;
+      this.Likelihood = likelihood;
+      
+      // TODO: this should be removed
+      var _func = Expr.Broadcast(modelExpr).Compile();
+      var _jac = Expr.Jacobian(modelExpr, p.Length).Compile();
       this.modelFunc = (double[] p, double[,] X, double[] f) => _func(p, X, f);
       this.modelJacobian = (double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
       this.paramEst = (double[])p.Clone();
-      this.x = (double[,])x.Clone();
-      this.y = (double[])y.Clone();
 
-      if (likelihood == LikelihoodEnum.Gaussian) {
-        // evaluate ypred and SSR
-        var yPred = Predict(x);
-        var SSR = 0.0;
-        for (int i = 0; i < yPred.Length; i++) {
-          var r = y[i] - yPred[i];
-          SSR += r * r;
-        }
-
-        this.Dispersion = noiseSigma ?? Math.Sqrt(SSR / (m - n));
-        this.Likelihood = new SimpleGaussianLikelihood(x, y, modelExpr, this.Dispersion);
-      } else if (likelihood == LikelihoodEnum.Bernoulli) {
-        this.Dispersion = 1.0;
-        this.Likelihood = new BernoulliLikelihood(x, y, modelExpr, p.Length);
-      }
-      Statistics = new LaplaceApproximation(m, n, paramEst, Likelihood);
+      Statistics = new LaplaceApproximation(paramEst, Likelihood);
     }
 
     public double[] Predict(double[,] x) {

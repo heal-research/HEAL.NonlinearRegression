@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression.Likelihoods {
 
-  internal class BernoulliLikelihood : LikelihoodBase {
+  public class BernoulliLikelihood : LikelihoodBase {
 
     internal BernoulliLikelihood(BernoulliLikelihood original) : base(original) { }
     public BernoulliLikelihood(double[,] x, double[] y, Expression<Expr.ParametricFunction> modelExpr, int numModelParam) : base(modelExpr, x, y, numModelParam) { }
@@ -58,13 +58,18 @@ namespace HEAL.NonlinearRegression.Likelihoods {
         if (y[i] != 0.0 && y[i] != 1.0) throw new ArgumentException("target variable must be binary (0/1) for Bernoulli likelihood");
         if (y[i] == 1) {
           nll -= Math.Log(yPred[i]);
+          if (nll_grad != null) {
+            for (int j = 0; j < n; j++) {
+              nll_grad[j] -= yJac[i, j] / yPred[i];
+            }
+          }
         } else {
           // y[i]==0
           nll -= Math.Log(1 - yPred[i]);
-        }
-        if (nll_grad != null) {
-          for (int j = 0; j < n; j++) {
-            nll_grad[j] -= (y[i] - yPred[i]) * yJac[i, j] / ((1 - yPred[i]) * yPred[i]);
+          if (nll_grad != null) {
+            for (int j = 0; j < n; j++) {
+              nll_grad[j] += yJac[i, j] / (1 - yPred[i]);
+            }
           }
         }
       }

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using CommandLine;
 using HEAL.Expressions;
 using HEAL.Expressions.Parser;
+using HEAL.NonlinearRegression.Likelihoods;
 
 // TODO:
 //   - Unify options for different verbs.
@@ -56,7 +57,7 @@ namespace HEAL.NonlinearRegression.Console {
 
         var nls = new NonlinearRegression();
         try {
-          nls.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma, maxIterations: options.MaxIterations);
+          nls.Fit(p, CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY), maxIterations: options.MaxIterations);
         } catch (Exception e) {
           System.Console.WriteLine("There was a problem while fitting.");
           continue;
@@ -97,9 +98,9 @@ namespace HEAL.NonlinearRegression.Console {
       foreach (var model in GetModels(options.Model)) {
         try {
           GenerateExpression(model, varNames, out var parametricExpr, out var p);
-
+          var likelihood = CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, x, y);
           var nlr = new NonlinearRegression();
-          nlr.SetModel(p, parametricExpr, options.Likelihood, options.NoiseSigma, x, y);
+          nlr.SetModel(p, likelihood);
           var m = y.Length;
 
           var stats = nlr.Statistics;
@@ -124,6 +125,25 @@ namespace HEAL.NonlinearRegression.Console {
       }
     }
 
+    private static LikelihoodBase CreateLikelihood(Expression<Expr.ParametricFunction> parametricExpr, double[] p, LikelihoodEnum likelihood, double? noiseSigma, double[,] x, double[] y) {
+      if (likelihood == LikelihoodEnum.Gaussian) {
+        return new SimpleGaussianLikelihood(x, y, parametricExpr, noiseSigma ?? EstimateGaussianNoiseSigma(parametricExpr, p, x, y));
+      } else if (likelihood == LikelihoodEnum.Bernoulli) {
+        return new BernoulliLikelihood(x, y, parametricExpr, p.Length);
+      } else throw new NotSupportedException();
+    }
+
+    private static double EstimateGaussianNoiseSigma(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y) {
+      double[,] jac = null;
+      var yPred = Expr.Evaluate(parametricExpr, p, x, ref jac);
+      var ssr = 0.0;
+      for (int i = 0; i < y.Length; i++) {
+        var r = y[i] - yPred[i];
+        ssr += r * r;
+      }
+      return Math.Sqrt(ssr / (y.Length - p.Length));
+    }
+
     private static void Predict(PredictOptions options) {
       PrepareData(options, out var varNames, out var x, out var y, out var trainStart, out var trainEnd, out var testStart, out var testEnd, out var trainX, out var trainY);
 
@@ -139,11 +159,12 @@ namespace HEAL.NonlinearRegression.Console {
       foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
+        var likelihood = CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY);
         var nlr = new NonlinearRegression();
         if (options.NoOptimization) {
-          nlr.SetModel(p, parametricExpr, options.Likelihood, options.NoiseSigma, trainX, trainY);
+          nlr.SetModel(p, likelihood);
         } else {
-          nlr.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma);
+          nlr.Fit(p, likelihood);
         }
 
         var predict = nlr.PredictWithIntervals(x, options.Interval);
@@ -193,7 +214,7 @@ namespace HEAL.NonlinearRegression.Console {
 
           // we have to use a fixed noise Sigma here. 
           // NoiseSigma = 1 works well because in this case Deviance = SSR.
-          var cvMeanDeviance = CrossValidate(parametricExpr, options.Likelihood, noiseSigma: 1.0, p, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed);
+          var cvMeanDeviance = CrossValidate(parametricExpr, p, options.Likelihood, noiseSigma: 1.0, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed);
           var stddev = Math.Sqrt(Util.Variance(cvMeanDeviance.ToArray()));
           System.Console.WriteLine($"CV_score: {cvMeanDeviance.Average():e4} CV_stdev: {stddev:e4} CV_se: {stddev / Math.Sqrt(cvMeanDeviance.Count):e4}"); // Elements of Statistical Learning
         } catch (Exception e) {
@@ -202,7 +223,7 @@ namespace HEAL.NonlinearRegression.Console {
       }
     }
 
-    private static List<double> CrossValidate(Expression<Expr.ParametricFunction> parametricExpr, LikelihoodEnum likelihood, double? noiseSigma, double[] p, double[,] X, double[] y, int folds = 10, bool shuffle = false, int? seed = null) {
+    private static List<double> CrossValidate(Expression<Expr.ParametricFunction> parametricExpr, double[] p, LikelihoodEnum likelihood, double? noiseSigma, double[,] X, double[] y, int folds = 10, bool shuffle = false, int? seed = null) {
       Random rand;
       if (seed.HasValue) {
         rand = new Random(seed.Value);
@@ -229,7 +250,7 @@ namespace HEAL.NonlinearRegression.Console {
           Split(X, y, foldStart, foldEnd, foldStart, foldEnd, out var foldTestX, out var foldTestY, out _, out _);
 
           var nls = new NonlinearRegression();
-          nls.Fit(p, parametricExpr, likelihood, foldTrainX, foldTrainY, noiseSigma, maxIterations: 5000); // TODO make CLI parameter
+          nls.Fit(p, CreateLikelihood(parametricExpr, p, likelihood, noiseSigma, foldTrainX, foldTrainY), maxIterations: 5000); // TODO make CLI parameter
 
           var loss = nls.Deviance;
 
@@ -293,7 +314,7 @@ namespace HEAL.NonlinearRegression.Console {
 
         // calculate ref stats for full model
         var nlr = new NonlinearRegression();
-        nlr.Fit(p, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma, maxIterations: options.MaxIterations);
+        nlr.Fit(p, CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY), maxIterations: options.MaxIterations);
         var refStats = nlr.Statistics;
         var refDeviance = nlr.Deviance;
         var refAicc = nlr.AICc;
@@ -309,7 +330,7 @@ namespace HEAL.NonlinearRegression.Console {
 
           (parametricExpr, p) = modelQueue.Dequeue();
           allModels.Add(Tuple.Create(parametricExpr, p));
-          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(parametricExpr, options.Likelihood, options.NoiseSigma, trainX, trainY, (double[])p.Clone(), options.MaxIterations, options.Verbose);
+          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(CreateLikelihood(parametricExpr, (double[])p.Clone(), options.Likelihood, options.NoiseSigma, trainX, trainY), (double[])p.Clone(), options.MaxIterations, options.Verbose);
 
           // order by SSRfactor and use the best as an alternative (if it has delta AICc < deltaAIC)
           var alternative = impacts.OrderBy(tup => tup.Item2).Where(tup => tup.Item3 < options.DeltaAIC).FirstOrDefault();
@@ -329,7 +350,7 @@ namespace HEAL.NonlinearRegression.Console {
 
           // output training, CV, and test result for original model
           nlr = new NonlinearRegression();
-          nlr.SetModel(p, parametricExpr, options.Likelihood, options.NoiseSigma, trainX, trainY);
+          nlr.SetModel(p, CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY));
           var stats = nlr.Statistics;
           var deviance = nlr.Deviance;
           // var rmseTrain = Math.Sqrt(deviance / trainY.Length);
@@ -344,7 +365,8 @@ namespace HEAL.NonlinearRegression.Console {
           // } catch (Exception) { }
           var aicc = nlr.AICc;
           var bic = nlr.BIC;
-          System.Console.WriteLine($"{nlr.Deviance / refDeviance:e4},{stats.n},{aicc:e4},{aicc - refAicc:e4},{bic:e4},{bic - refBic:e4},{Expr.ToString(parametricExpr, varNames, p)}");
+          var n = p.Length;
+          System.Console.WriteLine($"{nlr.Deviance / refDeviance:e4},{n},{aicc:e4},{aicc - refAicc:e4},{bic:e4},{bic - refBic:e4},{Expr.ToString(parametricExpr, varNames, p)}");
         }
       }
     }
@@ -373,7 +395,7 @@ namespace HEAL.NonlinearRegression.Console {
 
         // calculate ref stats for full model
         var nlr = new NonlinearRegression();
-        nlr.Fit(origParam, origExpr, options.Likelihood, trainX, trainY, options.NoiseSigma, maxIterations: options.MaxIterations);
+        nlr.Fit(origParam, CreateLikelihood(origExpr, origParam, options.Likelihood, options.NoiseSigma, trainX, trainY), maxIterations: options.MaxIterations);
         var refStats = nlr.Statistics;
         if (refStats == null) {
           // could not fit expression
@@ -389,7 +411,7 @@ namespace HEAL.NonlinearRegression.Console {
 
           (var expr, var param) = modelQueue.Dequeue();
           allModels.Add(Tuple.Create(expr, param));
-          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(expr, options.Likelihood, options.NoiseSigma, trainX, trainY, (double[])param.Clone(), options.MaxIterations, options.Verbose);
+          var impacts = ModelAnalysis.NestedModelLiklihoodRatios(CreateLikelihood(expr, (double[])param.Clone(), options.Likelihood, options.NoiseSigma, trainX, trainY), (double[])param.Clone(), options.MaxIterations, options.Verbose);
 
           // order by SSRfactor and use the best as an alternative (if it has delta AICc < deltaAIC)
           var alternative = impacts.OrderBy(tup => tup.Item2).Where(tup => tup.Item3 < options.DeltaAIC).FirstOrDefault();
@@ -406,7 +428,7 @@ namespace HEAL.NonlinearRegression.Console {
         // find smallest model 
         var bestModel = origExpr;
         var bestParam = origParam;
-        var bestNumParam = refStats.n;
+        var bestNumParam = origParam.Length;
         var refAICc = nlr.AICc;
         var bestAICc = refAICc;
 
@@ -415,17 +437,17 @@ namespace HEAL.NonlinearRegression.Console {
 
           // eval all models
           nlr = new NonlinearRegression();
-          nlr.SetModel(param, expr, options.Likelihood, options.NoiseSigma, trainX, trainY);
+          nlr.SetModel(param, CreateLikelihood(expr, param, options.Likelihood, options.NoiseSigma, trainX, trainY));
           var stats = nlr.Statistics;
           var aicc = nlr.AICc;
-          if (aicc - refAICc < options.DeltaAIC && stats.n <= bestNumParam) {
+          if (aicc - refAICc < options.DeltaAIC && param.Length <= bestNumParam) {
             bestModel = expr;
             bestNumParam = param.Length;
             bestAICc = aicc;
             bestParam = param;
           }
         }
-        System.Console.WriteLine($"deltaAICc: {bestAICc - refAICc}, deltaN: {bestNumParam - refStats.n}, {Expr.ToString(bestModel, varNames, bestParam)}");
+        System.Console.WriteLine($"deltaAICc: {bestAICc - refAICc}, deltaN: {bestNumParam - origParam.Length}, {Expr.ToString(bestModel, varNames, bestParam)}");
       }
     }
 
@@ -448,7 +470,7 @@ namespace HEAL.NonlinearRegression.Console {
       foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
-        var subExprImportance = ModelAnalysis.SubtreeImportance(parametricExpr, options.Likelihood, options.NoiseSigma, trainX, trainY, p);
+        var subExprImportance = ModelAnalysis.SubtreeImportance(CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY), p);
 
         Dictionary<Expression, double>? saturation = null;
         if (options.GraphvizFilename != null) {
@@ -507,7 +529,7 @@ namespace HEAL.NonlinearRegression.Console {
       foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
 
-        var varImportance = ModelAnalysis.VariableImportance(parametricExpr, options.Likelihood, options.NoiseSigma, trainX, trainY, p);
+        var varImportance = ModelAnalysis.VariableImportance(CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY), p);
 
 
         System.Console.WriteLine($"{"variable",-11} {"VarExpl",-11}");
@@ -537,7 +559,7 @@ namespace HEAL.NonlinearRegression.Console {
         GenerateExpression(model, varNames, out var parametricExpr, out var parameters);
 
         var nlr = new NonlinearRegression();
-        nlr.Fit(parameters, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma);
+        nlr.Fit(parameters, CreateLikelihood(parametricExpr, parameters, options.Likelihood, options.NoiseSigma, trainX, trainY));
 
 
         var folder = Path.GetDirectoryName(options.Dataset);
@@ -581,7 +603,7 @@ namespace HEAL.NonlinearRegression.Console {
         GenerateExpression(model, varNames, out var parametricExpr, out var parameters);
 
         var nlr = new NonlinearRegression();
-        nlr.Fit(parameters, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma);
+        nlr.Fit(parameters, CreateLikelihood(parametricExpr, parameters, options.Likelihood, options.NoiseSigma, trainX, trainY));
         var folder = Path.GetDirectoryName(options.Dataset);
         var filename = Path.GetFileNameWithoutExtension(options.Dataset);
 
@@ -636,7 +658,7 @@ namespace HEAL.NonlinearRegression.Console {
 
         if (!options.NoOptimization) {
           var nlr = new NonlinearRegression();
-          nlr.Fit(parameters, parametricExpr, options.Likelihood, trainX, trainY, options.NoiseSigma, maxIterations: 3000);
+          nlr.Fit(parameters, CreateLikelihood(parametricExpr, parameters, options.Likelihood, options.NoiseSigma, trainX, trainY), maxIterations: 3000);
         }
 
         var _jac = Expr.Jacobian(parametricExpr, parameters.Length).Compile();
