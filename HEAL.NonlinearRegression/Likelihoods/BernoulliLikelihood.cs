@@ -7,7 +7,7 @@ namespace HEAL.NonlinearRegression.Likelihoods {
   public class BernoulliLikelihood : LikelihoodBase {
 
     internal BernoulliLikelihood(BernoulliLikelihood original) : base(original) { }
-    public BernoulliLikelihood(double[,] x, double[] y, Expression<Expr.ParametricFunction> modelExpr, int numModelParam) : base(modelExpr, x, y, numModelParam) { }
+    public BernoulliLikelihood(double[,] x, double[] y, Expression<Expr.ParametricFunction> modelExpr) : base(modelExpr, x, y, 0) { }
 
     public override double[,] FisherInformation(double[] p) {
       var m = y.Length;

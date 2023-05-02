@@ -175,8 +175,9 @@ namespace HEAL.NonlinearRegression {
         // fit reduced model
         try {
           var nlr = new NonlinearRegression();
-          likelihood.ModelExpr = reducedExpression;
-          nlr.Fit(newP, likelihood, maxIterations: maxIterations);
+          var reducedLikelihood = likelihood.Clone();
+          reducedLikelihood.ModelExpr = reducedExpression;
+          nlr.Fit(newP, reducedLikelihood, maxIterations: maxIterations);
           var reducedStats = nlr.Statistics;
 
           var ssrFactor = nlr.Deviance / refDeviance;

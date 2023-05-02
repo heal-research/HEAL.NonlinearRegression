@@ -38,6 +38,8 @@ namespace HEAL.NonlinearRegression {
         modelExpr = value;
 
         numModelParams = Expr.NumberOfParameters(modelExpr);
+
+        // TODO: we should replace this with AutoDiff
         ModelFunc = Expr.Broadcast(modelExpr).Compile();
         ModelJacobian = Expr.Jacobian(modelExpr, numModelParams).Compile();
         ModelHessian = Expr.Hessian(modelExpr, numModelParams).Compile();

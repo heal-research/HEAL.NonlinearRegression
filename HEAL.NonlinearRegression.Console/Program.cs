@@ -129,7 +129,7 @@ namespace HEAL.NonlinearRegression.Console {
       if (likelihood == LikelihoodEnum.Gaussian) {
         return new SimpleGaussianLikelihood(x, y, parametricExpr, noiseSigma ?? EstimateGaussianNoiseSigma(parametricExpr, p, x, y));
       } else if (likelihood == LikelihoodEnum.Bernoulli) {
-        return new BernoulliLikelihood(x, y, parametricExpr, p.Length);
+        return new BernoulliLikelihood(x, y, parametricExpr);
       } else throw new NotSupportedException();
     }
 
