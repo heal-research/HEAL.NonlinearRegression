@@ -42,11 +42,6 @@ namespace HEAL.Expressions {
       return true; // otherwise Visit throws an Exception
     }
 
-
-    public override Expression Visit(Expression node) {
-      return base.Visit(node);
-    }
-
     protected override Expression VisitBinary(BinaryExpression node) {
       if  (node.NodeType != ExpressionType.Add &&
            node.NodeType != ExpressionType.Subtract &&
