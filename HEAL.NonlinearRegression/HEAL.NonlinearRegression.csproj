@@ -8,16 +8,18 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
-    <Version>0.1.0-rc.1</Version>
+    <Version>0.1.0-rc.2</Version>
     <Authors>Gabriel Kronberger</Authors>
     <Company>Heuristic and Evolutionary Algorithms Laboratory (HEAL)</Company>
     <RepositoryUrl>https://github.com/heal-research/HEAL.NonlinearRegression.git</RepositoryUrl>
+    <Title>HEAL.NonlinearRegression</Title>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="..\README.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 
