@@ -45,9 +45,6 @@ namespace HEAL.NonlinearRegression {
       }
     }
     protected Expression<Expr.ParametricFunction>[] ModelGradient { get; private set; }
-    // protected Expr.ParametricJacobianFunction ModelJacobian { get; private set; }
-    // protected Expr.ParametricHessianFunction ModelHessian { get; private set; }
-
 
     public int NumberOfObservations { get; }
     public int NumberOfParameters => numLikelihoodParams + numModelParams;

@@ -103,9 +103,9 @@ namespace HEAL.NonlinearRegression.Console {
           nlr.SetModel(p, likelihood);
           var m = y.Length;
 
-          var stats = nlr.Statistics;
-          var mdl = ModelSelection.MDL(parametricExpr, p, -nlr.NegLogLikelihood, nlr.Statistics.diagH);
-          var freqMdl = ModelSelection.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, nlr.Statistics.diagH);
+          var stats = nlr.LaplaceApproximation;
+          var mdl = ModelSelection.MDL(parametricExpr, p, -nlr.NegLogLikelihood, nlr.LaplaceApproximation.diagH);
+          var freqMdl = ModelSelection.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, nlr.LaplaceApproximation.diagH);
 
           var logLik = -nlr.NegLogLikelihood;
           var aicc = nlr.AICc;
@@ -134,7 +134,7 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
     private static double EstimateGaussianNoiseSigma(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y) {
-      double[,] jac = null;
+      double[,]? jac = null;
       var yPred = Expr.EvaluateFuncJac(parametricExpr, p, x, ref jac);
       var ssr = 0.0;
       for (int i = 0; i < y.Length; i++) {
@@ -266,9 +266,8 @@ namespace HEAL.NonlinearRegression.Console {
 
       foreach (var model in GetModels(options.Model)) {
         GenerateExpression(model, varNames, out var parametricExpr, out var p);
-        Expression<Expr.ParametricFunction> simplifiedExpr;
 
-        Simplify(parametricExpr, p, out simplifiedExpr, out var newP);
+        Simplify(parametricExpr, p, out var simplifiedExpr, out var newP);
 
         // System.Console.WriteLine(simplifiedExpr);
         // System.Console.WriteLine($"theta: {string.Join(",", newP.Select(pi => pi.ToString()))}");
@@ -315,7 +314,7 @@ namespace HEAL.NonlinearRegression.Console {
         // calculate ref stats for full model
         var nlr = new NonlinearRegression();
         nlr.Fit(p, CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY), maxIterations: options.MaxIterations);
-        var refStats = nlr.Statistics;
+        var refStats = nlr.LaplaceApproximation;
         var refDeviance = nlr.Deviance;
         var refAicc = nlr.AICc;
         var refBic = nlr.BIC;
@@ -351,7 +350,7 @@ namespace HEAL.NonlinearRegression.Console {
           // output training, CV, and test result for original model
           nlr = new NonlinearRegression();
           nlr.SetModel(p, CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY));
-          var stats = nlr.Statistics;
+          var stats = nlr.LaplaceApproximation;
           var deviance = nlr.Deviance;
           // var rmseTrain = Math.Sqrt(deviance / trainY.Length);
           // var ssrTest = EvaluateSSR(parametricExpr, p, testX, testY, out _);
@@ -396,7 +395,7 @@ namespace HEAL.NonlinearRegression.Console {
         // calculate ref stats for full model
         var nlr = new NonlinearRegression();
         nlr.Fit(origParam, CreateLikelihood(origExpr, origParam, options.Likelihood, options.NoiseSigma, trainX, trainY), maxIterations: options.MaxIterations);
-        var refStats = nlr.Statistics;
+        var refStats = nlr.LaplaceApproximation;
         if (refStats == null) {
           // could not fit expression
           System.Console.WriteLine($"deltaAICc: {double.NaN}, deltaN: {double.NaN}, {Expr.ToString(origExpr, varNames, origParam)}");
@@ -438,7 +437,7 @@ namespace HEAL.NonlinearRegression.Console {
           // eval all models
           nlr = new NonlinearRegression();
           nlr.SetModel(param, CreateLikelihood(expr, param, options.Likelihood, options.NoiseSigma, trainX, trainY));
-          var stats = nlr.Statistics;
+          var stats = nlr.LaplaceApproximation;
           var aicc = nlr.AICc;
           if (aicc - refAICc < options.DeltaAIC && param.Length <= bestNumParam) {
             bestModel = expr;
@@ -565,7 +564,7 @@ namespace HEAL.NonlinearRegression.Console {
         var folder = Path.GetDirectoryName(options.Dataset);
         var filename = Path.GetFileNameWithoutExtension(options.Dataset);
 
-        var tProfile = new TProfile(nlr.Statistics, nlr.Likelihood);
+        var tProfile = new TProfile(nlr.LaplaceApproximation, nlr.Likelihood);
         var numPairs = (parameters.Length * (parameters.Length - 1) / 2.0);
         for (int i = 0; i < parameters.Length - 1; i++) {
           for (int j = i + 1; j < parameters.Length; j++) {
@@ -607,7 +606,7 @@ namespace HEAL.NonlinearRegression.Console {
         var folder = Path.GetDirectoryName(options.Dataset);
         var filename = Path.GetFileNameWithoutExtension(options.Dataset);
 
-        var tProfile = new TProfile(nlr.Statistics, nlr.Likelihood);
+        var tProfile = new TProfile(nlr.LaplaceApproximation, nlr.Likelihood);
 
         var n = parameters.Length;
         var m = trainY.Length;

@@ -272,7 +272,7 @@ namespace HEAL.NonlinearRegression {
           var xi = new double[d];
           Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
 
-          var reparameterizedModel = Expr.ReparameterizeExpr(nls.modelExpr, xi, out var outputParamIdx);
+          var reparameterizedModel = Expr.ReparameterizeExpr(nls.Likelihood.ModelExpr, xi, out var outputParamIdx);
           paramEstExt[outputParamIdx] = yPred[i];
 
           var likelihoodExt = nls.Likelihood.Clone();

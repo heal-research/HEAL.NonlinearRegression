@@ -64,7 +64,7 @@ namespace HEAL.NonlinearRegression {
 
 
     // for experimental code which considers frequencies of symbols occuring in named expressions
-    private static Dictionary<string, double> codeLen = new Dictionary<string, double>() {
+    private static readonly Dictionary<string, double> codeLen = new Dictionary<string, double>() {
         { "var", 0.66},
         { "param", 0.66},
         { "const", 0.66},

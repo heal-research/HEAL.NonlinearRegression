@@ -17,23 +17,17 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    // TODO: these are duplicated in the likelihood 
-    internal Expr.ParametricVectorFunction? modelFunc; // for prediction
-    internal Expr.ParametricJacobianFunction? modelJacobian; // for Laplace approximation
-
-    internal Expression<Expr.ParametricFunction>? modelExpr;
-
     // results
     private double[]? paramEst;
 
     public double[]? ParamEst { get { return paramEst?.Clone() as double[]; } }
 
     public OptimizationReport? OptReport { get; private set; }
-    public LaplaceApproximation? Statistics { get; private set; }
+    public LaplaceApproximation? LaplaceApproximation { get; private set; }
 
 
     // negative log likelihood of the model for the estimated parameters
-    public double NegLogLikelihood => Likelihood.NegLogLikelihood(ParamEst);
+    public double NegLogLikelihood => Likelihood.NegLogLikelihood(paramEst);
 
     // deviance is 2 * (loglike(model) - loglike(optimalModel)) for general likelihoods where optimalModel has one parameter for each output and produces a perfect fit
     // https://en.wikipedia.org/wiki/Deviance_(statistics)
@@ -67,15 +61,6 @@ namespace HEAL.NonlinearRegression {
     /// <exception cref="InvalidProgramException"></exception>
     public void Fit(double[] p, LikelihoodBase likelihood, int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
     Func<double[], double, bool>? callback = null) {
-
-      this.modelExpr = likelihood.ModelExpr;
-
-      // TODO: we still use symbolic differentiation and compilation here
-      var _func = Expr.Broadcast(modelExpr).Compile();
-      var _jac = Expr.Jacobian(modelExpr, p.Length).Compile();
-      this.modelFunc = (double[] p, double[,] X, double[] f) => _func(p, X, f); // wrapper only necessary because return values are incompatible;
-      this.modelJacobian = (double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
-
       this.Likelihood = likelihood;
 
       Fit(p, maxIterations, scale, stepMax, callback);
@@ -86,7 +71,7 @@ namespace HEAL.NonlinearRegression {
         if (likelihood is SimpleGaussianLikelihood && likelihood.Dispersion == 1.0) {
           likelihood.Dispersion = Math.Sqrt(Deviance / (likelihood.Y.Length - p.Length)); // s = Math.Sqrt(SSR / (m - n))
         }
-        Statistics = new LaplaceApproximation(paramEst, Likelihood);
+        LaplaceApproximation = new LaplaceApproximation(paramEst, Likelihood);
       }
     }
 
@@ -120,6 +105,7 @@ namespace HEAL.NonlinearRegression {
       // alglib.mincgoptguardresults(state, out var optGuardRes);
       #endregion
 
+      // if successfull
       if (rep.terminationtype >= 0) {
         Array.Copy(paramEst, p, p.Length);
 
@@ -148,28 +134,16 @@ namespace HEAL.NonlinearRegression {
     /// <param name="trainX"></param>
     /// <param name="trainY"></param>
     public void SetModel(double[] p, LikelihoodBase likelihood) {
-      int n = p.Length;
-
-      this.modelExpr = likelihood.ModelExpr;
       this.Likelihood = likelihood;
-      
-      // TODO: this should be removed
-      var _func = Expr.Broadcast(modelExpr).Compile();
-      var _jac = Expr.Jacobian(modelExpr, p.Length).Compile();
-      this.modelFunc = (double[] p, double[,] X, double[] f) => _func(p, X, f);
-      this.modelJacobian = (double[] p, double[,] X, double[] f, double[,] jac) => _jac(p, X, f, jac);
 
       this.paramEst = (double[])p.Clone();
 
-      Statistics = new LaplaceApproximation(paramEst, Likelihood);
+      LaplaceApproximation = new LaplaceApproximation(paramEst, Likelihood);
     }
 
     public double[] Predict(double[,] x) {
       if (paramEst == null) throw new InvalidOperationException("Call Fit or SetModel first.");
-      var m = x.GetLength(0);
-      var y = new double[m];
-      modelFunc(paramEst, x, y);
-      return y;
+      return Expr.EvaluateFunc(Likelihood.ModelExpr, paramEst, x);
     }
 
     public double[,] PredictWithIntervals(double[,] x, IntervalEnum intervalType, double alpha = 0.05) {
@@ -184,7 +158,7 @@ namespace HEAL.NonlinearRegression {
         case IntervalEnum.LaplaceApproximation: {
             var yPred = Predict(x);
             var y = new double[m, 4];
-            Statistics.GetPredictionIntervals(modelJacobian, x, alpha, out var resStdErr, out var low, out var high);
+            LaplaceApproximation.GetPredictionIntervals(Likelihood.ModelExpr, x, alpha, out var resStdErr, out var low, out var high);
             for (int i = 0; i < m; i++) {
               y[i, 0] = yPred[i];
               y[i, 1] = resStdErr[i];
@@ -213,20 +187,20 @@ namespace HEAL.NonlinearRegression {
     }
 
     private void WriteStatistics(TextWriter writer) {
-      var mdl = ModelSelection.MDL(modelExpr, paramEst, -NegLogLikelihood, Statistics.diagH);
+      var mdl = ModelSelection.MDL(Likelihood.ModelExpr, paramEst, -NegLogLikelihood, LaplaceApproximation.diagH);
       if (Likelihood is SimpleGaussianLikelihood) {
         writer.WriteLine($"SSR: {Deviance * Dispersion * Dispersion:e4}  s: {Dispersion:e4} AICc: {AICc:f1} BIC: {BIC:f1} MDL: {mdl:f1}");
       } else if (Likelihood is BernoulliLikelihood) {
         writer.WriteLine($"Deviance: {Deviance:e4}  Dispersion: {Dispersion:e4} AICc: {AICc:f1} BIC: {BIC:f1} MDL: {mdl:f1}");
       }
       var p = ParamEst;
-      var se = Statistics.ParamStdError;
+      var se = LaplaceApproximation.ParamStdError;
       if (se != null) {
-        Statistics.GetParameterIntervals(0.05, out var seLow, out var seHigh);
+        LaplaceApproximation.GetParameterIntervals(0.05, out var seLow, out var seHigh);
         writer.WriteLine($"{"Para"} {"Estimate",14}  {"Std. error",14} {"z Score",11} {"Lower",14} {"Upper",14} Correlation matrix");
         for (int i = 0; i < p.Length; i++) {
           var j = Enumerable.Range(0, i + 1);
-          writer.WriteLine($"{i,5} {p[i],14:e4} {se[i],14:e4} {p[i] / se[i],11:e2} {seLow[i],14:e4} {seHigh[i],14:e4} {string.Join(" ", j.Select(ji => Statistics.Correlation[i, ji].ToString("f2")))}");
+          writer.WriteLine($"{i,5} {p[i],14:e4} {se[i],14:e4} {p[i] / se[i],11:e2} {seLow[i],14:e4} {seHigh[i],14:e4} {string.Join(" ", j.Select(ji => LaplaceApproximation.Correlation[i, ji].ToString("f2")))}");
         }
         writer.WriteLine();
       }

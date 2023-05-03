@@ -27,7 +27,7 @@ namespace HEAL.NonlinearRegression.Likelihoods {
 
       // evaluate hessian
       for (int j = 0; j < p.Length; j++) {
-        var jc = Expr.EvaluateFuncJac(ModelGradient[j], p, x, ref yHessJ);
+        Expr.EvaluateFuncJac(ModelGradient[j], p, x, ref yHessJ);
         Buffer.BlockCopy(yHessJ, 0, yHess, j * m * n * sizeof(double), m * n * sizeof(double));
         Array.Clear(yHessJ, 0, yHessJ.Length);
       }

@@ -1,6 +1,7 @@
 ﻿using HEAL.Expressions;
 using System;
 using System.Linq;
+using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression {
   public class LaplaceApproximation {
@@ -11,7 +12,7 @@ namespace HEAL.NonlinearRegression {
 
     private double[,] invH; // covariance matrix for training set (required for prediction intervals)
     public double[] diagH; // used for preconditioning of CG in profile likelihood (TODO: public visibility problematic)
-    private int m; // number of observations
+    private readonly int m; // number of observations
 
     public LaplaceApproximation(double[] paramEst, LikelihoodBase likelihood) {
       this.ParamEst = (double[])paramEst.Clone();
@@ -90,16 +91,15 @@ namespace HEAL.NonlinearRegression {
 
 
 
-    public void GetPredictionIntervals(Expr.ParametricJacobianFunction modelJacobian, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high) {
+    public void GetPredictionIntervals(Expression<Expr.ParametricFunction> modelExpr, double[,] x, double alpha, out double[] resStdError, out double[] low, out double[] high) {
       var n = ParamEst.Length;
       int numRows = x.GetLength(0);
       low = new double[numRows];
       high = new double[numRows];
       resStdError = new double[numRows];
 
-      var yPred = new double[numRows];
-      var J = new double[numRows, n];
-      modelJacobian(ParamEst, x, yPred, J);
+      double[,]? J = null;
+      var yPred = Expr.EvaluateFuncJac(modelExpr, ParamEst, x, ref J);
 
       for (int i = 0; i < numRows; i++) {
         resStdError[i] = 0.0;

@@ -23,7 +23,7 @@ namespace HEAL.NonlinearRegression {
       var nlr = new NonlinearRegression();
       nlr.Fit(p, likelihood);
       var origExpr = likelihood.ModelExpr;
-      var stats0 = nlr.Statistics;
+      var stats0 = nlr.LaplaceApproximation;
       var referenceDeviance = nlr.Deviance;
       var m = likelihood.X.GetLength(0);
       var d = likelihood.X.GetLength(1);
@@ -41,11 +41,11 @@ namespace HEAL.NonlinearRegression {
         likelihood.ModelExpr = newExpr;
         nlr = new NonlinearRegression();
         nlr.Fit(newThetaValues, likelihood);
-        if (nlr.Statistics == null) {
+        if (nlr.LaplaceApproximation == null) {
           Console.WriteLine("Problem while fitting");
           varExpl[varIdx] = 0.0;
         } else {
-          var newStats = nlr.Statistics;
+          var newStats = nlr.LaplaceApproximation;
           // increase in variance for the reduced feature = variance explained by the feature
           varExpl[varIdx] = (nlr.Deviance - referenceDeviance) / likelihood.Y.Length;
         }
@@ -79,7 +79,7 @@ namespace HEAL.NonlinearRegression {
       var nlr = new NonlinearRegression();
       nlr.Fit(p, likelihood);
       var referenceDeviance = nlr.Deviance;
-      var stats0 = nlr.Statistics;
+      var stats0 = nlr.LaplaceApproximation;
       p = (double[])stats0.ParamEst.Clone();
 
       var fullAICc = nlr.AICc;
@@ -101,7 +101,7 @@ namespace HEAL.NonlinearRegression {
         likelihood.ModelExpr = reducedExpression;
         nlr.Fit(newTheta, likelihood);
         if (nlr.ParamEst != null) {
-          var reducedStats = nlr.Statistics;
+          var reducedStats = nlr.LaplaceApproximation;
 
           var impact = nlr.Deviance / referenceDeviance;
 
@@ -135,7 +135,7 @@ namespace HEAL.NonlinearRegression {
       nlr.Fit(p, likelihood, maxIterations: maxIterations);
       var refDeviance = nlr.Deviance;
 
-      var stats0 = nlr.Statistics;
+      var stats0 = nlr.LaplaceApproximation;
       if (stats0 == null) return Enumerable.Empty<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>(); // cannot fit the expression
 
       p = stats0.ParamEst;
@@ -178,7 +178,7 @@ namespace HEAL.NonlinearRegression {
           var reducedLikelihood = likelihood.Clone();
           reducedLikelihood.ModelExpr = reducedExpression;
           nlr.Fit(newP, reducedLikelihood, maxIterations: maxIterations);
-          var reducedStats = nlr.Statistics;
+          var reducedStats = nlr.LaplaceApproximation;
 
           var ssrFactor = nlr.Deviance / refDeviance;
 
