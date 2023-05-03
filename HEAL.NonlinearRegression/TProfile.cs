@@ -1,5 +1,4 @@
 ﻿using HEAL.Expressions;
-using HEAL.NonlinearRegression.Likelihoods;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -264,7 +263,7 @@ namespace HEAL.NonlinearRegression {
 
 
       // prediction intervals for each point in x
-      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
+      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 1 },
         (i, loopState) => {
           // buffer
           double[] paramEstExt = new double[n];
