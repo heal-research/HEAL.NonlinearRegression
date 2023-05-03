@@ -761,7 +761,7 @@ namespace HEAL.Expressions.Tests {
       var t = new double[5] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       var symJ = new double[N, 5];
       var autoJ = new double[N, 5];
-      Expr.Broadcast(Expr.Gradient(expr, expr.Parameters.Count)).Compile()(t, X, f, symJ);
+      Expr.Broadcast(Expr.Gradient(expr, t.Length)).Compile()(t, X, f, symJ);
       Expr.EvaluateFuncJac(expr, t, X, ref autoJ);
       for(int i=0;i<N;i++) {
         for (int j = 0; j < 5; j++)
