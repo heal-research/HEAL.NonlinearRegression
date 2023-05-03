@@ -263,7 +263,7 @@ namespace HEAL.NonlinearRegression {
 
 
       // prediction intervals for each point in x
-      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 1 },
+      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
         (i, loopState) => {
           // buffer
           double[] paramEstExt = new double[n];

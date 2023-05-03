@@ -341,11 +341,7 @@ namespace HEAL.Expressions {
       var evaluationResult = evalVisitor.NodeValues[expr.Body];
 
       // fill jacobian using reverse mode autodiff
-      var ones = new double[x.GetLength(0)];
-      for (int i = 0; i < ones.Length; i++) ones[i] = 1.0;
-      evalVisitor.NodeValues[expr.Body] = ones;
-      var backpropVisitor = new BackpropagationVisitor(expr.Parameters[0], evalVisitor.NodeValues, jac);
-      backpropVisitor.Visit(expr);
+      ReverseAutoDiff.CalculateJac(expr.Body, expr.Parameters[0], evalVisitor.NodeValues, jac);
 
       return evaluationResult;
     }
