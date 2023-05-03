@@ -34,10 +34,11 @@ namespace HEAL.Expressions {
       evalResult[node] = res;
 
       Visit(node.Operand);
+      var opRes = evalResult[node.Operand];
       if (node.NodeType == ExpressionType.Negate) {
-        for (int i = 0; i < batchSize; i++) res[i] = -1.0;
+        for (int i = 0; i < batchSize; i++) res[i] = -opRes[i];
       } else if (node.NodeType == ExpressionType.UnaryPlus) {
-        for (int i = 0; i < batchSize; i++) res[i] = 1.0;
+        for (int i = 0; i < batchSize; i++) res[i] = opRes[i];
       } else throw new NotSupportedException("Unknown operation");
       return node;
     }
