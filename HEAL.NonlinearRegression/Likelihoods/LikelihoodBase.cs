@@ -57,7 +57,7 @@ namespace HEAL.NonlinearRegression {
     public abstract double NegLogLikelihood(double[] p);
     public abstract void NegLogLikelihoodGradient(double[] p, out double nll, double[]? nll_grad = null);
 
-    public abstract double[,] FisherInformation(double[] p); // Hessian of the log likelihood
+    public abstract double[,] FisherInformation(double[] p); // negative of Hessian of the log likelihood
 
     public abstract LikelihoodBase Clone();
 
