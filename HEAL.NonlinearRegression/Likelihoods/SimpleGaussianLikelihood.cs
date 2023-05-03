@@ -1,6 +1,7 @@
 ﻿using HEAL.Expressions;
 using System;
 using System.Linq.Expressions;
+using System.Runtime.Serialization;
 
 namespace HEAL.NonlinearRegression.Likelihoods {
 
@@ -20,22 +21,26 @@ namespace HEAL.NonlinearRegression.Likelihoods {
     public override double[,] FisherInformation(double[] p) {
       var m = y.Length;
       var n = p.Length;
-      var d = x.GetLength(0);
-      var yPred = new double[m];
       var yJac = new double[m, n];
-      ModelJacobian(p, x, yPred, yJac);
+      var yHess = new double[n, m, n]; // parameters x rows x parameters
+      var yHessJ = new double[m, n]; // buffer
+
+      var yPred = Expr.EvaluateFuncJac(ModelExpr, p, x, ref yJac);
+
+      // evaluate hessian
+      for (int j = 0; j < p.Length; j++) {
+        Expr.EvaluateFuncJac(ModelGradient[j], p, x, ref yHessJ);
+        Buffer.BlockCopy(yHessJ, 0, yHess, j * m * n * sizeof(double), m * n * sizeof(double));
+        Array.Clear(yHessJ, 0, yHessJ.Length);
+      }
+
 
       var hess = new double[n, n];
-      var modelHess = new double[n, n];
-      var xi = new double[d];
-      for (int i = 0; i < m; i++) {
-        var res = y[i] - yPred[i];
-        // evaluate Hessian for current row
-        Util.CopyRow(x, i, xi);
-        ModelHessian(p, xi, modelHess);
-        for (int j = 0; j < n; j++) {
+      for (int j = 0; j < n; j++) {
+        for (int i = 0; i < m; i++) {
+          var res = y[i] - yPred[i];
           for (int k = 0; k < n; k++) {
-            hess[j, k] += (yJac[i, j] * yJac[i, k] - res * modelHess[j, k]) / (sErr * sErr);
+            hess[j, k] += (yJac[i, j] * yJac[i, k] - res * yHess[j, i, k]) / (sErr * sErr);
           }
         }
       }
@@ -57,16 +62,18 @@ namespace HEAL.NonlinearRegression.Likelihoods {
     public override void NegLogLikelihoodGradient(double[] p, out double nll, double[]? nll_grad) {
       var m = y.Length;
       var n = p.Length;
-      var yPred = new double[m];
-      var yJac = new double[m, n];
+      double[,]? yJac = null;
 
-      nll = m / 2.0 * Math.Log(2 * Math.PI * sErr * sErr);
+      nll = BestNegLogLikelihood;
+
+      double[] yPred;
       if (nll_grad == null) {
-        ModelFunc(p, x, yPred);
+        yPred = Expr.EvaluateFunc(ModelExpr, p, x);
       } else {
-        ModelJacobian(p, x, yPred, yJac);
+        yPred = Expr.EvaluateFuncJac(ModelExpr, p, x, ref yJac);
         Array.Clear(nll_grad, 0, n);
       }
+
       for (int i = 0; i < m; i++) {
         var res = y[i] - yPred[i];
         nll += 0.5 * res * res / (sErr * sErr);

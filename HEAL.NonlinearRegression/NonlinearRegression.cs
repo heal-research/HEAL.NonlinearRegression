@@ -35,7 +35,6 @@ namespace HEAL.NonlinearRegression {
     // negative log likelihood of the model for the estimated parameters
     public double NegLogLikelihood => Likelihood.NegLogLikelihood(ParamEst);
 
-    // deviance is 2* log likelihood for gaussian case
     // deviance is 2 * (loglike(model) - loglike(optimalModel)) for general likelihoods where optimalModel has one parameter for each output and produces a perfect fit
     // https://en.wikipedia.org/wiki/Deviance_(statistics)
 
@@ -97,6 +96,7 @@ namespace HEAL.NonlinearRegression {
       #region Conjugate Gradient
       alglib.mincgcreate(p, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, maxIterations);
+      // alglib.mincgoptguardgradient(state, 1e-6);
       if (scale != null) {
         alglib.mincgsetscale(state, scale);
         alglib.mincgsetprecdiag(state, scale);
@@ -117,6 +117,7 @@ namespace HEAL.NonlinearRegression {
 
       alglib.mincgoptimize(state, objFunc, _rep, obj: null);
       alglib.mincgresults(state, out paramEst, out var rep);
+      // alglib.mincgoptguardresults(state, out var optGuardRes);
       #endregion
 
       if (rep.terminationtype >= 0) {

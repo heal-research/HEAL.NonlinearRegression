@@ -1,5 +1,6 @@
 ﻿using HEAL.Expressions;
 using System;
+using System.Linq;
 using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression {
@@ -39,15 +40,13 @@ namespace HEAL.NonlinearRegression {
 
         numModelParams = Expr.NumberOfParameters(modelExpr);
 
-        // TODO: we should replace this with AutoDiff
-        ModelFunc = Expr.Broadcast(modelExpr).Compile();
-        ModelJacobian = Expr.Jacobian(modelExpr, numModelParams).Compile();
-        ModelHessian = Expr.Hessian(modelExpr, numModelParams).Compile();
+        // TODO: use forward/reverse autodiff for Hessian
+        ModelGradient = Enumerable.Range(0, numModelParams).Select(pIdx => Expr.Derive(modelExpr, pIdx)).ToArray();
       }
     }
-    protected Expr.ParametricVectorFunction ModelFunc { get; private set; }
-    protected Expr.ParametricJacobianFunction ModelJacobian { get; private set; }
-    protected Expr.ParametricHessianFunction ModelHessian { get; private set; }
+    protected Expression<Expr.ParametricFunction>[] ModelGradient { get; private set; }
+    // protected Expr.ParametricJacobianFunction ModelJacobian { get; private set; }
+    // protected Expr.ParametricHessianFunction ModelHessian { get; private set; }
 
 
     public int NumberOfObservations { get; }

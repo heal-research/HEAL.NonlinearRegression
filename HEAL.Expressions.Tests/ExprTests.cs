@@ -64,6 +64,7 @@ namespace HEAL.Expressions.Tests {
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(x[0], p[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(x[0], 2.0));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(p[0] * x[0], p[1]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => p[0] * x[0] / (p[1] * x[1] + p[2]));
       Assert.Pass();
     }
 
@@ -761,7 +762,7 @@ namespace HEAL.Expressions.Tests {
       var symJ = new double[N, 5];
       var autoJ = new double[N, 5];
       Expr.Broadcast(Expr.Gradient(expr, expr.Parameters.Count)).Compile()(t, X, f, symJ);
-      Expr.Evaluate(expr, t, X, ref autoJ);
+      Expr.EvaluateFuncJac(expr, t, X, ref autoJ);
       for(int i=0;i<N;i++) {
         for (int j = 0; j < 5; j++)
           Assert.AreEqual(symJ[i, j], autoJ[i, j], 1e-6);

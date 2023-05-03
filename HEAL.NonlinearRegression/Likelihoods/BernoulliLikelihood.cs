@@ -12,21 +12,26 @@ namespace HEAL.NonlinearRegression.Likelihoods {
     public override double[,] FisherInformation(double[] p) {
       var m = y.Length;
       var n = p.Length;
-      var d = x.GetLength(0);
-      var yPred = new double[m];
       var yJac = new double[m, n];
-      ModelJacobian(p, x, yPred, yJac);
+      var yHess = new double[n, m, n]; // parameters x observations x parameters (collections of Jacobians)
+      var yHessJ = new double[m, n]; // buffer
+
+      var yPred = Expr.EvaluateFuncJac(ModelExpr, p, x, ref yJac);
+
+      // evaluate hessian
+      for (int j = 0; j < p.Length; j++) {
+        Expr.EvaluateFuncJac(ModelGradient[j], p, x, ref yHessJ);
+        Buffer.BlockCopy(yHessJ, 0, yHess, j * m * n * sizeof(double), m * n * sizeof(double));
+        Array.Clear(yHessJ, 0, yHessJ.Length);
+      }
 
       var hess = new double[n, n];
-      var xi = new double[d];
-      var modelHess = new double[n, n];
-      for (int i = 0; i < m; i++) {
-        var s = 1 / ((1 - yPred[i]) * (1 - yPred[i]) * yPred[i] * yPred[i]);
-        Util.CopyRow(x, i, xi);
-        ModelHessian(p, xi, modelHess);
-        for (int j = 0; j < n; j++) {
+
+      for (int j = 0; j < n; j++) {
+        for (int i = 0; i < m; i++) {
+          var s = 1 / ((1 - yPred[i]) * (1 - yPred[i]) * yPred[i] * yPred[i]);
           for (int k = 0; k < n; k++) {
-            var hessianTerm = (yPred[i] - 1) * yPred[i] * modelHess[j, k] * (y[i] - yPred[i]);
+            var hessianTerm = (yPred[i] - 1) * yPred[i] * yHess[j, i, k] * (y[i] - yPred[i]);
             var gradientTerm = (-2 * y[i] * yPred[i] + yPred[i] * yPred[i] + y[i]) * yJac[i, j] * yJac[i, k];
             hess[j, k] += s * (hessianTerm + gradientTerm);
           }
@@ -44,16 +49,17 @@ namespace HEAL.NonlinearRegression.Likelihoods {
     public override void NegLogLikelihoodGradient(double[] p, out double nll, double[]? nll_grad) {
       var m = y.Length;
       var n = p.Length;
-      var yPred = new double[m];
-      var yJac = new double[m, n];
+      double[,]? yJac = null;
 
       nll = BestNegLogLikelihood;
+      double[] yPred;
       if (nll_grad == null) {
-        ModelFunc(p, x, yPred);
+        yPred = Expr.EvaluateFunc(ModelExpr, p, x);
       } else {
-        ModelJacobian(p, x, yPred, yJac);
+        yPred = Expr.EvaluateFuncJac(ModelExpr, p, x, ref yJac);
         Array.Clear(nll_grad, 0, n);
       }
+
       for (int i = 0; i < m; i++) {
         if (y[i] != 0.0 && y[i] != 1.0) throw new ArgumentException("target variable must be binary (0/1) for Bernoulli likelihood");
         if (y[i] == 1) {

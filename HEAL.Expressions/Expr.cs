@@ -324,8 +324,16 @@ namespace HEAL.Expressions {
     }
 
 
-    public static double[] Evaluate(Expression<ParametricFunction> expr, double[] theta, double[,] x, ref double[,] jac) {
+    public static double[] EvaluateFunc(Expression<ParametricFunction> expr, double[] theta, double[,] x) {
+      // evaluate (forward)
+      var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x);
+      evalVisitor.Visit(expr);
+      return evalVisitor.NodeValues[expr.Body];
+    }
+
+    public static double[] EvaluateFuncJac(Expression<ParametricFunction> expr, double[] theta, double[,] x, ref double[,] jac) {
       if (jac == null) jac = new double[x.GetLength(0), theta.Length];
+      else Array.Clear(jac, 0, jac.Length);
 
       // evaluate (forward)
       var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x);
@@ -341,8 +349,6 @@ namespace HEAL.Expressions {
 
       return evaluationResult;
     }
-
-
 
     /// <summary>
     /// Takes an expression and folds double constants. 

@@ -135,7 +135,7 @@ namespace HEAL.NonlinearRegression.Console {
 
     private static double EstimateGaussianNoiseSigma(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y) {
       double[,] jac = null;
-      var yPred = Expr.Evaluate(parametricExpr, p, x, ref jac);
+      var yPred = Expr.EvaluateFuncJac(parametricExpr, p, x, ref jac);
       var ssr = 0.0;
       for (int i = 0; i < y.Length; i++) {
         var r = y[i] - yPred[i];
