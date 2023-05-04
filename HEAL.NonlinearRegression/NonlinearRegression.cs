@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Linq.Expressions;
 using HEAL.Expressions;
 using HEAL.NonlinearRegression.Likelihoods;
 
@@ -41,22 +40,15 @@ namespace HEAL.NonlinearRegression {
     public double AICc => ModelSelection.AICc(-NegLogLikelihood, Likelihood.NumberOfParameters, Likelihood.NumberOfObservations);
     public double BIC => ModelSelection.BIC(-NegLogLikelihood, Likelihood.NumberOfParameters, Likelihood.NumberOfObservations);
 
-    public NonlinearRegression() { }
-
     /// <summary>
     /// Least-squares fitting for func with Jacobian to target y using initial values p.
     /// Uses Levenberg-Marquardt algorithm.
     /// </summary>
     /// <param name="p">Initial values and optimized parameters on exit. Initial parameters are overwritten.</param>
-    /// <param name="expr">The expression (p, x) => to fit. Where p is the parameter vector to be optimized.</param> 
     /// <param name="likelihood">The likelihood type.</param> 
-    /// <param name="noiseSigma">The noise sigma for the Gaussian likelihood (if known)</param>
-    /// <param name="x">Matrix of input values</param>
-    /// <param name="y">Vector of target values</param>
-    /// <param name="report">Report with fitting results and statistics</param>
     /// <param name="maxIterations"></param>
     /// <param name="scale">Optional parameter to set parameter scale. Useful if parameters are given on very different measurement scales.</param>
-    /// <param name="stepMax">Optional parameter to limit the step size in Levenberg-Marquardt. Can be useful on quickly changing functions (e.g. exponentials).</param>
+    /// <param name="stepMax">Optional parameter to limit the step size in the conjugate gradients solver. Can be useful on quickly changing functions (e.g. exponentials).</param>
     /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
     /// <exception cref="InvalidProgramException"></exception>
     public void Fit(double[] p, LikelihoodBase likelihood, int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
@@ -81,6 +73,7 @@ namespace HEAL.NonlinearRegression {
       #region Conjugate Gradient
       alglib.mincgcreate(p, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, maxIterations);
+
       // alglib.mincgoptguardgradient(state, 1e-6);
       if (scale != null) {
         alglib.mincgsetscale(state, scale);
@@ -129,10 +122,8 @@ namespace HEAL.NonlinearRegression {
     /// <summary>
     /// Use an existing (fitted) model to initialize NLR without fitting.
     /// </summary>
-    /// <param name="p"></param>
-    /// <param name="parametricExpr"></param>
-    /// <param name="trainX"></param>
-    /// <param name="trainY"></param>
+    /// <param name="p">Parameter values</param>
+    /// <param name="likelihood">The likelihood function containing the model</param>
     public void SetModel(double[] p, LikelihoodBase likelihood) {
       this.Likelihood = likelihood;
 
@@ -141,6 +132,12 @@ namespace HEAL.NonlinearRegression {
       LaplaceApproximation = new LaplaceApproximation(paramEst, Likelihood);
     }
 
+    /// <summary>
+    /// Calculate vector of predictions for input matrix x.
+    /// </summary>
+    /// <param name="x">Input matrix</param>
+    /// <returns>Vector of predictions</returns>
+    /// <exception cref="InvalidOperationException">When Fit() or SetModel() has not been called first.</exception>
     public double[] Predict(double[,] x) {
       if (paramEst == null) throw new InvalidOperationException("Call Fit or SetModel first.");
       return Expr.EvaluateFunc(Likelihood.ModelExpr, paramEst, x);

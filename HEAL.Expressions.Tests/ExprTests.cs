@@ -65,6 +65,8 @@ namespace HEAL.Expressions.Tests {
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(x[0], 2.0));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(p[0] * x[0], p[1]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => p[0] * x[0] / (p[1] * x[1] + p[2]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Abs(p[0] * x[0]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.Sign(p[0] * x[0]));
       Assert.Pass();
     }
 

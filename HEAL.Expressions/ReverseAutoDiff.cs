@@ -120,6 +120,8 @@ namespace HEAL.Expressions {
             for (int i = 0; i < batchSize; i++) { exponentDiff[i] = curDiff[i] * Math.Pow(baseEval[i], exponentEval[i]) * Math.Log(baseEval[i]); }
           } else if (callExpr.Method == abs) {
             for (int i = 0; i < batchSize; i++) { arg0Diff[i] = curDiff[i] * Math.Sign(arg0Eval[i]); }
+          } else if (callExpr.Method == sign) {
+            for (int i = 0; i < batchSize; i++) { arg0Diff[i] = 0; }
           } else if (callExpr.Method == logistic) {
             for (int i = 0; i < batchSize; i++) { arg0Diff[i] = curDiff[i] * Functions.LogisticPrime(arg0Eval[i]); }
           } else if (callExpr.Method == invlogistic) {
@@ -143,7 +145,7 @@ namespace HEAL.Expressions {
     private static readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
     private static readonly MethodInfo cbrt = typeof(Functions).GetMethod("Cbrt", new[] { typeof(double) });
     private static readonly MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
-    private static readonly MethodInfo sign = typeof(Math).GetMethod("Sign", new[] { typeof(double) }); // for deriv abs(x)
+    private static readonly MethodInfo sign = typeof(Functions).GetMethod("Sign", new[] { typeof(double) }); // for deriv abs(x)
     private static readonly MethodInfo logistic = typeof(Functions).GetMethod("Logistic", new[] { typeof(double) });
     private static readonly MethodInfo invlogistic = typeof(Functions).GetMethod("InvLogistic", new[] { typeof(double) });
     private static readonly MethodInfo logisticPrime = typeof(Functions).GetMethod("LogisticPrime", new[] { typeof(double) }); // deriv of logistic
