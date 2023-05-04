@@ -2,7 +2,7 @@
 using System;
 using System.Linq.Expressions;
 
-namespace HEAL.NonlinearRegression.Likelihoods {
+namespace HEAL.NonlinearRegression {
 
   public class BernoulliLikelihood : LikelihoodBase {
 

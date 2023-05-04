@@ -1,7 +1,7 @@
 ﻿using HEAL.Expressions;
 using System;
 using System.Linq.Expressions;
-namespace HEAL.NonlinearRegression.Likelihoods {
+namespace HEAL.NonlinearRegression {
 
   // errors are iid N(0, noise_sigma)
   public class SimpleGaussianLikelihood : LikelihoodBase {

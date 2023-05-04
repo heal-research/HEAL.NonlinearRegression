@@ -39,12 +39,12 @@ namespace HEAL.NonlinearRegression {
       var numSymbols = Expr.CollectSymbols(modelExpr).Distinct().Count();
       int numParam = paramEst.Length;
 
-      // TODO: check if parameter estimate is significantly different from zero
       for (int i = 0; i < numParam; i++) {
-        // if the parameter estimate is not significanlty different from zero
-        if (paramEst[i] / Math.Sqrt(12.0 / diagFisherInfo[i]) < 1.0) {
-          // TODO: set param to zero and calculate MDL for the manipulated expression
-          
+        // if the parameter estimate is not significantly different from zero
+        if (Math.Abs(paramEst[i] / Math.Sqrt(12.0 / diagFisherInfo[i])) < 1.0) {
+          // set param to zero (and skip in MDL calculation below)
+          // TODO: this is an approximation. We should actually simplify the expression, re-optimize and call MDL method again.
+          paramEst[i] = 0.0;
         }
       }
 
@@ -59,7 +59,9 @@ namespace HEAL.NonlinearRegression {
       return -logLikelihood
         + numNodes * Math.Log(numSymbols) + constants.Sum(ci => Math.Log(Math.Abs(ci)) + Math.Log(2))
         - numParam / 2.0 * Math.Log(3.0)
-        + Enumerable.Range(0, numParam).Sum(i => 0.5 * Math.Log(diagFisherInfo[i]) + Math.Log(Math.Abs(paramEst[i])));
+        + Enumerable.Range(0, numParam)
+        .Where(i => paramEst[i] != 0.0) // skip parameter which are deactivated above
+        .Sum(i => 0.5 * Math.Log(diagFisherInfo[i]) + Math.Log(Math.Abs(paramEst[i])));
     }
 
 
