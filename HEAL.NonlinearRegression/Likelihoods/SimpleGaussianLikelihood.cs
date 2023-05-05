@@ -44,16 +44,14 @@ namespace HEAL.NonlinearRegression {
           }
         }
       }
-      
+
       return hessian;
     }
 
     // for the calculation of deviance
-    public override double BestNegLogLikelihood {
-      get {
-        int m = y.Length;
-        return m / 2.0 * Math.Log(2 * Math.PI * sErr * sErr); // residuals are zero
-      }
+    public override double BestNegLogLikelihood(double[] p) {
+      int m = y.Length;
+      return (m / 2.0) * Math.Log(2 * sErr * sErr * Math.PI); // residuals are zero
     }
 
     public override double NegLogLikelihood(double[] p) {
@@ -66,7 +64,7 @@ namespace HEAL.NonlinearRegression {
       var n = p.Length;
       double[,]? yJac = null;
 
-      nll = BestNegLogLikelihood;
+      nll = BestNegLogLikelihood(p);
 
       double[] yPred;
       if (nll_grad == null) {

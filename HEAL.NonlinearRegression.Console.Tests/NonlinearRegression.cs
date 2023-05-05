@@ -1,7 +1,4 @@
-﻿using CommandLine;
-using HEAL.Expressions;
-using HEAL.NonlinearRegression.Likelihoods;
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using System.Globalization;
 
 namespace HEAL.NonlinearRegression.Console.Tests {

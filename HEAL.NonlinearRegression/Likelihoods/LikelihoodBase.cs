@@ -19,6 +19,7 @@ namespace HEAL.NonlinearRegression {
     public double[,] X => x;
     public double[] Y => y;
 
+    // TODO: Dispersion is not necessary and should be removed
     public virtual double Dispersion { get { return 1.0; } set { throw new NotSupportedException($"cannot set dispersion of {this.GetType().Name}"); } }
 
     protected LikelihoodBase(LikelihoodBase original) : this(original.modelExpr, original.x, original.y, original.numLikelihoodParams) { }
@@ -33,15 +34,19 @@ namespace HEAL.NonlinearRegression {
 
     private Expression<Expr.ParametricFunction> modelExpr;
     public Expression<Expr.ParametricFunction> ModelExpr {
-      get => modelExpr;
-      internal set {
+      get { return modelExpr; }
+      set {
         // updating the modelExpr also requires updating Jacobian and Hessian
         modelExpr = value;
+        if (modelExpr != null) {
+          numModelParams = Expr.NumberOfParameters(modelExpr);
 
-        numModelParams = Expr.NumberOfParameters(modelExpr);
-
-        // TODO: use forward/reverse autodiff for Hessian
-        ModelGradient = Enumerable.Range(0, numModelParams).Select(pIdx => Expr.Derive(modelExpr, pIdx)).ToArray();
+          // TODO: use forward/reverse autodiff for Hessian
+          ModelGradient = Enumerable.Range(0, numModelParams).Select(pIdx => Expr.Derive(modelExpr, pIdx)).ToArray();
+        } else {
+          numModelParams = 0;
+          ModelGradient = new Expression<Expr.ParametricFunction>[0];
+        }
       }
     }
     protected Expression<Expr.ParametricFunction>[] ModelGradient { get; private set; }
@@ -49,7 +54,7 @@ namespace HEAL.NonlinearRegression {
     public int NumberOfObservations { get; }
     public int NumberOfParameters => numLikelihoodParams + numModelParams;
 
-    public abstract double BestNegLogLikelihood { get; } // the likelihood of a perfect model (with zero residuals)
+    public abstract double BestNegLogLikelihood(double[] p); // the likelihood of a perfect model (with zero residuals)
 
     public abstract double NegLogLikelihood(double[] p);
     public abstract void NegLogLikelihoodGradient(double[] p, out double nll, double[]? nll_grad = null);

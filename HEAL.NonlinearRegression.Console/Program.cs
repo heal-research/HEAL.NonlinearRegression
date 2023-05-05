@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using CommandLine;
 using HEAL.Expressions;
 using HEAL.Expressions.Parser;
-using HEAL.NonlinearRegression.Likelihoods;
 
 // TODO:
 //   - Unify options for different verbs.

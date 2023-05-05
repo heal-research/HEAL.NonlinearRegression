@@ -331,6 +331,7 @@ namespace HEAL.Expressions {
       return evalVisitor.NodeValues[expr.Body];
     }
 
+    // jacobian for parameters theta
     public static double[] EvaluateFuncJac(Expression<ParametricFunction> expr, double[] theta, double[,] x, ref double[,] jac) {
       if (jac == null) jac = new double[x.GetLength(0), theta.Length];
       else Array.Clear(jac, 0, jac.Length);
@@ -345,6 +346,23 @@ namespace HEAL.Expressions {
 
       return evaluationResult;
     }
+
+    // Jacobian for input variables X
+    public static double[] EvaluateFuncJacX(Expression<ParametricFunction> expr, double[] theta, double[,] x, ref double[,] jac) {
+      if (jac == null) jac = new double[x.GetLength(0), x.GetLength(1)];
+      else Array.Clear(jac, 0, jac.Length);
+
+      // evaluate (forward)
+      var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x);
+      evalVisitor.Visit(expr);
+      var evaluationResult = evalVisitor.NodeValues[expr.Body];
+
+      // fill jacobian using reverse mode autodiff
+      ReverseAutoDiff.CalculateJac(expr.Body, expr.Parameters[1], evalVisitor.NodeValues, jac);
+
+      return evaluationResult;
+    }
+
 
     /// <summary>
     /// Takes an expression and folds double constants. 

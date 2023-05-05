@@ -2,7 +2,6 @@
 using System.IO;
 using System.Linq;
 using HEAL.Expressions;
-using HEAL.NonlinearRegression.Likelihoods;
 
 namespace HEAL.NonlinearRegression {
   public class NonlinearRegression {
@@ -32,7 +31,7 @@ namespace HEAL.NonlinearRegression {
     // https://en.wikipedia.org/wiki/Deviance_(statistics)
 
     // for MLE and training data
-    public double Deviance => 2.0 * NegLogLikelihood - 2.0 * Likelihood.BestNegLogLikelihood; // for Gaussian: Deviance = SSR /sErr^2
+    public double Deviance => 2.0 * NegLogLikelihood - 2.0 * Likelihood.BestNegLogLikelihood(paramEst); // for Gaussian: Deviance = SSR /sErr^2
 
     public LikelihoodBase Likelihood { get; private set; }
     public double Dispersion => Likelihood.Dispersion;
