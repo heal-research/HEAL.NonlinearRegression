@@ -48,7 +48,6 @@ namespace HEAL.Expressions.Parser {
     //             ) [ ('**' | '^') Fact ]
     // ParamList = '(' Expr { ',' Expr } ')' 
 
-
     // A simple recursive descent parser
     private Expression Expr() {
       var expr = Term();
