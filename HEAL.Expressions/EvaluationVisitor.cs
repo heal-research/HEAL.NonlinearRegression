@@ -73,23 +73,23 @@ namespace HEAL.Expressions {
       }
     }
 
-    private readonly MethodInfo abs = typeof(Math).GetMethod("Abs", new[] { typeof(double) });
-    private readonly MethodInfo sin = typeof(Math).GetMethod("Sin", new[] { typeof(double) });
-    private readonly MethodInfo cos = typeof(Math).GetMethod("Cos", new[] { typeof(double) });
-    private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
-    private readonly MethodInfo log = typeof(Math).GetMethod("Log", new[] { typeof(double) });
-    private readonly MethodInfo tanh = typeof(Math).GetMethod("Tanh", new[] { typeof(double) });
-    private readonly MethodInfo cosh = typeof(Math).GetMethod("Cosh", new[] { typeof(double) });
-    private readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
-    private readonly MethodInfo cbrt = typeof(Functions).GetMethod("Cbrt", new[] { typeof(double) });
-    private readonly MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
-    private readonly MethodInfo sign = typeof(Functions).GetMethod("Sign", new[] { typeof(double) }); // for deriv abs(x)
-    private readonly MethodInfo logistic = typeof(Functions).GetMethod("Logistic", new[] { typeof(double) });
-    private readonly MethodInfo invlogistic = typeof(Functions).GetMethod("InvLogistic", new[] { typeof(double) });
-    private readonly MethodInfo logisticPrime = typeof(Functions).GetMethod("LogisticPrime", new[] { typeof(double) }); // deriv of logistic
-    private readonly MethodInfo logisticPrimePrime = typeof(Functions).GetMethod("LogisticPrimePrime", new[] { typeof(double) }); // deriv of logistic
-    private readonly MethodInfo invlogisticPrime = typeof(Functions).GetMethod("InvLogisticPrime", new[] { typeof(double) });
-    private readonly MethodInfo invlogisticPrimePrime = typeof(Functions).GetMethod("InvLogisticPrimePrime", new[] { typeof(double) });
+    private static readonly MethodInfo abs = typeof(Math).GetMethod("Abs", new[] { typeof(double) });
+    private static readonly MethodInfo sin = typeof(Math).GetMethod("Sin", new[] { typeof(double) });
+    private static readonly MethodInfo cos = typeof(Math).GetMethod("Cos", new[] { typeof(double) });
+    private static readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
+    private static readonly MethodInfo log = typeof(Math).GetMethod("Log", new[] { typeof(double) });
+    private static readonly MethodInfo tanh = typeof(Math).GetMethod("Tanh", new[] { typeof(double) });
+    private static readonly MethodInfo cosh = typeof(Math).GetMethod("Cosh", new[] { typeof(double) });
+    private static readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
+    private static readonly MethodInfo cbrt = typeof(Functions).GetMethod("Cbrt", new[] { typeof(double) });
+    private static readonly MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
+    private static readonly MethodInfo sign = typeof(Functions).GetMethod("Sign", new[] { typeof(double) }); // for deriv abs(x)
+    private static readonly MethodInfo logistic = typeof(Functions).GetMethod("Logistic", new[] { typeof(double) });
+    private static readonly MethodInfo invlogistic = typeof(Functions).GetMethod("InvLogistic", new[] { typeof(double) });
+    private static readonly MethodInfo logisticPrime = typeof(Functions).GetMethod("LogisticPrime", new[] { typeof(double) }); // deriv of logistic
+    private static readonly MethodInfo logisticPrimePrime = typeof(Functions).GetMethod("LogisticPrimePrime", new[] { typeof(double) }); // deriv of logistic
+    private static readonly MethodInfo invlogisticPrime = typeof(Functions).GetMethod("InvLogisticPrime", new[] { typeof(double) });
+    private static readonly MethodInfo invlogisticPrimePrime = typeof(Functions).GetMethod("InvLogisticPrimePrime", new[] { typeof(double) });
 
     protected override Expression VisitMethodCall(MethodCallExpression node) {
       var res = new double[batchSize];
