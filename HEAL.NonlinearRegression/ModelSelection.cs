@@ -1,6 +1,5 @@
 ﻿using HEAL.Expressions;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 
@@ -35,8 +34,8 @@ namespace HEAL.NonlinearRegression {
       // L(D) = -log(L(theta)) + k log n - p/2 log 3
       //        + sum_j (1/2 log I_ii + log |theta_i| )
       int numNodes = Expr.NumberOfNodes(modelExpr);
-      var constants = Expr.CollectConstants(modelExpr);
-      var numSymbols = Expr.CollectSymbols(modelExpr).Distinct().Count();
+      var constants = Expr.CollectConstants(modelExpr).ToList();
+      var allSymbols = Expr.CollectSymbols(modelExpr).ToList();
       int numParam = paramEst.Length;
 
       for (int i = 0; i < numParam; i++) {
@@ -45,8 +44,14 @@ namespace HEAL.NonlinearRegression {
           // set param to zero (and skip in MDL calculation below)
           // TODO: this is an approximation. We should actually simplify the expression, re-optimize and call MDL method again.
           paramEst[i] = 0.0;
+        } else if (Math.Round(paramEst[i]) != 0.0 && paramCodeLength(i) > constCodeLength(Math.Round(paramEst[i]))) {
+          constants.Add(Math.Round(paramEst[i]));
+          allSymbols.Add("const");
+          paramEst[i] = 0.0;
         }
       }
+
+      int numSymbols = allSymbols.Distinct().Count();
 
       // System.Console.WriteLine($"numNodes {numNodes}");
       // System.Console.WriteLine($"constants {string.Join(" ", constants.Select(ci => ci.ToString()))}");
@@ -55,71 +60,20 @@ namespace HEAL.NonlinearRegression {
       // System.Console.WriteLine($"numParam {numParam}");
       // System.Console.WriteLine($"diagFisherInfo {string.Join(" ", diagFisherInfo.Select(di => di.ToString()))}");
 
-      // TODO: for negative constants we would need to account for an unary sign in the expression
+      double constCodeLength(double val) {
+        return Math.Log(Math.Abs(val)) + Math.Log(2);
+      }
+
+      double paramCodeLength(int idx) {
+        return 0.5 * (-Math.Log(3)) * Math.Log(diagFisherInfo[idx]) + Math.Log(Math.Abs(paramEst[idx]));
+      }
+
       return -logLikelihood
-        + numNodes * Math.Log(numSymbols) + constants.Sum(ci => Math.Log(Math.Abs(ci)) + Math.Log(2))
-        - numParam / 2.0 * Math.Log(3.0)
+        + numNodes * Math.Log(numSymbols)
+        + constants.Sum(constCodeLength)
         + Enumerable.Range(0, numParam)
-        .Where(i => paramEst[i] != 0.0) // skip parameter which are deactivated above
-        .Sum(i => 0.5 * Math.Log(diagFisherInfo[i]) + Math.Log(Math.Abs(paramEst[i])));
-    }
-
-
-    // for experimental code which considers frequencies of symbols occuring in named expressions
-    private static readonly Dictionary<string, double> codeLen = new Dictionary<string, double>() {
-        { "var", 0.66},
-        { "param", 0.66},
-        { "const", 0.66},
-        { "+", 2.50},
-        { "-", 3.4},
-        { "*", 1.72},
-        { "/", 2.60},
-        { "Math.Abs()", 3}, // not found
-        { "Math.Log()", 4.76},
-        { "Math.Exp()", 4.78},
-        { "Math.Pow()", 2.53},
-        { "Math.Sin()", 6},
-        { "Math.Cos()", 5.5},
-        { "Math.Sqrt()", 4.78},
-        { "Functions.Cbrt()", 6},
-        { "Functions.AQ()", 6},
-        { "Functions.Logistic()", 6 }
-      };
-    // for experimental code which considers frequencies of symbols occuring in named expressions
-    public static double MDLFreq(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double logLikelihood, double[] diagFisherInfo) {
-      // total description length:
-      // L(D) = L(D|H) + L(H)
-
-      // c_j are constants
-      // theta_i are parameters
-      // k is the number of nodes
-      // n is the number of different symbols
-      // Delta_i is inverse precision of parameter i
-      // Delta_i are optimized to find minimum total description length
-      // The paper shows that the optima for delta_i are sqrt(12/I_ii)
-      // The formula implemented here is Equation (7).
-
-      // L(D) = -log(L(theta)) + k log n - p/2 log 3
-      //        + sum_j (1/2 log I_ii + log |theta_i| )
-      int numNodes = Expr.NumberOfNodes(modelExpr);
-      var constants = Expr.CollectConstants(modelExpr);
-      int numParam = paramEst.Length;
-
-      var usedVariables = Expr.CollectSymbols(modelExpr).Where(sy => sy.StartsWith("var")).ToArray();
-      var distinctVariables = usedVariables.Distinct().ToArray();
-
-      // TODO: for negative constants and negative parameters we would need to account for an unary sign in the expression
-      return -logLikelihood
-        + Expr.CollectSymbols(modelExpr).Select(sy => CodeLen(sy)).Sum() // symbols in the expr
-        + usedVariables.Length * Math.Log(distinctVariables.Length) // fixed length encoding for variables
-        + constants.Sum(ci => Math.Log(Math.Abs(ci))) // constants
-        - numParam / 2.0 * Math.Log(3.0) + Enumerable.Range(0, numParam).Sum(i => 0.5 * Math.Log(diagFisherInfo[i]) + Math.Log(Math.Abs(paramEst[i]))) // parameter values
-        ;
-    }
-
-    private static double CodeLen(string sy) {
-      if (sy.StartsWith("var")) return codeLen["var"];
-      else return codeLen[sy];
+          .Where(i => paramEst[i] != 0.0) // skip parameter which are deactivated above
+          .Sum(i => paramCodeLength(i));
     }
   }
 }

@@ -104,7 +104,6 @@ namespace HEAL.NonlinearRegression.Console {
 
           var stats = nlr.LaplaceApproximation;
           var mdl = ModelSelection.MDL(parametricExpr, p, -nlr.NegLogLikelihood, nlr.LaplaceApproximation.diagH);
-          var freqMdl = ModelSelection.MDLFreq(parametricExpr, p, -nlr.NegLogLikelihood, nlr.LaplaceApproximation.diagH);
 
           var logLik = -nlr.NegLogLikelihood;
           var aicc = nlr.AICc;
@@ -114,9 +113,9 @@ namespace HEAL.NonlinearRegression.Console {
             var SSR = nlr.Deviance * nlr.Dispersion * nlr.Dispersion; // only valid for Gaussian
             var noiseSigma = options.NoiseSigma ?? nlr.Dispersion; // use estimated noise standard error as default
             var nmse = SSR / y.Length / Util.Variance(y);
-            System.Console.WriteLine($"SSR: {SSR:g6} MSE: {SSR / y.Length:g6} RMSE: {Math.Sqrt(SSR / y.Length):g6} NMSE: {nmse:g6} R2: {1 - nmse:g4} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} MDL: {mdl:f2} MDL(freq): {freqMdl:f2} DoF: {p.Length}");
+            System.Console.WriteLine($"SSR: {SSR:g6} MSE: {SSR / y.Length:g6} RMSE: {Math.Sqrt(SSR / y.Length):g6} NMSE: {nmse:g6} R2: {1 - nmse:g4} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} MDL: {mdl:f2} DoF: {p.Length}");
           } else if (options.Likelihood == LikelihoodEnum.Bernoulli) {
-            System.Console.WriteLine($"Deviance: {nlr.Deviance:g6} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} MDL: {mdl:f2} MDL(freq): {freqMdl:f2} DoF: {p.Length}");
+            System.Console.WriteLine($"Deviance: {nlr.Deviance:g6} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} MDL: {mdl:f2} DoF: {p.Length}");
           }
         } catch (Exception e) {
           System.Console.WriteLine($"Could not evaluate model {model}");
