@@ -72,8 +72,8 @@ namespace HEAL.NonlinearRegression {
       #region Conjugate Gradient
       alglib.mincgcreate(p, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, maxIterations);
-
       // alglib.mincgoptguardgradient(state, 1e-6);
+
       if (scale != null) {
         alglib.mincgsetscale(state, scale);
         alglib.mincgsetprecdiag(state, scale);
@@ -139,7 +139,10 @@ namespace HEAL.NonlinearRegression {
     /// <exception cref="InvalidOperationException">When Fit() or SetModel() has not been called first.</exception>
     public double[] Predict(double[,] x) {
       if (paramEst == null) throw new InvalidOperationException("Call Fit or SetModel first.");
-      return Expr.EvaluateFunc(Likelihood.ModelExpr, paramEst, x);
+      var func = Expr.Broadcast(Likelihood.ModelExpr).Compile(); // TODO
+      var f = new double[x.GetLength(0)];
+      func(paramEst, x, f);
+      return f;
     }
 
     public double[,] PredictWithIntervals(double[,] x, IntervalEnum intervalType, double alpha = 0.05) {

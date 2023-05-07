@@ -98,8 +98,9 @@ namespace HEAL.NonlinearRegression {
       high = new double[numRows];
       resStdError = new double[numRows];
 
-      double[,]? J = null;
-      var yPred = Expr.EvaluateFuncJac(modelExpr, ParamEst, x, ref J);
+      double[,]? J = new double[numRows, n];
+      var yPred = new double[numRows];
+      Expr.Jacobian(modelExpr, n).Compile()(ParamEst, x, yPred, J); // TODO;
 
       for (int i = 0; i < numRows; i++) {
         resStdError[i] = 0.0;

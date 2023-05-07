@@ -13,7 +13,7 @@ namespace HEAL.Expressions.Benchmark {
     [Params(1, 10 /* , 50*/)]
     public int numEvals;
 
-    [Params(16, 32, 64, 128, 256, 512, 1024)]
+    [Params(4, 8, 16, 32, 64, 128, 256, 512, 1024)]
     public int batchSize;
 
     public int Dim = 10;

@@ -774,8 +774,7 @@ namespace HEAL.Expressions.Tests {
       Expr.Broadcast(Expr.Gradient(expr, t.Length)).Compile()(t, X, f, symJ);
 
       var interpreter = new ExpressionInterpreter(expr, colX);
-      interpreter.EvaluateWithJac(t, 0, jacX, autoJ);
-      // Expr.EvaluateFuncJac(expr, t, X, ref autoJ);
+      interpreter.EvaluateWithJac(t, jacX, autoJ);
       for (int i = 0; i < N; i++) {
         for (int j = 0; j < 5; j++)
           Assert.AreEqual(symJ[i, j], autoJ[i, j], 1e-6);

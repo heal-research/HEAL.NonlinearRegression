@@ -23,11 +23,13 @@ namespace HEAL.NonlinearRegression {
       var yHess = new double[n, m, n]; // parameters x rows x parameters
       var yHessJ = new double[m, n]; // buffer
 
-      var yPred = Expr.EvaluateFuncJac(ModelExpr, p, x, ref yJac);
+      // var yPred = Expr.EvaluateFuncJac(ModelExpr, p, x, ref yJac);
+      var yPred = interpreter.EvaluateWithJac(p, null, yJac);
 
       // evaluate hessian
       for (int j = 0; j < p.Length; j++) {
-        Expr.EvaluateFuncJac(ModelGradient[j], p, x, ref yHessJ);
+        gradInterpreter[j].EvaluateWithJac(p, null, yHessJ);
+        // Expr.EvaluateFuncJac(ModelGradient[j], p, x, ref yHessJ);
         Buffer.BlockCopy(yHessJ, 0, yHess, j * m * n * sizeof(double), m * n * sizeof(double));
         Array.Clear(yHessJ, 0, yHessJ.Length);
       }
@@ -68,9 +70,12 @@ namespace HEAL.NonlinearRegression {
 
       double[] yPred;
       if (nll_grad == null) {
-        yPred = Expr.EvaluateFunc(ModelExpr, p, x);
+        // yPred = Expr.EvaluateFunc(ModelExpr, p, x);
+        yPred = interpreter.Evaluate(p);
       } else {
-        yPred = Expr.EvaluateFuncJac(ModelExpr, p, x, ref yJac);
+        // yPred = Expr.EvaluateFuncJac(ModelExpr, p, x, ref yJac);
+        yJac = new double[m, nll_grad.Length];
+        yPred = interpreter.EvaluateWithJac(p, null, yJac);
         Array.Clear(nll_grad, 0, n);
       }
 

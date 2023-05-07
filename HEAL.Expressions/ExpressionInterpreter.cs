@@ -45,21 +45,25 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.Var: {
               curInstr.idx = ExtractArrIndex(curExpr);
               curInstr.values = xBuf[curInstr.idx];
+              curInstr.diffValues = new double[batchSize];
               break;
             }
           case Instruction.OpcEnum.Const: {
               var val = (double)((ConstantExpression)curExpr).Value;
               curInstr.values = new double[batchSize];
+              curInstr.diffValues = new double[batchSize];
               for (int j = 0; j < batchSize; j++) curInstr.values[j] = val;
               break;
             }
           case Instruction.OpcEnum.Param: {
               curInstr.idx = ExtractArrIndex(curExpr);
               curInstr.values = new double[batchSize];
+              curInstr.diffValues = new double[batchSize];
               break;
             }
           default: {
               curInstr.values = new double[batchSize];
+              curInstr.diffValues = new double[batchSize];
               break;
             }
         }
@@ -69,22 +73,23 @@ namespace HEAL.Expressions {
 
     // all rows
     public double[] Evaluate(double[] theta) {
-      var m = x.GetLength(0);
+      var m = x.First().Length;
       var remainderStart = (m / batchSize) * batchSize; // integer divison
       var f = new double[m];
       for (int startRow = 0; startRow < remainderStart; startRow += batchSize) {
         var fi = Evaluate(theta, startRow, batchSize);
         Array.Copy(fi, 0, f, startRow, batchSize);
       }
-
-      { // remainder
+      
+      // remainder
+      if (m - remainderStart > 0) { 
         var fi = Evaluate(theta, remainderStart, m - remainderStart);
         Array.Copy(fi, 0, f, remainderStart, m - remainderStart);
       }
       return f;
     }
 
-    public double[] Evaluate(double[] theta, int startRow, int batchSize) {
+    private double[] Evaluate(double[] theta, int startRow, int batchSize) {
       // copy variable values into batch buffer
       for (int i = 0; i < x.Length; i++) {
         Buffer.BlockCopy(x[i], startRow * sizeof(double), xBuf[i], 0, batchSize * sizeof(double));
@@ -101,7 +106,7 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.Var: /* nothing to do */ break;
           case Instruction.OpcEnum.Const: /* nothing to do */ break;
           case Instruction.OpcEnum.Param: for (int i = 0; i < batchSize; i++) { curVal[i] = theta[curInstr.idx]; } break;
-          case Instruction.OpcEnum.Neg: for (int i = 0; i < batchSize; i++) { curVal[i] = -leftVal[i]; } break;
+          case Instruction.OpcEnum.Neg: for (int i = 0; i < batchSize; i++) { curVal[i] = -rightVal[i]; } break;
           case Instruction.OpcEnum.Add: for (int i = 0; i < batchSize; i++) { curVal[i] = leftVal[i] + rightVal[i]; } break;
           case Instruction.OpcEnum.Sub: for (int i = 0; i < batchSize; i++) { curVal[i] = leftVal[i] - rightVal[i]; } break;
           case Instruction.OpcEnum.Mul: for (int i = 0; i < batchSize; i++) { curVal[i] = leftVal[i] * rightVal[i]; } break;
@@ -127,7 +132,7 @@ namespace HEAL.Expressions {
       return instrArr.Last().values;
     }
     public double[] EvaluateWithJac(double[] theta, double[,] jacX, double[,] jacTheta) {
-      var m = x.GetLength(0);
+      var m = x.First().Length;
       var remainderStart = (m / batchSize) * batchSize; // integer divison
       var f = new double[m];
       for (int startRow = 0; startRow < remainderStart; startRow += batchSize) {
@@ -135,77 +140,76 @@ namespace HEAL.Expressions {
         Array.Copy(fi, 0, f, startRow, batchSize);
       }
 
-      { // remainder
+      // remainder
+      if (m - remainderStart > 0) {
         var fi = EvaluateWithJac(theta, remainderStart, m - remainderStart, jacX, jacTheta);
         Array.Copy(fi, 0, f, remainderStart, m - remainderStart);
       }
       return f;
     }
 
-    public double[] EvaluateWithJac(double[] theta, int startRow, int batchSize, double[,] jacX, double[,] jacTheta) {
+    private double[] EvaluateWithJac(double[] theta, int startRow, int batchSize, double[,] jacX, double[,] jacTheta) {
       // evaluate forward
       var f = (double[])Evaluate(theta, startRow, batchSize).Clone();
 
+      if (jacX == null && jacTheta == null) return f; // backprop not necessary;
+
       // clear arrays
-      Array.Clear(jacX, startRow * jacX.GetLength(1), batchSize * jacX.GetLength(1));
-      Array.Clear(jacTheta, startRow * jacX.GetLength(1), batchSize * jacTheta.GetLength(1));
+      if (jacX != null) Array.Clear(jacX, startRow * jacX.GetLength(1), batchSize * jacX.GetLength(1));
+      if (jacTheta != null) Array.Clear(jacTheta, startRow * jacTheta.GetLength(1), batchSize * jacTheta.GetLength(1));
 
       // backpropagate
-      var lastValues = instrArr.Last().values;
-      for (int i = 0; i < batchSize; i++) lastValues[i] = 1.0;
+      var lastInstr = instrArr.Last();
+      for (int i = 0; i < batchSize; i++) lastInstr.diffValues[i] = 1.0;
 
       for (int instrIdx = instrArr.Length - 1; instrIdx >= 0; instrIdx--) {
         var curInstr = instrArr[instrIdx];
-        var curDiff = curInstr.values;
+        var curDiff = curInstr.diffValues;
         var ch0Idx = instrIdx - 1;
+        var rightDiff = ch0Idx >= 0 ? instrArr[ch0Idx].diffValues : null;
         var rightVal = ch0Idx >= 0 ? instrArr[ch0Idx].values : null;
         var ch1Idx = ch0Idx >= 0 ? ch0Idx - instrArr[ch0Idx].length : -1; // index of second child if the op has two children
+        var leftDiff = ch1Idx >= 0 ? instrArr[ch1Idx].diffValues : null;
         var leftVal = ch1Idx >= 0 ? instrArr[ch1Idx].values : null;
         switch (curInstr.opc) {
-          case Instruction.OpcEnum.Var: for (int i = 0; i < batchSize; i++) { jacX[startRow + i, curInstr.idx] += curInstr.values[i]; } break;
+          case Instruction.OpcEnum.Var: if (jacX != null) for (int i = 0; i < batchSize; i++) { jacX[startRow + i, curInstr.idx] += curInstr.diffValues[i]; } break;
           case Instruction.OpcEnum.Const: /* nothing to do */ break;
-          case Instruction.OpcEnum.Param: for (int i = 0; i < batchSize; i++) { jacTheta[startRow + i, curInstr.idx] += curInstr.values[i]; } break;
-          case Instruction.OpcEnum.Neg: for (int i = 0; i < batchSize; i++) { leftVal[i] = curDiff[i] * (-1.0); } break;
-          case Instruction.OpcEnum.Add: for (int i = 0; i < batchSize; i++) { leftVal[i] = curDiff[i]; rightVal[i] = curDiff[i]; } break;
-          case Instruction.OpcEnum.Sub: for (int i = 0; i < batchSize; i++) { leftVal[i] = curDiff[i]; rightVal[i] = -curDiff[i]; } break;
+          case Instruction.OpcEnum.Param: if (jacTheta != null) for (int i = 0; i < batchSize; i++) { jacTheta[startRow + i, curInstr.idx] += curInstr.diffValues[i]; } break;
+          case Instruction.OpcEnum.Neg: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * (-1.0); } break;
+          case Instruction.OpcEnum.Add: for (int i = 0; i < batchSize; i++) { leftDiff[i] = curDiff[i]; rightDiff[i] = curDiff[i]; } break;
+          case Instruction.OpcEnum.Sub: for (int i = 0; i < batchSize; i++) { leftDiff[i] = curDiff[i]; rightDiff[i] = -curDiff[i]; } break;
           case Instruction.OpcEnum.Mul:
             for (int i = 0; i < batchSize; i++) {
-              var leftDiff = curDiff[i] * rightVal[i];
-              var rightDiff = curDiff[i] * leftVal[i];
-              leftVal[i] = leftDiff;
-              rightVal[i] = rightDiff;
+              leftDiff[i] = curDiff[i] * rightVal[i];
+              rightDiff[i] = curDiff[i] * leftVal[i];
             }
             break;
           case Instruction.OpcEnum.Div:
             for (int i = 0; i < batchSize; i++) {
-              var leftDiff = curDiff[i] / rightVal[i];
-              var rightDiff = -curDiff[i] * leftVal[i] / (rightVal[i] * rightVal[i]);
-              leftVal[i] = leftDiff;
-              rightVal[i] = rightDiff;
+              leftDiff[i] = curDiff[i] / rightVal[i];
+              rightDiff[i] = -curDiff[i] * leftVal[i] / (rightVal[i] * rightVal[i]);
             }
             break;
 
-          case Instruction.OpcEnum.Log: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] / rightVal[i]; } break;
-          case Instruction.OpcEnum.Abs: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] * Math.Sign(rightVal[i]); } break;
-          case Instruction.OpcEnum.Exp: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] * Math.Exp(rightVal[i]); } break;
-          case Instruction.OpcEnum.Sin: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] * Math.Cos(rightVal[i]); } break;
-          case Instruction.OpcEnum.Cos: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] * -Math.Sin(rightVal[i]); } break;
-          case Instruction.OpcEnum.Tanh: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] * 2.0 / (Math.Cosh(2.0 * rightVal[i]) + 1); } break;
+          case Instruction.OpcEnum.Log: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] / rightVal[i]; } break;
+          case Instruction.OpcEnum.Abs: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Math.Sign(rightVal[i]); } break;
+          case Instruction.OpcEnum.Exp: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Math.Exp(rightVal[i]); } break;
+          case Instruction.OpcEnum.Sin: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Math.Cos(rightVal[i]); } break;
+          case Instruction.OpcEnum.Cos: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * -Math.Sin(rightVal[i]); } break;
+          case Instruction.OpcEnum.Tanh: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * 2.0 / (Math.Cosh(2.0 * rightVal[i]) + 1); } break;
           case Instruction.OpcEnum.Pow:
             for (int i = 0; i < batchSize; i++) {
-              var leftDiff = curDiff[i] * rightVal[i] * Math.Pow(leftVal[i], rightVal[i] - 1);
-              var rightDiff = curDiff[i] * Math.Pow(leftVal[i], rightVal[i]) * Math.Log(leftVal[i]);
-              leftVal[i] = leftDiff;
-              rightVal[i] = rightDiff;
+              leftDiff[i] = curDiff[i] * rightVal[i] * Math.Pow(leftVal[i], rightVal[i] - 1);
+              rightDiff[i] = curDiff[i] * Math.Pow(leftVal[i], rightVal[i]) * Math.Log(leftVal[i]);
             }
             break;
-          case Instruction.OpcEnum.Sqrt: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] * 0.5 / Math.Sqrt(rightVal[i]); } break;
-          case Instruction.OpcEnum.Cbrt: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] / 3.0 / Math.Pow(Math.Cbrt(rightVal[i]), 2); } break;
-          case Instruction.OpcEnum.Sign: for (int i = 0; i < batchSize; i++) { rightVal[i] = 0.0; } break;
-          case Instruction.OpcEnum.Logistic: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] * Functions.LogisticPrime(rightVal[i]); } break;
-          case Instruction.OpcEnum.InvLogistic: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] * Functions.InvLogisticPrime(rightVal[i]); } break;
-          case Instruction.OpcEnum.LogisticPrime: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] * Functions.LogisticPrimePrime(rightVal[i]); } break;
-          case Instruction.OpcEnum.InvLogisticPrime: for (int i = 0; i < batchSize; i++) { rightVal[i] = curDiff[i] * Functions.InvLogisticPrimePrime(rightVal[i]); } break;
+          case Instruction.OpcEnum.Sqrt: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * 0.5 / Math.Sqrt(rightVal[i]); } break;
+          case Instruction.OpcEnum.Cbrt: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] / 3.0 / Math.Pow(Math.Cbrt(rightVal[i]), 2); } break;
+          case Instruction.OpcEnum.Sign: for (int i = 0; i < batchSize; i++) { rightDiff[i] = 0.0; } break;
+          case Instruction.OpcEnum.Logistic: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Functions.LogisticPrime(rightVal[i]); } break;
+          case Instruction.OpcEnum.InvLogistic: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Functions.InvLogisticPrime(rightVal[i]); } break;
+          case Instruction.OpcEnum.LogisticPrime: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Functions.LogisticPrimePrime(rightVal[i]); } break;
+          case Instruction.OpcEnum.InvLogisticPrime: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Functions.InvLogisticPrimePrime(rightVal[i]); } break;
           default: throw new InvalidOperationException();
         }
       }
@@ -291,7 +295,7 @@ namespace HEAL.Expressions {
       public int length;
       public OpcEnum opc;
       public double[] values;
-      // public double[] diffValues; // for reverse autodiff
+      public double[] diffValues; // for reverse autodiff
       public double value; // only for constants
       public int idx; // only for parameters and variables
 
