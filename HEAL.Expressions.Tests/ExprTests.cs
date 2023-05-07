@@ -758,17 +758,28 @@ namespace HEAL.Expressions.Tests {
       int N = 10;
       var rand = new Random(1234);
       var X = new double[N, 3];
-      for (int i = 0; i < N; i++) for (int j = 0; j < 3; j++) X[i, j] = i * 3 + j + 1;
+      var colX = new double[3][];
+      for (int i = 0; i < N; i++) {
+        for (int j = 0; j < 3; j++) {
+          X[i, j] = i * 3 + j + 1;
+          if (i == 0) colX[j] = new double[N];
+          colX[j][i] = X[i, j];
+        }
+      }
       var f = new double[N];
       var t = new double[5] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       var symJ = new double[N, 5];
       var autoJ = new double[N, 5];
+      var jacX = new double[N, 3];
       Expr.Broadcast(Expr.Gradient(expr, t.Length)).Compile()(t, X, f, symJ);
-      Expr.EvaluateFuncJac(expr, t, X, ref autoJ);
-      for(int i=0;i<N;i++) {
+
+      var interpreter = new ExpressionInterpreter(expr, colX);
+      interpreter.EvaluateWithJac(t, 0, jacX, autoJ);
+      // Expr.EvaluateFuncJac(expr, t, X, ref autoJ);
+      for (int i = 0; i < N; i++) {
         for (int j = 0; j < 5; j++)
           Assert.AreEqual(symJ[i, j], autoJ[i, j], 1e-6);
       }
-    }   
+    }
   }
 }

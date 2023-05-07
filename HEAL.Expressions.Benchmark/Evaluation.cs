@@ -6,15 +6,19 @@ namespace HEAL.Expressions.Benchmark {
   public class JacobianEvaluation {
 
     // different data sizes
-    [Params(/*128, 256, 512, */ 1024 /*, 2048, 4096, 8192*/)]
+    [Params(/*128, 256, 512,*/ 1024/*, 2048, 4096, 8192*/)]
     public int N;
 
     // number of evaluations (after compilation) (as e.g. in CG optimizer)
-    [Params(1, 10, 50)]
+    [Params(1, 10 /* , 50*/)]
     public int numEvals;
+
+    [Params(16, 32, 64, 128, 256, 512, 1024)]
+    public int batchSize;
 
     public int Dim = 10;
     public double[,] data;
+    public double[][] dataCols;
 
     // the test expression with a mix of functions
     Expression<Expr.ParametricFunction> expr = (p, x) => p[0] * x[0]
@@ -25,10 +29,13 @@ namespace HEAL.Expressions.Benchmark {
     [GlobalSetup]
     public void Setup() {
       data = new double[N, Dim];
+      dataCols = new double[Dim][];
       var rand = new System.Random(1234);
       for (int i = 0; i < N; i++) {
         for (int j = 0; j < Dim; j++) {
           data[i, j] = rand.NextDouble();
+          if (dataCols[j] == null) dataCols[j] = new double[N];
+          dataCols[j][i] = data[i, j];
         }
       }
     }
@@ -37,13 +44,14 @@ namespace HEAL.Expressions.Benchmark {
     public double[] EvalWithInterpreter() {
       var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       double[] f = null;
+      var interpreter = new ExpressionInterpreter(expr, dataCols, batchSize );
       for (int i = 0; i < numEvals; i++) {
-        f = Expr.EvaluateFunc(expr, theta, data);
+        f = interpreter.Evaluate(theta);
       }
       return f;
     }
 
-    [Benchmark]
+    // [Benchmark]
     public double[] EvalWithCompiler() {
       var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       var func = Expr.Broadcast(expr).Compile();
@@ -57,14 +65,17 @@ namespace HEAL.Expressions.Benchmark {
     [Benchmark]
     public double[,] EvalJacobianWithInterpreter() {
       var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
-      double[,] jac = new double[N, theta.Length];
+      double[] f;
+      double[,] jacP = new double[N, theta.Length];
+      double[,] jacX = new double[N, Dim];
+      var interpreter = new ExpressionInterpreter(expr, dataCols, batchSize);
       for (int i = 0; i < numEvals; i++) {
-        Expr.EvaluateFuncJac(expr, theta, data, ref jac);
+        f = interpreter.EvaluateWithJac(theta, jacX, jacP);
       }
-      return jac;
+      return jacP;
     }
 
-    [Benchmark]
+    // [Benchmark]
     public double[,] EvalJacobianWithCompiler() {
       var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       var funcJac = Expr.Jacobian(expr, theta.Length).Compile();
