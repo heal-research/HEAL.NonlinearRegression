@@ -8,8 +8,7 @@ namespace HEAL.Expressions {
 
   // reverse mode autodiff (in combination with EvaluationVisitor)
   public static class ReverseAutoDiff {
-    public static void CalculateJac(Expression expr, ParameterExpression param, Dictionary<Expression, double[]> exprValues, double[,] jac) {
-      int batchSize = jac.GetLength(0); // TODO: batched evaluation
+    public static void CalculateJac(Expression expr, ParameterExpression param, Dictionary<Expression, double[]> exprValues, double[,] jac, int startRow, int batchSize) {
       List<(Expression expr, double[] diff)> diffs;
       List<int> lengths;
 
@@ -64,7 +63,7 @@ namespace HEAL.Expressions {
 
             var idx = (int)((ConstantExpression)index).Value;
             if (binExpr.Left == param) {
-              for (int i = 0; i < batchSize; i++) { jac[i, idx] += curDiff[i]; } // parameter (add in case parameters would appear multiple times)
+              for (int i = 0; i < batchSize; i++) { jac[startRow + i, idx] += curDiff[i]; } // parameter (add in case parameters would appear multiple times)
             } else {
               // nothing to do (until we want to calculate the gradient for variables)
             }

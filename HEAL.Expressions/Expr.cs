@@ -324,43 +324,89 @@ namespace HEAL.Expressions {
     }
 
 
-    public static double[] EvaluateFunc(Expression<ParametricFunction> expr, double[] theta, double[,] x) {
+    public static double[] EvaluateFunc(Expression<ParametricFunction> expr, double[] theta, double[,] x, int batchSize = 128) {
       // evaluate (forward)
-      var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x);
-      evalVisitor.Visit(expr);
-      return evalVisitor.NodeValues[expr.Body];
+      int m = x.GetLength(0);
+      var evalResult = new double[m];
+      var lastStartRow = m / batchSize * batchSize; // (integer division) start of remaining rows
+      for (int startRow = 0; startRow < lastStartRow; startRow += batchSize) {
+
+        var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x, startRow, batchSize);
+        evalVisitor.Visit(expr);
+        var evaluationResult = evalVisitor.NodeValues[expr.Body];
+        Buffer.BlockCopy(evaluationResult, 0, evalResult, startRow * sizeof(double), batchSize * sizeof(double));
+      }
+      return evalResult;
     }
 
     // jacobian for parameters theta
-    public static double[] EvaluateFuncJac(Expression<ParametricFunction> expr, double[] theta, double[,] x, ref double[,] jac) {
-      if (jac == null) jac = new double[x.GetLength(0), theta.Length];
+    public static double[] EvaluateFuncJac(Expression<ParametricFunction> expr, double[] theta, double[,] x, ref double[,] jac, int batchSize = 128) {
+      var m = x.GetLength(0);
+      if (jac == null) jac = new double[m, theta.Length];
       else Array.Clear(jac, 0, jac.Length);
 
-      // evaluate (forward)
-      var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x);
-      evalVisitor.Visit(expr);
-      var evaluationResult = evalVisitor.NodeValues[expr.Body];
+      double[] evalResult = new double[m];
+      // evaluate (forward)      
+      var lastStartRow = m / batchSize * batchSize; // (integer division) start of remaining rows
+      for (int startRow = 0; startRow < lastStartRow; startRow += batchSize) {
+        var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x, startRow, batchSize);
+        evalVisitor.Visit(expr);
 
-      // fill jacobian using reverse mode autodiff
-      ReverseAutoDiff.CalculateJac(expr.Body, expr.Parameters[0], evalVisitor.NodeValues, jac);
+        var evaluationResult = evalVisitor.NodeValues[expr.Body];
+        Buffer.BlockCopy(evaluationResult, 0, evalResult, startRow * sizeof(double), batchSize * sizeof(double));
 
-      return evaluationResult;
+        // fill jacobian using reverse mode autodiff
+        ReverseAutoDiff.CalculateJac(expr.Body, expr.Parameters[0], evalVisitor.NodeValues, jac, startRow, batchSize);
+      }
+      // remaining rows
+      {
+        batchSize = x.GetLength(0) - lastStartRow;
+        var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x, lastStartRow, batchSize);
+        evalVisitor.Visit(expr);
+        var evaluationResult = evalVisitor.NodeValues[expr.Body];
+
+        Buffer.BlockCopy(evaluationResult, 0, evalResult, lastStartRow * sizeof(double), batchSize * sizeof(double));
+
+        // fill jacobian using reverse mode autodiff
+        ReverseAutoDiff.CalculateJac(expr.Body, expr.Parameters[0], evalVisitor.NodeValues, jac, lastStartRow, batchSize);
+      }
+
+      return evalResult;
     }
 
     // Jacobian for input variables X
-    public static double[] EvaluateFuncJacX(Expression<ParametricFunction> expr, double[] theta, double[,] x, ref double[,] jac) {
-      if (jac == null) jac = new double[x.GetLength(0), x.GetLength(1)];
+    public static double[] EvaluateFuncJacX(Expression<ParametricFunction> expr, double[] theta, double[,] x, ref double[,] jac, int batchSize = 128) {
+      var m = x.GetLength(0);
+      if (jac == null) jac = new double[m, theta.Length];
       else Array.Clear(jac, 0, jac.Length);
 
+      double[] evalResult = new double[m];
       // evaluate (forward)
-      var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x);
-      evalVisitor.Visit(expr);
-      var evaluationResult = evalVisitor.NodeValues[expr.Body];
+      var lastStartRow = m / batchSize * batchSize; // (integer division) start of remaining rows
+      for (int startRow = 0; startRow < lastStartRow; startRow += batchSize) {
+        var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x, startRow, batchSize);
+        evalVisitor.Visit(expr);
 
-      // fill jacobian using reverse mode autodiff
-      ReverseAutoDiff.CalculateJac(expr.Body, expr.Parameters[1], evalVisitor.NodeValues, jac);
+        var evaluationResult = evalVisitor.NodeValues[expr.Body];
+        Buffer.BlockCopy(evaluationResult, 0, evalResult, startRow * sizeof(double), batchSize * sizeof(double));
 
-      return evaluationResult;
+        // fill jacobian using reverse mode autodiff
+        ReverseAutoDiff.CalculateJac(expr.Body, expr.Parameters[1], evalVisitor.NodeValues, jac, startRow, batchSize);
+      }
+      // remaining rows
+      {
+        batchSize = x.GetLength(0) - lastStartRow;
+        var evalVisitor = new EvaluationVisitor(expr.Parameters[0], theta, x, lastStartRow, batchSize);
+        evalVisitor.Visit(expr);
+        var evaluationResult = evalVisitor.NodeValues[expr.Body];
+
+        Buffer.BlockCopy(evaluationResult, 0, evalResult, lastStartRow * sizeof(double), batchSize * sizeof(double));
+
+        // fill jacobian using reverse mode autodiff
+        ReverseAutoDiff.CalculateJac(expr.Body, expr.Parameters[1], evalVisitor.NodeValues, jac, lastStartRow, batchSize);
+      }
+
+      return evalResult;
     }
 
 

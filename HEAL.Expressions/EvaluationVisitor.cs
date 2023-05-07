@@ -7,14 +7,16 @@ namespace HEAL.Expressions {
   public class EvaluationVisitor : ExpressionVisitor {
     private readonly ParameterExpression param;
     private readonly int batchSize;
+    private readonly int startRow;
     private readonly double[,] x;
     private readonly double[] theta;
     private readonly Dictionary<Expression, double[]> evalResult; // forward evaluation result for each node
     public Dictionary<Expression, double[]> NodeValues => evalResult;
 
-    internal EvaluationVisitor(ParameterExpression param, double[] theta, double[,] x) {
+    internal EvaluationVisitor(ParameterExpression param, double[] theta, double[,] x, int startRow, int batchSize) {
       this.param = param;
-      this.batchSize = x.GetLength(0); // TODO: batched evaluation
+      this.batchSize = batchSize;
+      this.startRow = startRow;
       this.x = x;
       this.theta = theta;
       this.evalResult = new Dictionary<Expression, double[]>();
@@ -55,7 +57,7 @@ namespace HEAL.Expressions {
         if (node.Left == param) {
           for (int i = 0; i < batchSize; i++) { res[i] = theta[idx]; } // parameter
         } else {
-          for (int i = 0; i < batchSize; i++) { res[i] = x[i, idx]; } // variable
+          for (int i = 0; i < batchSize; i++) { res[i] = x[startRow + i, idx]; } // variable
         }
         return node;
       } else {
