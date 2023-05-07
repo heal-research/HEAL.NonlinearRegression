@@ -18,7 +18,7 @@ namespace HEAL.NonlinearRegression {
 
     // as described in https://arxiv.org/abs/2211.11461
     // Deaglan J. Bartlett, Harry Desmond, Pedro G. Ferreira, Exhaustive Symbolic Regression, 2022
-    public static double MDL(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, double logLikelihood, double[] diagFisherInfo) {
+    public static double MDL(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, LikelihoodBase likelihood) {
       // total description length:
       // L(D) = L(D|H) + L(H)
 
@@ -37,18 +37,30 @@ namespace HEAL.NonlinearRegression {
       var constants = Expr.CollectConstants(modelExpr).ToList();
       var allSymbols = Expr.CollectSymbols(modelExpr).ToList();
       int numParam = paramEst.Length;
+      var fisherInfo = likelihood.FisherInformation(paramEst);
 
       for (int i = 0; i < numParam; i++) {
         // if the parameter estimate is not significantly different from zero
-        if (Math.Abs(paramEst[i] / Math.Sqrt(12.0 / diagFisherInfo[i])) < 1.0) {
+        if (Math.Abs(paramEst[i] / Math.Sqrt(12.0 / fisherInfo[i,i])) < 1.0) {
           // set param to zero (and skip in MDL calculation below)
           // TODO: this is an approximation. We should actually simplify the expression, re-optimize and call MDL method again.
           paramEst[i] = 0.0;
-        } else if (Math.Round(paramEst[i]) != 0.0 && paramCodeLength(i) > constCodeLength(Math.Round(paramEst[i]))) {
-          constants.Add(Math.Round(paramEst[i]));
-          allSymbols.Add("const");
-          paramEst[i] = 0.0;
-        }
+
+          var v = new ReplaceParameterWithZeroVisitor(modelExpr.Parameters[0], i);
+          var reducedExpr = (Expression<Expr.ParametricFunction>)v.Visit(modelExpr);
+          var simplifiedExpr = Expr.SimplifyAndRemoveParameters(reducedExpr, paramEst, out var newParamEst);
+          var newLikelihood = likelihood.Clone();
+          newLikelihood.ModelExpr = simplifiedExpr;
+
+          var nlr = new NonlinearRegression();
+          nlr.Fit(newParamEst, newLikelihood); // TODO: here we can use FisherDiag for the scale for improved perf
+          return MDL(nlr.Likelihood.ModelExpr, nlr.ParamEst, nlr.Likelihood);
+        } 
+        // else if (Math.Round(paramEst[i]) != 0.0 && paramCodeLength(i) > constCodeLength(Math.Round(paramEst[i]))) {
+        //   constants.Add(Math.Round(paramEst[i]));
+        //   allSymbols.Add("const");
+        //   paramEst[i] = 0.0;
+        // }
       }
 
       int numSymbols = allSymbols.Distinct().Count();
@@ -65,10 +77,10 @@ namespace HEAL.NonlinearRegression {
       }
 
       double paramCodeLength(int idx) {
-        return 0.5 * (-Math.Log(3)) * Math.Log(diagFisherInfo[idx]) + Math.Log(Math.Abs(paramEst[idx]));
+        return 0.5 * (-Math.Log(3)) * Math.Log(fisherInfo[idx, idx]) + Math.Log(Math.Abs(paramEst[idx]));
       }
 
-      return -logLikelihood
+      return likelihood.NegLogLikelihood(paramEst)
         + numNodes * Math.Log(numSymbols)
         + constants.Sum(constCodeLength)
         + Enumerable.Range(0, numParam)

@@ -186,7 +186,7 @@ namespace HEAL.NonlinearRegression {
     }
 
     private void WriteStatistics(TextWriter writer) {
-      var mdl = ModelSelection.MDL(Likelihood.ModelExpr, paramEst, -NegLogLikelihood, LaplaceApproximation.diagH);
+      var mdl = ModelSelection.MDL(Likelihood.ModelExpr, paramEst, Likelihood);
       if (Likelihood is SimpleGaussianLikelihood) {
         writer.WriteLine($"SSR: {Deviance * Dispersion * Dispersion:e4}  s: {Dispersion:e4} AICc: {AICc:f1} BIC: {BIC:f1} MDL: {mdl:f1}");
       } else if (Likelihood is BernoulliLikelihood) {
