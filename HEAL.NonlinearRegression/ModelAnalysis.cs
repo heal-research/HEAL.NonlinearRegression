@@ -69,10 +69,7 @@ namespace HEAL.NonlinearRegression {
       var expr = likelihood.ModelExpr;
       var pParam = expr.Parameters[0];
       var xParam = expr.Parameters[1];
-      var expressions = FlattenExpressionVisitor.Execute(expr.Body);
-      var subexpressions = expressions.Where(e => !IsParameter(e, pParam) &&
-                                                  !(e is ParameterExpression) &&
-                                                  !(e is ConstantExpression));
+      var subexpressions = FlattenExpressionVisitor.Execute(expr.Body);
 
       // fit the full model once for the baseline
       // TODO: we could skip this and get the baseline as parameter

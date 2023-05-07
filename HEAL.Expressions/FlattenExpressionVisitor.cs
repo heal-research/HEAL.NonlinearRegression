@@ -18,9 +18,16 @@ namespace HEAL.Expressions {
 
     public override Expression Visit(Expression node) {
       var res = base.Visit(node);
-      if(node != null)
+      if (node != null)
         exprs.Add(node);
       return res;
     }
+
+    // do not recurse into ArrayIndex expressions
+    protected override Expression VisitBinary(BinaryExpression node) {
+      if (node.NodeType == ExpressionType.ArrayIndex) return node;
+      else return base.VisitBinary(node);
+    }
+
   }
 }
