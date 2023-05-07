@@ -65,27 +65,28 @@ namespace HEAL.NonlinearRegression {
 
       int numSymbols = allSymbols.Distinct().Count();
 
-      // System.Console.WriteLine($"numNodes {numNodes}");
-      // System.Console.WriteLine($"constants {string.Join(" ", constants.Select(ci => ci.ToString()))}");
-      // System.Console.WriteLine($"numSymbols {numSymbols}");
-      // System.Console.WriteLine($"symbols {string.Join(" ", Expr.CollectSymbols(modelExpr).Distinct().Select(s => s.ToString()))}");
-      // System.Console.WriteLine($"numParam {numParam}");
-      // System.Console.WriteLine($"diagFisherInfo {string.Join(" ", diagFisherInfo.Select(di => di.ToString()))}");
-
       double constCodeLength(double val) {
         return Math.Log(Math.Abs(val)) + Math.Log(2);
       }
 
       double paramCodeLength(int idx) {
-        return 0.5 * (-Math.Log(3)) * Math.Log(fisherInfo[idx, idx]) + Math.Log(Math.Abs(paramEst[idx]));
+        return 0.5 * (-Math.Log(3) + Math.Log(fisherInfo[idx, idx])) + Math.Log(Math.Abs(paramEst[idx]));
       }
 
-      return likelihood.NegLogLikelihood(paramEst)
-        + numNodes * Math.Log(numSymbols)
-        + constants.Sum(constCodeLength)
-        + Enumerable.Range(0, numParam)
+      var t1 = likelihood.NegLogLikelihood(paramEst);
+      var t2 = numNodes * Math.Log(numSymbols) + constants.Sum(constCodeLength);
+      var t3 = Enumerable.Range(0, numParam)
           .Where(i => paramEst[i] != 0.0) // skip parameter which are deactivated above
           .Sum(i => paramCodeLength(i));
+
+      // System.Console.WriteLine($"expr: {modelExpr} nNodes: {numNodes}  nSym: {numSymbols} nPar: {numParam} " +
+      //   $"DL(res): {t1:f2} " +
+      //   $"DL(func): {t2:f2} " +
+      //   $"DL(param): {t3:f2} " +
+      //   $"constants: {string.Join(" ", constants.Select(ci => ci.ToString()))} " +
+      //   $"diag(FI): {string.Join(" ", Enumerable.Range(0, numParam).Select(i => fisherInfo[i, i].ToString("g4")))}");
+
+      return t1 + t2 + t3;
     }
   }
 }
