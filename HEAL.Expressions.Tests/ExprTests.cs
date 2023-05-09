@@ -54,6 +54,7 @@ namespace HEAL.Expressions.Tests {
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Log(p[0] + x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Exp(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Sqrt(p[0] * x[0]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Sqrt(Math.Abs(p[0] * x[0])));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.Cbrt(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Sin(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Cos(p[0] * x[0]));
@@ -63,6 +64,7 @@ namespace HEAL.Expressions.Tests {
       CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.InvLogistic(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(x[0], p[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(x[0], 2.0));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(x[0], 3.0));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(p[0] * x[0], p[1]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => p[0] * x[0] / (p[1] * x[1] + p[2]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Abs(p[0] * x[0]));
@@ -761,7 +763,9 @@ namespace HEAL.Expressions.Tests {
       var colX = new double[3][];
       for (int i = 0; i < N; i++) {
         for (int j = 0; j < 3; j++) {
-          X[i, j] = i * 3 + j + 1;
+          X[i, j] = i * 3 + j + 1 
+            * ((i * 3 + j) % 2 == 0 ? 1 : -1); // alternate sign
+
           if (i == 0) colX[j] = new double[N];
           colX[j][i] = X[i, j];
         }
