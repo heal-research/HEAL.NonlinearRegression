@@ -52,7 +52,7 @@ namespace HEAL.NonlinearRegression {
     }
 
     private Expression<Expr.ParametricFunction> modelExpr;
-    public Expression<Expr.ParametricFunction> ModelExpr {
+    public virtual Expression<Expr.ParametricFunction> ModelExpr {
       get { return modelExpr; }
       set {
         // updating the modelExpr also requires updating Jacobian and Hessian
