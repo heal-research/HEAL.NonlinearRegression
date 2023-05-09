@@ -68,22 +68,23 @@ namespace HEAL.NonlinearRegression {
 
     private void Fit(double[] p, int maxIterations = 0, double[]? scale = null, double stepMax = 0.0, Func<double[], double, bool>? callback = null) {
       int n = p.Length;
-
-      #region Conjugate Gradient
-      alglib.mincgcreate(p, out var state);
-      alglib.mincgsetcond(state, 0.0, 0.0, 0.0, maxIterations);
-      // alglib.mincgoptguardgradient(state, 1e-6);
-
+      if (n == 0) return;
+      
+      #region L-BFGS
+      alglib.minlbfgscreate(Math.Min(30, p.Length), p, out var state); // TODO: check parameters
+      alglib.minlbfgssetcond(state, 0.0, 0.0, 0.0, maxIterations);
+      // alglib.minlbfgsoptguardgradient(state, 1e-6);
+      // alglib.minlbfgsoptguardsmoothness(state);
       if (scale != null) {
-        alglib.mincgsetscale(state, scale);
-        alglib.mincgsetprecdiag(state, scale);
+        alglib.minlbfgssetscale(state, scale);
+        alglib.minlbfgssetprecdiag(state, scale);
       }
-      if (stepMax > 0.0) alglib.mincgsetstpmax(state, stepMax);
+      if (stepMax > 0.0) alglib.minlbfgssetstpmax(state, stepMax);
 
       // reporting function for alglib cgoptimize (to allow early stopping)
       void _rep(double[] x, double f, object o) {
         if (callback != null && callback(x, f)) {
-          alglib.mincgrequesttermination(state);
+          alglib.minlbfgsrequesttermination(state);
         }
       }
 
@@ -92,19 +93,20 @@ namespace HEAL.NonlinearRegression {
         Likelihood.NegLogLikelihoodGradient(p, out f, grad);
       }
 
-      alglib.mincgoptimize(state, objFunc, _rep, obj: null);
-      alglib.mincgresults(state, out paramEst, out var rep);
-      // alglib.mincgoptguardresults(state, out var optGuardRes);
-      #endregion
+      alglib.minlbfgsoptimize(state, objFunc, _rep, obj: null);
+      alglib.minlbfgsresults(state, out paramEst, out var rep);
+      // alglib.minlbfgsoptguardresults(state, out var optGuardRes);
+      #endregion      
 
-      // if successfull
+      // if successful
       if (rep.terminationtype >= 0) {
         Array.Copy(paramEst, p, p.Length);
 
         OptReport = new OptimizationReport() {
           Success = true,
           Iterations = rep.iterationscount,
-          NumFuncEvals = rep.nfev
+          NumFuncEvals = rep.nfev,
+          NumJacEvals = rep.nfev
         };
       } else {
         // error
@@ -112,7 +114,8 @@ namespace HEAL.NonlinearRegression {
         OptReport = new OptimizationReport() {
           Success = false,
           Iterations = rep.iterationscount,
-          NumFuncEvals = rep.nfev
+          NumFuncEvals = rep.nfev,
+          NumJacEvals = rep.nfev
         };
       }
     }
@@ -186,7 +189,7 @@ namespace HEAL.NonlinearRegression {
     }
 
     private void WriteStatistics(TextWriter writer) {
-      var mdl = ModelSelection.MDL(Likelihood.ModelExpr, paramEst, Likelihood);
+      var mdl = ModelSelection.MDL(paramEst, Likelihood);
       if (Likelihood is SimpleGaussianLikelihood) {
         writer.WriteLine($"SSR: {Deviance * Dispersion * Dispersion:e4}  s: {Dispersion:e4} AICc: {AICc:f1} BIC: {BIC:f1} MDL: {mdl:f1}");
       } else if (Likelihood is BernoulliLikelihood) {
