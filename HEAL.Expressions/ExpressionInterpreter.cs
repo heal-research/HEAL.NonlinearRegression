@@ -80,9 +80,9 @@ namespace HEAL.Expressions {
         var fi = Evaluate(theta, startRow, batchSize);
         Array.Copy(fi, 0, f, startRow, batchSize);
       }
-      
+
       // remainder
-      if (m - remainderStart > 0) { 
+      if (m - remainderStart > 0) {
         var fi = Evaluate(theta, remainderStart, m - remainderStart);
         Array.Copy(fi, 0, f, remainderStart, m - remainderStart);
       }
@@ -121,7 +121,7 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.Pow: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Pow(leftVal[i], rightVal[i]); } break;
           case Instruction.OpcEnum.Sqrt: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Sqrt(rightVal[i]); } break;
           case Instruction.OpcEnum.Cbrt: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.Cbrt(rightVal[i]); } break;
-          case Instruction.OpcEnum.Sign: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Sign(rightVal[i]); } break;
+          case Instruction.OpcEnum.Sign: for (int i = 0; i < batchSize; i++) { curVal[i] = double.IsNaN(rightVal[i]) ? double.NaN : Math.Sign(rightVal[i]); } break;
           case Instruction.OpcEnum.Logistic: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.Logistic(rightVal[i]); } break;
           case Instruction.OpcEnum.InvLogistic: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.InvLogistic(rightVal[i]); } break;
           case Instruction.OpcEnum.LogisticPrime: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.LogisticPrime(rightVal[i]); } break;
@@ -193,7 +193,7 @@ namespace HEAL.Expressions {
             break;
 
           case Instruction.OpcEnum.Log: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] / rightVal[i]; } break;
-          case Instruction.OpcEnum.Abs: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Math.Sign(rightVal[i]); } break;
+          case Instruction.OpcEnum.Abs: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * (double.IsNaN(rightVal[i]) ? double.NaN : Math.Sign(rightVal[i])); } break;
           case Instruction.OpcEnum.Exp: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * curVal[i]; } break;
           case Instruction.OpcEnum.Sin: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Math.Cos(rightVal[i]); } break;
           case Instruction.OpcEnum.Cos: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * -Math.Sin(rightVal[i]); } break;
