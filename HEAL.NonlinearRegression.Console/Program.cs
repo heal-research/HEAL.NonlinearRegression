@@ -103,7 +103,7 @@ namespace HEAL.NonlinearRegression.Console {
           var m = y.Length;
 
           var stats = nlr.LaplaceApproximation;
-          var mdl = ModelSelection.MDL(parametricExpr, p, nlr.Likelihood);
+          var mdl = ModelSelection.MDL(p, nlr.Likelihood);
 
           var logLik = -nlr.NegLogLikelihood;
           var aicc = nlr.AICc;

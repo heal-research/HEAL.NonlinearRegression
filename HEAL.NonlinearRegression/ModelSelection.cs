@@ -18,7 +18,7 @@ namespace HEAL.NonlinearRegression {
 
     // as described in https://arxiv.org/abs/2211.11461
     // Deaglan J. Bartlett, Harry Desmond, Pedro G. Ferreira, Exhaustive Symbolic Regression, 2022
-    public static double MDL(Expression<Expr.ParametricFunction> modelExpr, double[] paramEst, LikelihoodBase likelihood) {
+    public static double MDL(double[] paramEst, LikelihoodBase likelihood) {
       // total description length:
       // L(D) = L(D|H) + L(H)
 
@@ -33,9 +33,10 @@ namespace HEAL.NonlinearRegression {
 
       // L(D) = -log(L(theta)) + k log n - p/2 log 3
       //        + sum_j (1/2 log I_ii + log |theta_i| )
-      int numNodes = Expr.NumberOfNodes(modelExpr);
-      var constants = Expr.CollectConstants(modelExpr).ToList();
-      var allSymbols = Expr.CollectSymbols(modelExpr).ToList();
+      var expr = likelihood.ModelExpr;
+      int numNodes = Expr.NumberOfNodes(expr);
+      var constants = Expr.CollectConstants(expr).ToList();
+      var allSymbols = Expr.CollectSymbols(expr).ToList();
       int numParam = paramEst.Length;
       var fisherInfo = likelihood.FisherInformation(paramEst);
 
@@ -43,18 +44,18 @@ namespace HEAL.NonlinearRegression {
         // if the parameter estimate is not significantly different from zero
         if (Math.Abs(paramEst[i] / Math.Sqrt(12.0 / fisherInfo[i,i])) < 1.0) {
           // set param to zero (and skip in MDL calculation below)
-          // TODO: this is an approximation. We should actually simplify the expression, re-optimize and call MDL method again.
+          System.Console.WriteLine($"param[{i}] = 0 {expr}"); // for debugging
           paramEst[i] = 0.0;
 
-          var v = new ReplaceParameterWithZeroVisitor(modelExpr.Parameters[0], i);
-          var reducedExpr = (Expression<Expr.ParametricFunction>)v.Visit(modelExpr);
+          var v = new ReplaceParameterWithZeroVisitor(expr.Parameters[0], i);
+          var reducedExpr = (Expression<Expr.ParametricFunction>)v.Visit(expr);
           var simplifiedExpr = Expr.SimplifyAndRemoveParameters(reducedExpr, paramEst, out var newParamEst);
-          var newLikelihood = likelihood.Clone();
-          newLikelihood.ModelExpr = simplifiedExpr;
+          likelihood.ModelExpr = simplifiedExpr;
 
+          if (newParamEst.Length == 0) return double.MaxValue; // no parameters left for fitting
           var nlr = new NonlinearRegression();
-          nlr.Fit(newParamEst, newLikelihood); // TODO: here we can use FisherDiag for the scale for improved perf
-          return MDL(nlr.Likelihood.ModelExpr, nlr.ParamEst, nlr.Likelihood);
+          nlr.Fit(newParamEst, likelihood); // TODO: here we can use FisherDiag for the scale for improved perf
+          return MDL(nlr.ParamEst, nlr.Likelihood);
         } 
         // else if (Math.Round(paramEst[i]) != 0.0 && paramCodeLength(i) > constCodeLength(Math.Round(paramEst[i]))) {
         //   constants.Add(Math.Round(paramEst[i]));
@@ -79,12 +80,13 @@ namespace HEAL.NonlinearRegression {
           .Where(i => paramEst[i] != 0.0) // skip parameter which are deactivated above
           .Sum(i => paramCodeLength(i));
 
-      // System.Console.WriteLine($"expr: {modelExpr} nNodes: {numNodes}  nSym: {numSymbols} nPar: {numParam} " +
-      //   $"DL(res): {t1:f2} " +
-      //   $"DL(func): {t2:f2} " +
-      //   $"DL(param): {t3:f2} " +
-      //   $"constants: {string.Join(" ", constants.Select(ci => ci.ToString()))} " +
-      //   $"diag(FI): {string.Join(" ", Enumerable.Range(0, numParam).Select(i => fisherInfo[i, i].ToString("g4")))}");
+      System.Console.WriteLine($"expr: {expr} nNodes: {numNodes}  nSym: {numSymbols} nPar: {numParam} " +
+        $"DL(res): {t1:f2} " +
+        $"DL(func): {t2:f2} " +
+        $"DL(param): {t3:f2} " +
+        $"constants: {string.Join(" ", constants.Select(ci => ci.ToString()))} " +
+        $"params: {string.Join(" ", paramEst.Select(pi => pi.ToString("g4")))} " +
+        $"diag(FI): {string.Join(" ", Enumerable.Range(0, numParam).Select(i => fisherInfo[i, i].ToString("g4")))}");
 
       return t1 + t2 + t3;
     }
