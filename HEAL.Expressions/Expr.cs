@@ -201,15 +201,27 @@ namespace HEAL.Expressions {
 
 
     /// <summary>
-    /// Takes an expression and generates its partial derivative.
+    /// Takes an expression and generates its partial derivative (for p[dxIdx]).
     /// </summary>
     /// <param name="expr">A parametric expression. </param>
     /// <param name="dxIdx">The parameter index for which to calculate generate the partial derivative</param>
     /// <returns>A new expression that calculates the partial derivative of d expr(x) / d x_i</returns>
     public static Expression<ParametricFunction> Derive(Expression<ParametricFunction> expr, int dxIdx) {
+      return Derive(expr, expr.Parameters[0], dxIdx);
+    }
+
+    /// <summary>
+    /// Takes and expression and generates its partial derivative for param[dxIdx]
+    /// </summary>
+    /// <param name="expr"></param>
+    /// <param name="param"></param>
+    /// <param name="dxIdx"></param>
+    /// <returns></returns>
+    /// <exception cref="NotSupportedException"></exception>
+    public static Expression<ParametricFunction> Derive(Expression<ParametricFunction> expr, ParameterExpression param, int dxIdx) {
       if (!CheckExprVisitor.CheckValid(expr)) throw new NotSupportedException(expr.ToString());
       expr = FoldConstants(expr);
-      var deriveVisitor = new DeriveVisitor(expr.Parameters.First(), dxIdx);
+      var deriveVisitor = new DeriveVisitor(param, dxIdx);
       return FoldConstants((Expression<ParametricFunction>)deriveVisitor.Visit(expr));
     }
 
