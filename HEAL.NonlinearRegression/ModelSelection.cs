@@ -55,6 +55,10 @@ namespace HEAL.NonlinearRegression {
           if (newParamEst.Length == 0) return double.MaxValue; // no parameters left for fitting
           var nlr = new NonlinearRegression();
           nlr.Fit(newParamEst, likelihood); // TODO: here we can use FisherDiag for the scale for improved perf
+          if(nlr.ParamEst==null) {
+            // fitting of reduced expression failed
+            return double.MaxValue;
+          }
           return MDL(nlr.ParamEst, nlr.Likelihood);
         } 
         // else if (Math.Round(paramEst[i]) != 0.0 && paramCodeLength(i) > constCodeLength(Math.Round(paramEst[i]))) {
