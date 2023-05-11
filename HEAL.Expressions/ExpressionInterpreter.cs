@@ -297,7 +297,6 @@ namespace HEAL.Expressions {
       public OpcEnum opc;
       public double[] values;
       public double[] diffValues; // for reverse autodiff
-      public double value; // only for constants
       public int idx; // only for parameters and variables
 
     }
