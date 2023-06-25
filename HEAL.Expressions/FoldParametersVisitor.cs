@@ -32,8 +32,7 @@ namespace HEAL.Expressions {
       var left = Visit(node.Left);
       var right = Visit(node.Right);
       var rightIsParam = IsParam(node.Right, out var paramExpr, out var paramIdx);
-      var leftBinary = left as BinaryExpression;
-      if (rightIsParam && leftBinary != null) {
+      if (rightIsParam && left is BinaryExpression leftBinary) {
         switch (node.NodeType) {
           case ExpressionType.Add: {
               var terms = CollectTermsVisitor.CollectTerms(leftBinary);

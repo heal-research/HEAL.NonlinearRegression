@@ -30,11 +30,17 @@ namespace HEAL.NonlinearRegression.Console.Tests {
       // Number of iterations to convergence: 5 
       // Achieved convergence tolerance: 8.824e-06
 
-      // standard error and z-score are the same as in R
-      // Laplace approximation lower and upper bounds are close to confidence intervals in R
+      //            2.5%        97.5%
+      //  a 197.30212848 229.29006490
+      //  b   0.04692517   0.08615995
+
+      // The differences in standard error and confidence intervals are because
+      // R ignores the Hessian of the model in the Laplace approximation.
+      // The results are close enough.
+
       var expected = @"p_opt: 6.41213e-002 2.12684e+002
-Successful: True, NumIters: 2, NumFuncEvals: 24, NumJacEvals: 0
-SSR: 1.1954e+003  s: 1.0934e+001 AICc: 98.5 BIC: 96.9 MDL: 61.2
+Successful: True, NumIters: 2, NumFuncEvals: 41, NumJacEvals: 41
+SSR: 1.1954e+003  s: 1.0934e+001 AICc: 98.5 BIC: 96.9 DL: 61.2  DL (lattice): 59.1
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
     0    6.4121e-002    8.7112e-003   7.36e+000    4.4711e-002    8.3531e-002 1.00
     1    2.1268e+002    7.1607e+000   2.97e+001    1.9673e+002    2.2864e+002 0.78 1.00
@@ -60,7 +66,7 @@ p1    2.1268e+002    1.9730e+002    2.2929e+002
 
     [Test]
     public void EvaluatePuromycin() {
-      var expected = @"SSR: 1195.45 MSE: 99.6207 RMSE: 9.98102 NMSE: 0.0387392 R2: 0.9613 LogLik: -44.7294 AIC: 95.46 AICc: 98.46 BIC: 96.91 MDL: 61.23 MDL(freq): 59.42 DoF: 2
+      var expected = @"SSR: 1195.45 MSE: 99.6207 RMSE: 9.98102 NMSE: 0.0387392 R2: 0.9613 LogLik: -44.7294 AIC: 95.46 AICc: 98.46 BIC: 96.91 DL: 61.23 DoF: 2
 ";
       NlrEvaluate("Puromycin.csv", "x0 / (0.06412128165180965 + x0) * 212.68374312341493", "0:11", "y", "Gaussian", expected);
     }
@@ -108,14 +114,36 @@ p1    2.1268e+002    1.9730e+002    2.2929e+002
     [Test]
     public void FitLinearPuromycin() {
       var expected = @"p_opt: 1.10421e+002 1.03488e+002
-Successful: True, NumIters: 1, NumFuncEvals: 21, NumJacEvals: 0
-SSR: 9.5471e+003  s: 3.0898e+001 AICc: 123.4 BIC: 121.8 MDL: 67.3
+Successful: True, NumIters: 1, NumFuncEvals: 21, NumJacEvals: 21
+SSR: 9.5471e+003  s: 3.0898e+001 AICc: 123.4 BIC: 121.8 DL: 67.3  DL (lattice): 58.7
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
     0    1.1042e+002    2.3371e+001   4.72e+000    5.8347e+001    1.6249e+002 1.00
     1    1.0349e+002    1.2024e+001   8.61e+000    7.6697e+001    1.3028e+002 -0.67 1.00
 
 Optimized: ((110.4 * x0) + 103.5)
 ";
+
+      /*
+       * Formula: y ~ a * x0 + b
+
+      Parameters:
+        Estimate Std. Error t value Pr(>|t|)    
+      a   110.42      23.37   4.725 0.000811 ***
+      b   103.49      12.02   8.607 6.17e-06 ***
+      ---
+      Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+      Residual standard error: 30.9 on 10 degrees of freedom
+
+      Number of iterations to convergence: 1 
+      Achieved convergence tolerance: 5.903e-09
+
+      Waiting for profiling to be done...
+            2.5%    97.5%
+      a 58.34723 162.4949
+      b 76.69743 130.2787
+       */
+
       NlrFit("Puromycin.csv", "((110.42107672063611 * x0) + 103.48806186471387)", "0:11", "y", "Gaussian", expected);
     }
 
@@ -188,8 +216,8 @@ Optimized: ((110.4 * x0) + 103.5)
 
       // exactly the same result as in R (using full Hessian for FisherInformationMatrix)
       var expected = @"p_opt: 1.38378e+000 4.84833e-002 5.24299e-001 3.52511e-001 -6.84851e-002 -1.11809e+001
-Successful: True, NumIters: 2, NumFuncEvals: 41, NumJacEvals: 0
-Deviance: 7.8438e+002  Dispersion: 1.0000e+000 AICc: 796.5 BIC: 825.6 MDL: 456.0
+Successful: True, NumIters: 2, NumFuncEvals: 41, NumJacEvals: 41
+Deviance: 7.8438e+002  AICc: 796.5 BIC: 825.6 DL: 458.2  DL (lattice): 458.3
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
     0    1.3838e+000    1.7042e-001   8.12e+000    1.0493e+000    1.7182e+000 1.00
     1    4.8483e-002    7.5999e-003   6.38e+000    3.3569e-002    6.3398e-002 -0.04 1.00
@@ -212,7 +240,7 @@ Optimized: Logistic(((((((1.384 * BI_RADS) + (0.04848 * Age)) + (0.5243 * Shape)
     [Test]
     public void EvaluateMammography() {
 
-      var expected = @"Deviance: 784.375 LogLik: -392.188 AIC: 796.38 AICc: 796.46 BIC: 825.58 MDL: 456.00 MDL(freq): 450.07 DoF: 6
+      var expected = @"Deviance: 784.375 LogLik: -392.188 AIC: 796.38 AICc: 796.46 BIC: 825.58 DL: 458.24 DoF: 6
 ";
 
       NlrEvaluate("mammography.csv",

@@ -21,7 +21,7 @@ namespace HEAL.NonlinearRegression {
     public double[]? ParamEst { get { return paramEst?.Clone() as double[]; } }
 
     public OptimizationReport? OptReport { get; private set; }
-    public LaplaceApproximation? LaplaceApproximation { get; private set; }
+    public ApproximateLikelihood LaplaceApproximation { get; private set; }
 
 
     // negative log likelihood of the model for the estimated parameters
@@ -31,10 +31,9 @@ namespace HEAL.NonlinearRegression {
     // https://en.wikipedia.org/wiki/Deviance_(statistics)
 
     // for MLE and training data
-    public double Deviance => 2.0 * NegLogLikelihood - 2.0 * Likelihood.BestNegLogLikelihood(paramEst); // for Gaussian: Deviance = SSR /sErr^2
+    public double Deviance => 2.0 * NegLogLikelihood - 2.0 * Likelihood.BestNegLogLikelihood(); // for Gaussian: Deviance = SSR /sErr^2
 
     public LikelihoodBase Likelihood { get; private set; }
-    public double Dispersion => Likelihood.Dispersion;
     public double AIC => ModelSelection.AIC(-NegLogLikelihood, Likelihood.NumberOfParameters);
     public double AICc => ModelSelection.AICc(-NegLogLikelihood, Likelihood.NumberOfParameters, Likelihood.NumberOfObservations);
     public double BIC => ModelSelection.BIC(-NegLogLikelihood, Likelihood.NumberOfParameters, Likelihood.NumberOfObservations);
@@ -50,30 +49,31 @@ namespace HEAL.NonlinearRegression {
     /// <param name="stepMax">Optional parameter to limit the step size in the conjugate gradients solver. Can be useful on quickly changing functions (e.g. exponentials).</param>
     /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
     /// <exception cref="InvalidProgramException"></exception>
-    public void Fit(double[] p, LikelihoodBase likelihood, int maxIterations = 0, double[]? scale = null, double stepMax = 0.0,
-    Func<double[], double, bool>? callback = null) {
+    public void Fit(double[] p, LikelihoodBase likelihood, int maxIterations = 0, double[]? scale = null, double[]? diagHess = null, double stepMax = 0.0, double epsF = 0.0,
+                    Func<double[], double, bool>? callback = null) {
       this.Likelihood = likelihood;
 
-      Fit(p, maxIterations, scale, stepMax, callback);
+      Fit(p, maxIterations, scale, diagHess, stepMax, epsF, callback);
 
       // if successful
-      if (paramEst != null) {
-        // update dispersion with estimated value after fitting (if dispersion is at the default value for Gaussian likelihood)
-        if (likelihood is SimpleGaussianLikelihood && likelihood.Dispersion == 1.0) {
-          likelihood.Dispersion = Math.Sqrt(Deviance / (likelihood.Y.Length - p.Length)); // s = Math.Sqrt(SSR / (m - n))
+      if (paramEst != null && !paramEst.Any(double.IsNaN)) {
+        // update sErr with estimated value after fitting (if sErr is at the default value for Gaussian likelihood)
+        if (likelihood is SimpleGaussianLikelihood gaussLik && gaussLik.SigmaError == 1.0) {
+          gaussLik.SigmaError = Math.Sqrt(Deviance / (likelihood.Y.Length - p.Length)); // s = Math.Sqrt(SSR / (m - n))
         }
-        LaplaceApproximation = new LaplaceApproximation(paramEst, Likelihood);
+        LaplaceApproximation = likelihood.LaplaceApproximation(paramEst);
       }
     }
 
-    private void Fit(double[] p, int maxIterations = 0, double[]? scale = null, double stepMax = 0.0, Func<double[], double, bool>? callback = null) {
+    private void Fit(double[] p, int maxIterations = 0, double[]? scale = null, double[]? diagHess = null, double stepMax = 0.0, double epsF = 0.0, Func<double[], double, bool>? callback = null) {
       int n = p.Length;
       if (n == 0) return;
-      
+
+      /*
       #region L-BFGS
       alglib.minlbfgscreate(Math.Min(30, p.Length), p, out var state); // TODO: check parameters
       alglib.minlbfgssetcond(state, 0.0, 0.0, 0.0, maxIterations);
-      // alglib.minlbfgsoptguardgradient(state, 1e-6);
+      alglib.minlbfgsoptguardgradient(state, 1e-6);
       // alglib.minlbfgsoptguardsmoothness(state);
       if (scale != null) {
         alglib.minlbfgssetscale(state, scale);
@@ -95,9 +95,39 @@ namespace HEAL.NonlinearRegression {
 
       alglib.minlbfgsoptimize(state, objFunc, _rep, obj: null);
       alglib.minlbfgsresults(state, out paramEst, out var rep);
-      // alglib.minlbfgsoptguardresults(state, out var optGuardRes);
-      #endregion      
+      alglib.minlbfgsoptguardresults(state, out var optGuardRes);
+      #endregion
+      */
 
+      #region CG
+      alglib.mincgcreate(p, out var state);
+      alglib.mincgsetcond(state, 0.0, epsF, 0.0, maxIterations);
+      // alglib.mincgoptguardgradient(state, 1e-6);
+      // alglib.mincgoptguardsmoothness(state, 1);
+      if (scale != null) {
+        alglib.mincgsetscale(state, scale);
+      }
+      if (diagHess != null) {
+        alglib.mincgsetprecdiag(state, diagHess);
+      }
+      if (stepMax > 0.0) alglib.mincgsetstpmax(state, stepMax);
+
+      // reporting function for alglib cgoptimize (to allow early stopping)
+      void _rep(double[] x, double f, object o) {
+        if (callback != null && callback(x, f)) {
+          alglib.mincgrequesttermination(state);
+        }
+      }
+
+      // objective function for alglib cgoptimize
+      void objFunc(double[] p, ref double f, double[] grad, object obj) {
+        Likelihood.NegLogLikelihoodGradient(p, out f, grad);
+      }
+
+      alglib.mincgoptimize(state, objFunc, _rep, obj: null);
+      alglib.mincgresults(state, out paramEst, out var rep);
+      // alglib.mincgoptguardresults(state, out var optGuardRes);
+      #endregion      
       // if successful
       if (rep.terminationtype >= 0) {
         Array.Copy(paramEst, p, p.Length);
@@ -131,7 +161,7 @@ namespace HEAL.NonlinearRegression {
 
       this.paramEst = (double[])p.Clone();
 
-      LaplaceApproximation = new LaplaceApproximation(paramEst, Likelihood);
+      LaplaceApproximation = Likelihood.LaplaceApproximation(paramEst);
     }
 
     /// <summary>
@@ -142,10 +172,8 @@ namespace HEAL.NonlinearRegression {
     /// <exception cref="InvalidOperationException">When Fit() or SetModel() has not been called first.</exception>
     public double[] Predict(double[,] x) {
       if (paramEst == null) throw new InvalidOperationException("Call Fit or SetModel first.");
-      var func = Expr.Broadcast(Likelihood.ModelExpr).Compile(); // TODO
-      var f = new double[x.GetLength(0)];
-      func(paramEst, x, f);
-      return f;
+      var interpreter = new ExpressionInterpreter(Likelihood.ModelExpr, Util.ToColumns(x));
+      return interpreter.Evaluate(paramEst);
     }
 
     public double[,] PredictWithIntervals(double[,] x, IntervalEnum intervalType, double alpha = 0.05) {
@@ -160,7 +188,7 @@ namespace HEAL.NonlinearRegression {
         case IntervalEnum.LaplaceApproximation: {
             var yPred = Predict(x);
             var y = new double[m, 4];
-            LaplaceApproximation.GetPredictionIntervals(Likelihood.ModelExpr, x, alpha, out var resStdErr, out var low, out var high);
+            LaplaceApproximation.GetPredictionIntervals(ParamEst, x, alpha, out var resStdErr, out var low, out var high);
             for (int i = 0; i < m; i++) {
               y[i, 0] = yPred[i];
               y[i, 1] = resStdErr[i];
@@ -189,23 +217,16 @@ namespace HEAL.NonlinearRegression {
     }
 
     private void WriteStatistics(TextWriter writer) {
-      var mdl = ModelSelection.MDL(paramEst, Likelihood);
+      var dl = ModelSelection.DL(paramEst, Likelihood);
+      var dl2 = ModelSelection.DLLattice(paramEst, Likelihood);
       if (Likelihood is SimpleGaussianLikelihood) {
-        writer.WriteLine($"SSR: {Deviance * Dispersion * Dispersion:e4}  s: {Dispersion:e4} AICc: {AICc:f1} BIC: {BIC:f1} MDL: {mdl:f1}");
-      } else if (Likelihood is BernoulliLikelihood) {
-        writer.WriteLine($"Deviance: {Deviance:e4}  Dispersion: {Dispersion:e4} AICc: {AICc:f1} BIC: {BIC:f1} MDL: {mdl:f1}");
+        var ssr = Util.SSR(Predict(Likelihood.X), Likelihood.Y);
+        var s = Math.Sqrt(ssr / (Likelihood.NumberOfObservations - paramEst.Length));
+        writer.WriteLine($"SSR: {ssr:e4}  s: {s:e4} AICc: {AICc:f1} BIC: {BIC:f1} DL: {dl:f1}  DL (lattice): {dl2:f1}");
+      } else {
+        writer.WriteLine($"Deviance: {Deviance:e4}  AICc: {AICc:f1} BIC: {BIC:f1} DL: {dl:f1}  DL (lattice): {dl2:f1}");
       }
-      var p = ParamEst;
-      var se = LaplaceApproximation.ParamStdError;
-      if (se != null) {
-        LaplaceApproximation.GetParameterIntervals(0.05, out var seLow, out var seHigh);
-        writer.WriteLine($"{"Para"} {"Estimate",14}  {"Std. error",14} {"z Score",11} {"Lower",14} {"Upper",14} Correlation matrix");
-        for (int i = 0; i < p.Length; i++) {
-          var j = Enumerable.Range(0, i + 1);
-          writer.WriteLine($"{i,5} {p[i],14:e4} {se[i],14:e4} {p[i] / se[i],11:e2} {seLow[i],14:e4} {seHigh[i],14:e4} {string.Join(" ", j.Select(ji => LaplaceApproximation.Correlation[i, ji].ToString("f2")))}");
-        }
-        writer.WriteLine();
-      }
+      LaplaceApproximation?.WriteStatistics(writer);
     }
   }
 }

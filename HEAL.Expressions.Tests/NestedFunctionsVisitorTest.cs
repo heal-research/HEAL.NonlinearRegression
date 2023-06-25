@@ -2,7 +2,6 @@ using System;
 using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
-using HEAL.Expressions;
 using NUnit.Framework;
 
 namespace HEAL.Expressions.Tests {
@@ -33,10 +32,6 @@ namespace HEAL.Expressions.Tests {
         Console.WriteLine($"{subExpr} {reducedExpression} {string.Join(", ", newTheta.Select(ti => ti.ToString("g4")))}");
       }
 
-    }
-
-    private bool IsParameter(Expression expr, ParameterExpression p) {
-      return expr is BinaryExpression binExpr && binExpr.Left == p;
     }
   }
 }

@@ -37,7 +37,7 @@ namespace HEAL.Expressions {
         int len = 1;
         for (int ch = 0; ch < NumChildren(exprArr[i]); ch++) {
           len += instrArr[c].length;
-          c = c - instrArr[c].length;
+          c -= instrArr[c].length;
         }
 
         curInstr.length = len;
@@ -243,7 +243,7 @@ namespace HEAL.Expressions {
     private static readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
     private static readonly MethodInfo log = typeof(Math).GetMethod("Log", new[] { typeof(double) });
     private static readonly MethodInfo tanh = typeof(Math).GetMethod("Tanh", new[] { typeof(double) });
-    private static readonly MethodInfo cosh = typeof(Math).GetMethod("Cosh", new[] { typeof(double) });
+    // private static readonly MethodInfo cosh = typeof(Math).GetMethod("Cosh", new[] { typeof(double) });
     private static readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
     private static readonly MethodInfo cbrt = typeof(Functions).GetMethod("Cbrt", new[] { typeof(double) });
     private static readonly MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
@@ -251,9 +251,9 @@ namespace HEAL.Expressions {
     private static readonly MethodInfo logistic = typeof(Functions).GetMethod("Logistic", new[] { typeof(double) });
     private static readonly MethodInfo invlogistic = typeof(Functions).GetMethod("InvLogistic", new[] { typeof(double) });
     private static readonly MethodInfo logisticPrime = typeof(Functions).GetMethod("LogisticPrime", new[] { typeof(double) }); // deriv of logistic
-    private static readonly MethodInfo logisticPrimePrime = typeof(Functions).GetMethod("LogisticPrimePrime", new[] { typeof(double) }); // deriv of logistic
+    // private static readonly MethodInfo logisticPrimePrime = typeof(Functions).GetMethod("LogisticPrimePrime", new[] { typeof(double) }); // deriv of logistic
     private static readonly MethodInfo invlogisticPrime = typeof(Functions).GetMethod("InvLogisticPrime", new[] { typeof(double) });
-    private static readonly MethodInfo invlogisticPrimePrime = typeof(Functions).GetMethod("InvLogisticPrimePrime", new[] { typeof(double) });
+    // private static readonly MethodInfo invlogisticPrimePrime = typeof(Functions).GetMethod("InvLogisticPrimePrime", new[] { typeof(double) });
 
     private Instruction.OpcEnum OpCode(Expression expression) {
       switch (expression.NodeType) {

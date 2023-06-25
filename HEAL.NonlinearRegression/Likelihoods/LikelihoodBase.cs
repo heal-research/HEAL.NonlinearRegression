@@ -1,10 +1,9 @@
 ﻿using HEAL.Expressions;
-using System;
 using System.Linq;
 using System.Linq.Expressions;
 
 namespace HEAL.NonlinearRegression {
-  // not necessary if we discover likelihood types automatically
+  // TODO: not necessary if we discover likelihood types automatically
   public enum LikelihoodEnum { Gaussian, Bernoulli } // TODO: Poisson, Cauchy, Multinomial, ...
 
   // A likelihood function together with its model.
@@ -24,13 +23,10 @@ namespace HEAL.NonlinearRegression {
     public double[][] XCol => xCol; // column-oriented representation
     public double[] Y => y;
 
-    // TODO: Dispersion is not necessary and should be removed
-    public virtual double Dispersion { get { return 1.0; } set { throw new NotSupportedException($"cannot set dispersion of {this.GetType().Name}"); } }
-
     protected LikelihoodBase(LikelihoodBase original) : this(original.modelExpr, original.x, original.y, original.numLikelihoodParams) { }
     protected LikelihoodBase(Expression<Expr.ParametricFunction> modelExpr, double[,] x, double[] y, int numLikelihoodParams) {
       this.x = x;
-      this.xCol = ToColumns(x);
+      this.xCol = Util.ToColumns(x);
       this.y = y;
       this.NumberOfObservations = y.Length;
       this.numLikelihoodParams = numLikelihoodParams;
@@ -38,18 +34,7 @@ namespace HEAL.NonlinearRegression {
       ModelExpr = modelExpr;
     }
 
-    private double[][] ToColumns(double[,] x) {
-      var d = x.GetLength(1);
-      var m = x.GetLength(0);
-      var xc = new double[d][];
-      for (int i = 0; i < m; i++) {
-        for (int j = 0; j < d; j++) {
-          if (xc[j] == null) xc[j] = new double[m];
-          xc[j][i] = x[i, j];
-        }
-      }
-      return xc;
-    }
+
 
     private Expression<Expr.ParametricFunction> modelExpr;
     public virtual Expression<Expr.ParametricFunction> ModelExpr {
@@ -77,7 +62,7 @@ namespace HEAL.NonlinearRegression {
     public int NumberOfObservations { get; }
     public int NumberOfParameters => numLikelihoodParams + numModelParams;
 
-    public abstract double BestNegLogLikelihood(double[] p); // the likelihood of a perfect model (with zero residuals)
+    public abstract double BestNegLogLikelihood(); // the likelihood of a perfect model (with zero residuals)
 
     public abstract double NegLogLikelihood(double[] p);
     public abstract void NegLogLikelihoodGradient(double[] p, out double nll, double[]? nll_grad = null);
@@ -85,6 +70,11 @@ namespace HEAL.NonlinearRegression {
     public abstract double[,] FisherInformation(double[] p); // negative of Hessian of the log likelihood
 
     public abstract LikelihoodBase Clone();
+
+    // creates a Gaussian likelihood as an approximation
+    public ApproximateLikelihood LaplaceApproximation(double[] pOpt) {
+      return new ApproximateLikelihood(x, y, modelExpr, NegLogLikelihood(pOpt), pOpt, FisherInformation(pOpt));
+    }
 
   }
 }

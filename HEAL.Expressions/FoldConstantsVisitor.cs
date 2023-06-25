@@ -6,13 +6,12 @@ using System.Reflection;
 namespace HEAL.Expressions {
   // Mainly useful to simplify expressions after symbolic derivation
   // folds constants and handles x + 0, x * 0, x * 1, x/1 , 0/x...
-  // TODO would be interesting to extend this to other numeric types and using zero / identity instead of (0.0 and 1.0)
   // TODO FoldConstants and FoldParameters should implement the same rules (combine!)
 
   public class FoldConstantsVisitor : ExpressionVisitor {
-    private MethodInfo aq = typeof(Functions).GetMethod("AQ", new[] { typeof(double), typeof(double) });
-    private MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
-    private MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
+    private readonly MethodInfo aq = typeof(Functions).GetMethod("AQ", new[] { typeof(double), typeof(double) });
+    private readonly MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
+    private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
     protected override Expression VisitBinary(BinaryExpression node) {
       var left = Visit(node.Left);
       var right = Visit(node.Right);
@@ -88,6 +87,15 @@ namespace HEAL.Expressions {
         var c = (double)((ConstantExpression)args[1]).Value;
         return Expression.Multiply(Expression.Constant(1.0 / Math.Sqrt(1.0 + c * c)), args[0]);
       } else if (node.Method == pow
+                && args[1] is ConstantExpression const0Expr && (double)const0Expr.Value == 0.0
+                && !(args[0] is ConstantExpression anotherConstant && (double)anotherConstant.Value == 0.0)) {
+        // x ^ 0 == 1  (except 0 ^ 0 which is a special case)
+        return Expression.Constant(1.0);
+      } else if (node.Method == pow
+                && args[1] is ConstantExpression const1Expr && (double)const1Expr.Value == 1.0) {
+        // x ^ 1 == x
+        return args[0];
+      } else if (node.Method == pow
         && args[1].NodeType == ExpressionType.Constant
         && args[0] is MethodCallExpression expCall
         && expCall.Method == exp) {
@@ -95,7 +103,7 @@ namespace HEAL.Expressions {
         var x = expCall.Arguments[0];
         return expCall.Update(expCall.Object, new[] { Expression.Multiply(x, args[1]) });
       } else if (node.Method == pow
-        && args[1] is ConstantExpression const2Expr && (double)const2Expr.Value==2.0
+        && args[1] is ConstantExpression const2Expr && (double)const2Expr.Value == 2.0
         && args[0] is MethodCallExpression aqCall
         && aqCall.Method == aq) {
         // aq(a,b)^2  = a^2 / sqrt(1 + b*b)^2 = a^2 / (1+b^2)

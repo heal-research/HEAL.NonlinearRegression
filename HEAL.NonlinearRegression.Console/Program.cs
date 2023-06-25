@@ -17,7 +17,6 @@ using HEAL.Expressions.Parser;
 //   - nested model analysis for combinations of parameters (for the case where a parameter can only be set to zero if another parameter is also set to zero)
 //   - If a range is specified (training, test) then only read the relevant rows of data
 //   - Clean up expression code to provide functions with inverses and derivatives via mapping functions (no special handling of inverse functions and derivatives within visitors)
-//   - Implement likelihoods symbolically (on top of the model functions) to support autodiff for likelihood gradients and likelihood Hessians. They are now hard-coded.
 
 namespace HEAL.NonlinearRegression.Console {
   // Intended to be used together with Operon or HeuristicLab.
@@ -103,19 +102,19 @@ namespace HEAL.NonlinearRegression.Console {
           var m = y.Length;
 
           var stats = nlr.LaplaceApproximation;
-          var mdl = ModelSelection.MDL(p, nlr.Likelihood);
+          var dl = ModelSelection.DL(p, nlr.Likelihood);
 
           var logLik = -nlr.NegLogLikelihood;
           var aicc = nlr.AICc;
           var bic = nlr.BIC;
 
           if (options.Likelihood == LikelihoodEnum.Gaussian) {
-            var SSR = nlr.Deviance * nlr.Dispersion * nlr.Dispersion; // only valid for Gaussian
-            var noiseSigma = options.NoiseSigma ?? nlr.Dispersion; // use estimated noise standard error as default
-            var nmse = SSR / y.Length / Util.Variance(y);
-            System.Console.WriteLine($"SSR: {SSR:g6} MSE: {SSR / y.Length:g6} RMSE: {Math.Sqrt(SSR / y.Length):g6} NMSE: {nmse:g6} R2: {1 - nmse:g4} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} MDL: {mdl:f2} DoF: {p.Length}");
+            var yPred = nlr.Predict(x);
+            var ssr = Util.SSR(y, yPred);
+            var nmse = ssr / y.Length / Util.Variance(y);
+            System.Console.WriteLine($"SSR: {ssr:g6} MSE: {ssr / y.Length:g6} RMSE: {Math.Sqrt(ssr / y.Length):g6} NMSE: {nmse:g6} R2: {1 - nmse:g4} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DoF: {p.Length}");
           } else if (options.Likelihood == LikelihoodEnum.Bernoulli) {
-            System.Console.WriteLine($"Deviance: {nlr.Deviance:g6} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} MDL: {mdl:f2} DoF: {p.Length}");
+            System.Console.WriteLine($"Deviance: {nlr.Deviance:g6} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DoF: {p.Length}");
           }
         } catch (Exception e) {
           System.Console.WriteLine($"Could not evaluate model {model}");
@@ -132,10 +131,8 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
     private static double EstimateGaussianNoiseSigma(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y) {
-      double[,]? jac = null;
-      var yPred = new double[y.Length];
-      Expr.Broadcast(parametricExpr).Compile()(p, x, yPred); // TODO
-
+      var interpreter = new ExpressionInterpreter(parametricExpr, Util.ToColumns(x));
+      var yPred = interpreter.Evaluate(p);
       var ssr = 0.0;
       for (int i = 0; i < y.Length; i++) {
         var r = y[i] - yPred[i];
@@ -214,16 +211,16 @@ namespace HEAL.NonlinearRegression.Console {
 
           // we have to use a fixed noise Sigma here. 
           // NoiseSigma = 1 works well because in this case Deviance = SSR.
-          var cvMeanDeviance = CrossValidate(parametricExpr, p, options.Likelihood, noiseSigma: 1.0, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed);
+          var cvMeanDeviance = CrossValidate(parametricExpr, p, options.Likelihood, noiseSigma: 1.0, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed, maxIterations: options.MaxIterations);
           var stddev = Math.Sqrt(Util.Variance(cvMeanDeviance.ToArray()));
           System.Console.WriteLine($"CV_score: {cvMeanDeviance.Average():e4} CV_stdev: {stddev:e4} CV_se: {stddev / Math.Sqrt(cvMeanDeviance.Count):e4}"); // Elements of Statistical Learning
-        } catch (Exception e) {
+        } catch (Exception) {
           System.Console.WriteLine($"Error in fitting model {model}");
         }
       }
     }
 
-    private static List<double> CrossValidate(Expression<Expr.ParametricFunction> parametricExpr, double[] p, LikelihoodEnum likelihood, double? noiseSigma, double[,] X, double[] y, int folds = 10, bool shuffle = false, int? seed = null) {
+    private static List<double> CrossValidate(Expression<Expr.ParametricFunction> parametricExpr, double[] p, LikelihoodEnum likelihood, double? noiseSigma, double[,] X, double[] y, int folds = 10, bool shuffle = false, int? seed = null, int maxIterations = 5000) {
       Random rand;
       if (seed.HasValue) {
         rand = new Random(seed.Value);
@@ -250,7 +247,7 @@ namespace HEAL.NonlinearRegression.Console {
           Split(X, y, foldStart, foldEnd, foldStart, foldEnd, out var foldTestX, out var foldTestY, out _, out _);
 
           var nls = new NonlinearRegression();
-          nls.Fit(p, CreateLikelihood(parametricExpr, p, likelihood, noiseSigma, foldTrainX, foldTrainY), maxIterations: 5000); // TODO make CLI parameter
+          nls.Fit(p, CreateLikelihood(parametricExpr, p, likelihood, noiseSigma, foldTrainX, foldTrainY), maxIterations);
 
           var loss = nls.Deviance;
 
@@ -488,12 +485,11 @@ namespace HEAL.NonlinearRegression.Console {
 
 
         if (options.GraphvizFilename != null) {
-          using (var writer = new StreamWriter(options.GraphvizFilename)) {
-            writer.WriteLine(Expr.ToGraphViz(parametricExpr,
-              paramValues: options.HideParameters ? null : p,
-              varNames: options.HideVariables ? null : varNames,
-              saturation));
-          }
+          using var writer = new StreamWriter(options.GraphvizFilename);
+          writer.WriteLine(Expr.ToGraphViz(parametricExpr,
+            paramValues: options.HideParameters ? null : p,
+            varNames: options.HideVariables ? null : varNames,
+            saturation));
         }
       }
     }
@@ -564,7 +560,7 @@ namespace HEAL.NonlinearRegression.Console {
         var folder = Path.GetDirectoryName(options.Dataset);
         var filename = Path.GetFileNameWithoutExtension(options.Dataset);
 
-        var tProfile = new TProfile(nlr.LaplaceApproximation, nlr.Likelihood);
+        var tProfile = new TProfile(nlr.ParamEst, nlr.LaplaceApproximation, nlr.Likelihood);
         var numPairs = (parameters.Length * (parameters.Length - 1) / 2.0);
         for (int i = 0; i < parameters.Length - 1; i++) {
           for (int j = i + 1; j < parameters.Length; j++) {
@@ -572,11 +568,10 @@ namespace HEAL.NonlinearRegression.Console {
             var outfilename = Path.Combine(folder, filename + $"_{i}_{j}.csv");
             tProfile.ApproximateProfilePairContour(i, j, alpha: 0.20, out var taup95, out var tauq95, out var p95, out var q95);
             tProfile.ApproximateProfilePairContour(i, j, alpha: 0.50, out var taup50, out var tauq50, out var p50, out var q50);
-            using (var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create))) {
-              writer.WriteLine("taup80,tauq80,p80,q80,taup50,tauq50,p50,q50");
-              for (int l = 0; l < taup95.Length; l++) {
-                writer.WriteLine($"{taup95[l]},{tauq95[l]},{p95[l]},{q95[l]},{taup50[l]},{tauq50[l]},{p50[l]},{q50[l]}");
-              }
+            using var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create));
+            writer.WriteLine("taup80,tauq80,p80,q80,taup50,tauq50,p50,q50");
+            for (int l = 0; l < taup95.Length; l++) {
+              writer.WriteLine($"{taup95[l]},{tauq95[l]},{p95[l]},{q95[l]},{taup50[l]},{tauq50[l]},{p50[l]},{q50[l]}");
             }
           }
         }
@@ -606,7 +601,7 @@ namespace HEAL.NonlinearRegression.Console {
         var folder = Path.GetDirectoryName(options.Dataset);
         var filename = Path.GetFileNameWithoutExtension(options.Dataset);
 
-        var tProfile = new TProfile(nlr.LaplaceApproximation, nlr.Likelihood);
+        var tProfile = new TProfile(nlr.ParamEst, nlr.LaplaceApproximation, nlr.Likelihood);
 
         var n = parameters.Length;
         var m = trainY.Length;
@@ -625,11 +620,10 @@ namespace HEAL.NonlinearRegression.Console {
           System.Console.WriteLine($"p{pIdx} {parameters[pIdx],14:e4} {low,14:e4} {high,14:e4}");
           // write to file
           var outfilename = Path.Combine(folder, filename + $"_profile_{pIdx}.csv");
-          using (var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create))) {
-            writer.WriteLine("tau,p,p_stud");
-            for (int i = 0; i < p.Length; i++) {
-              writer.WriteLine($"{tau[i]},{p[i]},{p_stud[i]}");
-            }
+          using var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create));
+          writer.WriteLine("tau,p,p_stud");
+          for (int i = 0; i < p.Length; i++) {
+            writer.WriteLine($"{tau[i]},{p[i]},{p_stud[i]}");
           }
         }
       }
@@ -755,7 +749,7 @@ namespace HEAL.NonlinearRegression.Console {
       public string Range { get; set; }
 
       [Option("noiseSigma", Required = false, HelpText = "The standard deviation of noise in the target if it is known.")]
-      public double? NoiseSigma { get; set; } // TODO: only for Gaussian likelihood and allow string value to refer to a variable in the dataset
+      public double? NoiseSigma { get; set; } // TODO: only for Gaussian likelihood
     }
 
     [Verb("simplify", HelpText = "Remove redundant parameters.")]
@@ -885,6 +879,9 @@ namespace HEAL.NonlinearRegression.Console {
 
       [Option("seed", Required = false, HelpText = "Random seed for shuffling.")]
       public int? Seed { get; set; }
+
+      [Option("maxIterations", Required = false, Default = 5000, HelpText = "Maximum number of iterations for fitting in CV.")]
+      public int MaxIterations { get; set; }
 
     }
 
@@ -1090,44 +1087,43 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
     public static void ReadData(string filename, string targetVariable, out string[] variableNames, out double[,] x, out double[] y) {
-      using (var reader = new StreamReader(filename)) {
-        var allVarNames = reader.ReadLine().Split(',');
-        var yIdx = Array.IndexOf(allVarNames, targetVariable);
-        if (yIdx < 0) throw new FormatException($"Variable {targetVariable} not found in {filename}");
+      using var reader = new StreamReader(filename);
+      var allVarNames = reader.ReadLine().Split(',');
+      var yIdx = Array.IndexOf(allVarNames, targetVariable);
+      if (yIdx < 0) throw new FormatException($"Variable {targetVariable} not found in {filename}");
 
-        // keep only variablesNames \ { targetVariable } in x and variableNames
+      // keep only variablesNames \ { targetVariable } in x and variableNames
 
-        variableNames = new string[allVarNames.Length - 1];
-        Array.Copy(allVarNames, variableNames, yIdx);
-        Array.Copy(allVarNames, yIdx + 1, variableNames, yIdx, allVarNames.Length - (yIdx + 1));
+      variableNames = new string[allVarNames.Length - 1];
+      Array.Copy(allVarNames, variableNames, yIdx);
+      Array.Copy(allVarNames, yIdx + 1, variableNames, yIdx, allVarNames.Length - (yIdx + 1));
 
-        var dim = variableNames.Length;
-        var rows = new List<double[]>(); var yRows = new List<double>();
-        var lineNr = 1;
-        while (!reader.EndOfStream) {
-          var strValues = reader.ReadLine().Split(',');
-          lineNr++;
-          if (strValues.Length != allVarNames.Length) throw new FormatException($"The number of columns does not match in line {lineNr}");
-          var row = new double[dim];
-          var varIdx = 0;
-          var colIdx = 0;
-          while (colIdx < strValues.Length) {
-            if (colIdx == yIdx) {
-              yRows.Add(double.Parse(strValues[colIdx++]));
-            } else {
-              row[varIdx++] = double.Parse(strValues[colIdx++]);
-            }
+      var dim = variableNames.Length;
+      var rows = new List<double[]>(); var yRows = new List<double>();
+      var lineNr = 1;
+      while (!reader.EndOfStream) {
+        var strValues = reader.ReadLine().Split(',');
+        lineNr++;
+        if (strValues.Length != allVarNames.Length) throw new FormatException($"The number of columns does not match in line {lineNr}");
+        var row = new double[dim];
+        var varIdx = 0;
+        var colIdx = 0;
+        while (colIdx < strValues.Length) {
+          if (colIdx == yIdx) {
+            yRows.Add(double.Parse(strValues[colIdx++]));
+          } else {
+            row[varIdx++] = double.Parse(strValues[colIdx++]);
           }
-          rows.Add(row);
         }
-
-        // copy all rows to matrix x
-        x = new double[rows.Count, dim];
-        for (int i = 0; i < rows.Count; i++) {
-          Buffer.BlockCopy(rows[i], 0, x, i * dim * sizeof(double), dim * sizeof(double));
-        }
-        y = yRows.ToArray();
+        rows.Add(row);
       }
+
+      // copy all rows to matrix x
+      x = new double[rows.Count, dim];
+      for (int i = 0; i < rows.Count; i++) {
+        Buffer.BlockCopy(rows[i], 0, x, i * dim * sizeof(double), dim * sizeof(double));
+      }
+      y = yRows.ToArray();
     }
     #endregion
   }

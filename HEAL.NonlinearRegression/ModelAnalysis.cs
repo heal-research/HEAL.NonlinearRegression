@@ -22,6 +22,7 @@ namespace HEAL.NonlinearRegression {
     public static Dictionary<int, double> VariableImportance(LikelihoodBase likelihood, double[] p) {
       var nlr = new NonlinearRegression();
       nlr.Fit(p, likelihood);
+      var pOpt = p;
       var origExpr = likelihood.ModelExpr;
       var stats0 = nlr.LaplaceApproximation;
       var referenceDeviance = nlr.Deviance;
@@ -35,7 +36,7 @@ namespace HEAL.NonlinearRegression {
 
       var varExpl = new Dictionary<int, double>();
       for (int varIdx = 0; varIdx < d; varIdx++) {
-        var newExpr = Expr.ReplaceVariableWithParameter(origExpr, (double[])stats0.ParamEst.Clone(),
+        var newExpr = Expr.ReplaceVariableWithParameter(origExpr, (double[])pOpt.Clone(),
           varIdx, mean[varIdx], out var newThetaValues);
         newExpr = Expr.FoldParameters(newExpr, newThetaValues, out newThetaValues);
         likelihood.ModelExpr = newExpr;
@@ -72,12 +73,11 @@ namespace HEAL.NonlinearRegression {
       var subexpressions = FlattenExpressionVisitor.Execute(expr.Body);
 
       // fit the full model once for the baseline
-      // TODO: we could skip this and get the baseline as parameter
       var nlr = new NonlinearRegression();
       nlr.Fit(p, likelihood);
       var referenceDeviance = nlr.Deviance;
       var stats0 = nlr.LaplaceApproximation;
-      p = (double[])stats0.ParamEst.Clone();
+      p = (double[])p.Clone();
 
       var fullAICc = nlr.AICc;
       var fullBIC = nlr.BIC;
@@ -85,10 +85,12 @@ namespace HEAL.NonlinearRegression {
       var impacts = new Dictionary<Expression, double>();
 
       foreach (var subExpr in subexpressions) {
-        // TODO: remove compilation
-        var subExprForEval = Expr.Broadcast(Expression.Lambda<Expr.ParametricFunction>(subExpr, pParam, xParam)).Compile();
-        var eval = new double[likelihood.X.GetLength(0)];
-        subExprForEval(p, likelihood.X, eval);
+        // skip parameters
+        if (subExpr is BinaryExpression binExpr && binExpr.NodeType == ExpressionType.ArrayIndex && binExpr.Left == pParam)
+          continue;
+        var subExprInterpreter = new ExpressionInterpreter(Expression.Lambda<Expr.ParametricFunction>(subExpr, pParam, xParam), likelihood.XCol);
+        var eval = subExprInterpreter.Evaluate(p);
+
         var replValue = eval.Average();
         var reducedExpression = ReplaceSubexpressionWithParameterVisitor.Execute(expr, subExpr, p, replValue, out var newTheta);
         reducedExpression = Expr.FoldParameters(reducedExpression, newTheta, out newTheta);
@@ -98,11 +100,59 @@ namespace HEAL.NonlinearRegression {
         likelihood.ModelExpr = reducedExpression;
         nlr.Fit(newTheta, likelihood);
         if (nlr.ParamEst != null) {
-          var reducedStats = nlr.LaplaceApproximation;
-
           var impact = nlr.Deviance / referenceDeviance;
 
           yield return Tuple.Create(subExpr, impact, nlr.AICc - fullAICc, nlr.BIC - fullBIC);
+        }
+      }
+    }
+
+    public static IEnumerable<(Expression<Expr.ParametricFunction> expr, double[] theta)> NestedModels(Expression<Expr.ParametricFunction> expr, double[] theta, ApproximateLikelihood laplaceApproximation, double alpha = 0.01) {
+      var n = theta.Length;
+      laplaceApproximation.GetParameterIntervals(theta, alpha, out var low, out var high);
+      laplaceApproximation.CalcParameterStatistics(theta, out var se, out _, out _);
+      var zScore = new double[n];
+      for (int i = 0; i < n; i++) {
+        zScore[i] = Math.Abs(theta[i] / se[i]);
+      }
+
+      var idx = Enumerable.Range(0, n).ToArray();
+      Array.Sort(zScore, idx); // order paramIdx by zScore (smallest first)
+
+      foreach (var i in idx) {
+        // replace each parameter with zero
+        if (low[i] <= 0.0 && high[i] >= 0.0) {
+          var newExpr = ReplaceParameterWithConstantVisitor.Execute(expr, expr.Parameters[0], i, 0.0);
+          newExpr = Expr.FoldParameters(newExpr, theta, out var newTheta);
+          yield return (newExpr, newTheta);
+        }
+
+        // replace each parameter with -1
+        if (theta[i] < 0 && low[i] <= -1.0 && high[i] >= -1.0) {
+          var newExpr = ReplaceParameterWithConstantVisitor.Execute(expr, expr.Parameters[0], i, -1);
+          newExpr = Expr.FoldParameters(newExpr, theta, out var newTheta);
+          yield return (newExpr, newTheta);
+        }
+        // replace each parameter with 1
+        if (theta[i] > 0 && low[i] <= 1.0 && high[i] >= 1.0) {
+          var newExpr = ReplaceParameterWithConstantVisitor.Execute(expr, expr.Parameters[0], i, 1);
+          newExpr = Expr.FoldParameters(newExpr, theta, out var newTheta);
+          yield return (newExpr, newTheta);
+        }
+
+        // replace each parameter with the closest integer
+        var intVal = Math.Round(theta[i]);
+
+
+        if (low[i] < intVal && high[i] > intVal && intVal != 0.0 && Math.Abs(intVal) != 1.0) {
+          // compare DL for constant and parameter to approximate improvement by replacing the parameter by a constant
+          // var constDL = Math.Log(Math.Abs(intVal)) + Math.Log(2);
+          // var paramDL = 0.5 * (-Math.Log(3) + Math.Log(laplaceApproximation.diagH[i])) + Math.Log(Math.Abs(theta[i]));
+          // if (constDL < paramDL) {
+          var newExpr = ReplaceParameterWithConstantVisitor.Execute(expr, expr.Parameters[0], i, Math.Round(theta[i]));
+          newExpr = Expr.FoldParameters(newExpr, theta, out var newTheta);
+          yield return (newExpr, newTheta);
+          // }
         }
       }
     }
@@ -119,7 +169,7 @@ namespace HEAL.NonlinearRegression {
     /// <param name="y">Target variable values</param>
     /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
-    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(LikelihoodBase likelihood, 
+    public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(LikelihoodBase likelihood,
       double[] p, int maxIterations, bool verbose = false) {
       var expr = likelihood.ModelExpr;
       var pParam = expr.Parameters[0];
@@ -135,7 +185,6 @@ namespace HEAL.NonlinearRegression {
       var stats0 = nlr.LaplaceApproximation;
       if (stats0 == null) return Enumerable.Empty<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>(); // cannot fit the expression
 
-      p = stats0.ParamEst;
       var n = p.Length; // number of parameters
       var m = likelihood.Y.Length; // number of observations
       var impacts = new List<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>>();
@@ -152,7 +201,7 @@ namespace HEAL.NonlinearRegression {
 
       // for(int paramIdx = 0; paramIdx<p.Length;paramIdx++) { 
       Parallel.For(0, p.Length, (paramIdx) => {
-        var v = new ReplaceParameterWithZeroVisitor(pParam, paramIdx);
+        var v = new ReplaceParameterWithConstantVisitor(pParam, paramIdx, 0.0);
         var reducedExpression = (Expression<Expr.ParametricFunction>)v.Visit(expr);
         //Console.WriteLine($"Reduced: {reducedExpression}");
         // initial values for the reduced expression are the optimal parameters from the full model
@@ -177,26 +226,28 @@ namespace HEAL.NonlinearRegression {
           nlr.Fit(newP, reducedLikelihood, maxIterations: maxIterations);
           var reducedStats = nlr.LaplaceApproximation;
 
-          var ssrFactor = nlr.Deviance / refDeviance;
+          var devianceFactor = nlr.Deviance / refDeviance;
 
-          var reducedN = newP.Length; // number of parameters
-          // likelihood ratio test
-          var fullDoF = m - n;
-          var deltaDoF = n - reducedN; // number of fewer parameters
-          var deltaDeviance = nlr.Deviance - refDeviance;
-          var s2Extra = deltaDeviance / deltaDoF; // increase in deviance per parameter
-          var fRatio = s2Extra / (nlr.Dispersion * nlr.Dispersion);
+          /* TODO: implement this based on "In All Likelihood" Section 6.6
+          if (verbose) {
+            var reducedN = newP.Length; // number of parameters
+                                        // likelihood ratio test
+            var fullDoF = m - n;
+            var deltaDoF = n - reducedN; // number of fewer parameters
+            var deltaDeviance = nlr.Deviance - refDeviance;
+            var devianceExtra = deltaDeviance / deltaDoF; // increase in deviance per parameter
+            var fRatio = devianceExtra / (nlr.Dispersion * nlr.Dispersion);
 
-          // "accept the partial value if the calculated ratio is lower than the table value"
-          var f = alglib.fdistribution(deltaDoF, fullDoF, fRatio);
+            // "accept the partial value if the calculated ratio is lower than the table value"
+            var f = alglib.fdistribution(deltaDoF, fullDoF, fRatio);
 
-          if (verbose)
-            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaDeviance,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1 - f,-10:e3}, " +
+            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {devianceFactor,-11:e3} {deltaDoF,-6} {deltaDeviance,-11:e3} {devianceExtra,-11:e3} {fRatio,-11:e4}, {1 - f,-10:e3}, " +
               $"{nlr.AICc - fullAIC,-11:f1} " +
               $"{nlr.BIC - fullBIC,-11:f1}");
-
+          }
+          */
           lock (impacts) {
-            impacts.Add(Tuple.Create(paramIdx, ssrFactor, nlr.AICc - fullAIC, reducedExpression, newP));
+            impacts.Add(Tuple.Create(paramIdx, devianceFactor, nlr.AICc - fullAIC, reducedExpression, newP));
           }
         } catch (Exception e) {
           // Console.WriteLine($"Exception {e.Message} for {reducedExpression}");
@@ -206,10 +257,5 @@ namespace HEAL.NonlinearRegression {
 
       return impacts; // TODO improve interface
     }
-
-    private static bool IsParameter(Expression expr, ParameterExpression p) {
-      return expr is BinaryExpression binExpr && binExpr.Left == p;
-    }
-
   }
 }

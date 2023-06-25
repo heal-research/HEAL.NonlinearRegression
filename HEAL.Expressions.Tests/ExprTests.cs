@@ -93,7 +93,7 @@ namespace HEAL.Expressions.Tests {
       {
         var dfx_dx = Expr.Derive((p, x) => Math.Pow(p[0] * x[0], 2), 0);
         CompileAndRun(dfx_dx);
-        Assert.AreEqual("(p, x) => (Pow(x[0], 2) * (2 * Pow(p[0], 1)))", dfx_dx.ToString()); // Pow(2*p0, 1) is simplified later
+        Assert.AreEqual("(p, x) => (Pow(x[0], 2) * (2 * p[0]))", dfx_dx.ToString());
       }
     }
 
@@ -444,14 +444,14 @@ namespace HEAL.Expressions.Tests {
         Expression<Expr.ParametricFunction> f = (p, x) => 1.0 / x[0] * x[1] * p[0];
         var theta = new double[] { 2.0, 3.0, 4.0, 5.0 };
         var simplifiedExpr = Expr.FoldParameters(f, theta, out var newP);
-        Assert.AreEqual("(p, x) => ((x[1] / x[0]) * p[0])", simplifiedExpr.ToString()); // TODO
+        Assert.AreEqual("(p, x) => ((x[1] / x[0]) * p[0])", simplifiedExpr.ToString());
         Assert.AreEqual(2.0, newP[0]);
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => 1 / (x[0] * p[0] + x[1] * p[1] + p[2]) * (x[2] * p[3] + p[4]) * p[5];
         var theta = new double[] { 2.0, 3.0, 4.0, 5.0, 6.0, 7.0 };
         var simplifiedExpr = Expr.FoldParameters(f, theta, out var newP);
-        Assert.AreEqual("(p, x) => (((x[2] + p[0]) / ((x[0] + (x[1] * p[1])) + p[2])) * p[3])", simplifiedExpr.ToString()); // TODO
+        Assert.AreEqual("(p, x) => (((x[2] + p[0]) / ((x[0] + (x[1] * p[1])) + p[2])) * p[3])", simplifiedExpr.ToString());
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] + p[1] * Math.Sqrt(p[2] * x[0] + Math.Sqrt(Math.Sqrt(Math.Sqrt(p[3] * x[1] * p[4] * x[1]) * p[5] * x[2] * p[6] * x[1] + p[7] * x[3] * p[8] * x[1])));
