@@ -30,7 +30,7 @@ namespace HEAL.NonlinearRegression {
     }
 
     // for the calculation of deviance
-    public override double BestNegLogLikelihood() {
+    public override double BestNegLogLikelihood(double[] p) {
       return minNegLogLik;
     }
 

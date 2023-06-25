@@ -50,7 +50,7 @@ namespace HEAL.NonlinearRegression {
     }
 
     // for the calculation of deviance
-    public override double BestNegLogLikelihood() {
+    public override double BestNegLogLikelihood(double[] p) {
       int m = y.Length;
       return (m / 2.0) * Math.Log(2 * sErr * sErr * Math.PI); // residuals are zero
     }
