@@ -193,7 +193,7 @@ namespace HEAL.NonlinearRegression {
       var fullBIC = nlr.BIC;
       if (verbose) {
         Console.WriteLine(expr.Body);
-        Console.WriteLine($"theta: {string.Join(", ", p.Select(p => p.ToString("e2")))}");
+        Console.WriteLine($"theta: {string.Join(", ", p.Select(pi => pi.ToString("e2")))}");
         Console.WriteLine($"Full model deviance: {refDeviance,-11:e4}, mean deviance: {refDeviance / m,-11:e4}, AICc: {fullAIC,-11:f1} BIC: {fullBIC,-11:f1}");
         Console.WriteLine($"p{"idx",-5} {"val",-11} {"SSR_factor",-11} {"deltaDoF",-6} {"deltaSSR",-11} {"s2Extra":e3} {"fRatio",-11} {"p value",10} {"deltaAICc"} {"deltaBIC"}");
       }
@@ -220,13 +220,13 @@ namespace HEAL.NonlinearRegression {
 
         // fit reduced model
         try {
-          var nlr = new NonlinearRegression();
+          var localNlr = new NonlinearRegression();
           var reducedLikelihood = likelihood.Clone();
           reducedLikelihood.ModelExpr = reducedExpression;
-          nlr.Fit(newP, reducedLikelihood, maxIterations: maxIterations);
-          var reducedStats = nlr.LaplaceApproximation;
+          localNlr.Fit(newP, reducedLikelihood, maxIterations: maxIterations);
+          var reducedStats = localNlr.LaplaceApproximation;
 
-          var devianceFactor = nlr.Deviance / refDeviance;
+          var devianceFactor = localNlr.Deviance / refDeviance;
 
           /* TODO: implement this based on "In All Likelihood" Section 6.6
           if (verbose) {
@@ -236,18 +236,18 @@ namespace HEAL.NonlinearRegression {
             var deltaDoF = n - reducedN; // number of fewer parameters
             var deltaDeviance = nlr.Deviance - refDeviance;
             var devianceExtra = deltaDeviance / deltaDoF; // increase in deviance per parameter
-            var fRatio = devianceExtra / (nlr.Dispersion * nlr.Dispersion);
+            var fRatio = devianceExtra / (localNlr.Dispersion * localNlr.Dispersion);
 
             // "accept the partial value if the calculated ratio is lower than the table value"
             var f = alglib.fdistribution(deltaDoF, fullDoF, fRatio);
 
             Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {devianceFactor,-11:e3} {deltaDoF,-6} {deltaDeviance,-11:e3} {devianceExtra,-11:e3} {fRatio,-11:e4}, {1 - f,-10:e3}, " +
-              $"{nlr.AICc - fullAIC,-11:f1} " +
-              $"{nlr.BIC - fullBIC,-11:f1}");
+              $"{localNlr.AICc - fullAIC,-11:f1} " +
+              $"{localNlr.BIC - fullBIC,-11:f1}");
           }
           */
           lock (impacts) {
-            impacts.Add(Tuple.Create(paramIdx, devianceFactor, nlr.AICc - fullAIC, reducedExpression, newP));
+            impacts.Add(Tuple.Create(paramIdx, devianceFactor, localNlr.AICc - fullAIC, reducedExpression, newP));
           }
         } catch (Exception e) {
           // Console.WriteLine($"Exception {e.Message} for {reducedExpression}");

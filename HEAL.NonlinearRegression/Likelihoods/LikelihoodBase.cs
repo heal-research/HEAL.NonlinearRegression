@@ -65,7 +65,7 @@ namespace HEAL.NonlinearRegression {
     public abstract double BestNegLogLikelihood(double[] p); // the likelihood of a perfect model (with zero residuals)
 
     public abstract double NegLogLikelihood(double[] p);
-    public abstract void NegLogLikelihoodGradient(double[] p, out double nll, double[]? nll_grad = null);
+    public abstract void NegLogLikelihoodGradient(double[] p, out double nll, double[] nll_grad = null);
 
     public abstract double[,] FisherInformation(double[] p); // negative of Hessian of the log likelihood
 

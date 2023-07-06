@@ -16,11 +16,11 @@ namespace HEAL.NonlinearRegression {
     }
 
     // results
-    private double[]? paramEst;
+    private double[] paramEst;
 
-    public double[]? ParamEst { get { return paramEst?.Clone() as double[]; } }
+    public double[] ParamEst { get { return paramEst?.Clone() as double[]; } }
 
-    public OptimizationReport? OptReport { get; private set; }
+    public OptimizationReport OptReport { get; private set; }
     public ApproximateLikelihood LaplaceApproximation { get; private set; }
 
 
@@ -49,8 +49,8 @@ namespace HEAL.NonlinearRegression {
     /// <param name="stepMax">Optional parameter to limit the step size in the conjugate gradients solver. Can be useful on quickly changing functions (e.g. exponentials).</param>
     /// <param name="callback">A callback which is called on each iteration. Return true to stop the algorithm.</param>
     /// <exception cref="InvalidProgramException"></exception>
-    public void Fit(double[] p, LikelihoodBase likelihood, int maxIterations = 0, double[]? scale = null, double[]? diagHess = null, double stepMax = 0.0, double epsF = 0.0,
-                    Func<double[], double, bool>? callback = null) {
+    public void Fit(double[] p, LikelihoodBase likelihood, int maxIterations = 0, double[] scale = null, double[] diagHess = null, double stepMax = 0.0, double epsF = 0.0,
+                    Func<double[], double, bool> callback = null) {
       this.Likelihood = likelihood;
 
       Fit(p, maxIterations, scale, diagHess, stepMax, epsF, callback);
@@ -59,25 +59,28 @@ namespace HEAL.NonlinearRegression {
       if (paramEst != null && !paramEst.Any(double.IsNaN)) {
         // update sErr with estimated value after fitting (if sErr is at the default value for Gaussian likelihood)
         if (likelihood is SimpleGaussianLikelihood gaussLik && gaussLik.SigmaError == 1.0) {
+          // TODO: should not set SigmaError when the user specified noiseSigma=1.0 on CL
           gaussLik.SigmaError = Math.Sqrt(Deviance / (likelihood.Y.Length - p.Length)); // s = Math.Sqrt(SSR / (m - n))
         }
         LaplaceApproximation = likelihood.LaplaceApproximation(paramEst);
       }
     }
 
-    private void Fit(double[] p, int maxIterations = 0, double[]? scale = null, double[]? diagHess = null, double stepMax = 0.0, double epsF = 0.0, Func<double[], double, bool>? callback = null) {
+    private void Fit(double[] p, int maxIterations = 0, double[] scale = null, double[] diagHess = null, double stepMax = 0.0, double epsF = 0.0, Func<double[], double, bool> callback = null) {
       int n = p.Length;
       if (n == 0) return;
 
-      /*
+
       #region L-BFGS
       alglib.minlbfgscreate(Math.Min(30, p.Length), p, out var state); // TODO: check parameters
-      alglib.minlbfgssetcond(state, 0.0, 0.0, 0.0, maxIterations);
-      alglib.minlbfgsoptguardgradient(state, 1e-6);
+      alglib.minlbfgssetcond(state,0.0, 1e-6, 1e-3, maxIterations);
+      //alglib.minlbfgsoptguardgradient(state, 1e-3);
       // alglib.minlbfgsoptguardsmoothness(state);
       if (scale != null) {
         alglib.minlbfgssetscale(state, scale);
-        alglib.minlbfgssetprecdiag(state, scale);
+      }
+      if (diagHess != null) {
+        alglib.minlbfgssetprecdiag(state, diagHess);
       }
       if (stepMax > 0.0) alglib.minlbfgssetstpmax(state, stepMax);
 
@@ -89,17 +92,30 @@ namespace HEAL.NonlinearRegression {
       }
 
       // objective function for alglib cgoptimize
-      void objFunc(double[] p, ref double f, double[] grad, object obj) {
-        Likelihood.NegLogLikelihoodGradient(p, out f, grad);
+      void objFunc(double[] x, ref double f, double[] grad, object obj) {
+        Likelihood.NegLogLikelihoodGradient(x, out f, grad);
+        // var fisher = Likelihood.FisherInformation(x);
+        // 
+        // if (!fisher.OfType<double>().Any(double.IsNaN) && alglib.spdmatrixcholesky(ref fisher, fisher.GetLength(0), true)) {
+        //   alglib.minlbfgssetcholeskypreconditioner(state, fisher, true);
+        // }
+        if (double.IsNaN(f) || double.IsInfinity(f)) {
+          f = 1e300;
+          Array.Clear(grad, 0, grad.Length);
+        }
       }
 
       alglib.minlbfgsoptimize(state, objFunc, _rep, obj: null);
       alglib.minlbfgsresults(state, out paramEst, out var rep);
-      alglib.minlbfgsoptguardresults(state, out var optGuardRes);
+      // alglib.minlbfgsoptguardresults(state, out var optGuardRes);
+      // if(optGuardRes.badgradsuspected) {
+      //   throw new InvalidProgramException();
+      // }
       #endregion
-      */
+
 
       #region CG
+      /*
       alglib.mincgcreate(p, out var state);
       alglib.mincgsetcond(state, 0.0, epsF, 0.0, maxIterations);
       // alglib.mincgoptguardgradient(state, 1e-6);
@@ -127,7 +143,9 @@ namespace HEAL.NonlinearRegression {
       alglib.mincgoptimize(state, objFunc, _rep, obj: null);
       alglib.mincgresults(state, out paramEst, out var rep);
       // alglib.mincgoptguardresults(state, out var optGuardRes);
-      #endregion      
+      */
+      #endregion
+
       // if successful
       if (rep.terminationtype >= 0) {
         Array.Copy(paramEst, p, p.Length);
@@ -219,10 +237,11 @@ namespace HEAL.NonlinearRegression {
     private void WriteStatistics(TextWriter writer) {
       var dl = ModelSelection.DL(paramEst, Likelihood);
       var dl2 = ModelSelection.DLLattice(paramEst, Likelihood);
-      if (Likelihood is SimpleGaussianLikelihood) {
+      if (Likelihood is SimpleGaussianLikelihood gaussLik) {
         var ssr = Util.SSR(Predict(Likelihood.X), Likelihood.Y);
-        var s = Math.Sqrt(ssr / (Likelihood.NumberOfObservations - paramEst.Length));
-        writer.WriteLine($"SSR: {ssr:e4}  s: {s:e4} AICc: {AICc:f1} BIC: {BIC:f1} DL: {dl:f1}  DL (lattice): {dl2:f1}");
+        var rmse = Math.Sqrt(ssr / (Likelihood.NumberOfObservations - paramEst.Length));
+        var s = gaussLik.SigmaError;
+        writer.WriteLine($"SSR: {ssr:e4}  s: {s:e4} RMSE: {rmse:e4} AICc: {AICc:f1} BIC: {BIC:f1} DL: {dl:f1}  DL (lattice): {dl2:f1}");
       } else {
         writer.WriteLine($"Deviance: {Deviance:e4}  AICc: {AICc:f1} BIC: {BIC:f1} DL: {dl:f1}  DL (lattice): {dl2:f1}");
       }

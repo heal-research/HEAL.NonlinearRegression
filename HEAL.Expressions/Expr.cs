@@ -246,7 +246,7 @@ namespace HEAL.Expressions {
         // Console.WriteLine(expressions[i + 1]);
       }
 
-      expressions[^1] = fVar; // result of the block is the result of the last expression
+      expressions[expressions.Length - 1] = fVar; // result of the block is the result of the last expression
 
       var res = Expression.Lambda<ParametricGradientFunction>(
         Expression.Block(

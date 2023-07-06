@@ -61,8 +61,8 @@ namespace HEAL.NonlinearRegression {
         }
       }
 
-      static double paramCodeLength(double val, double fisherInfo) {
-        return 0.5 * (-Math.Log(3) + Math.Log(fisherInfo)) + Math.Log(Math.Abs(val));
+      double paramCodeLength(double val, double fi) {
+        return 0.5 * (-Math.Log(3) + Math.Log(fi)) + Math.Log(Math.Abs(val));
       }
 
       int numSymbols = allSymbols.Distinct().Count();
@@ -104,28 +104,31 @@ namespace HEAL.NonlinearRegression {
       int numParam = paramEst.Length;
       var fisherInfo = likelihood.FisherInformation(paramEst);
 
-      for (int i = 0; i < numParam; i++) {
-        // if the parameter estimate is not significantly different from zero
-        if (Math.Abs(paramEst[i] / Math.Sqrt(12.0 / fisherInfo[i, i])) < 1.0) {
-          System.Console.Error.WriteLine($"Warning setting param[{i}] = 0 in DL (lattice) calculation for {likelihood.ModelExpr}"); // for debugging
-          paramEst = (double[])paramEst.Clone();
-          paramEst[i] = 0.0;
-        }
-      }
+      // for (int i = 0; i < numParam; i++) {
+      //   // if the parameter estimate is not significantly different from zero
+      //   if (Math.Abs(paramEst[i] / Math.Sqrt(12.0 / fisherInfo[i, i])) < 1.0) {
+      //     System.Console.Error.WriteLine($"Warning setting param[{i}] = 0 in DL (lattice) calculation for {likelihood.ModelExpr}"); // for debugging
+      //     paramEst = (double[])paramEst.Clone();
+      //     paramEst[i] = 0.0;
+      //   }
+      // }
 
       var expr = likelihood.ModelExpr;
       int numNodes = Expr.NumberOfNodes(expr);
       var constants = Expr.CollectConstants(expr).ToList();
       var allSymbols = Expr.CollectSymbols(expr).ToList();
-
+      // fisherInfo = likelihood.FisherInformation(paramEst);
 
       var detFI = alglib.rmatrixdet(fisherInfo);
-      if (detFI <= 0) throw new InvalidOperationException("FI not positive in MDLLattice. ");
+      if (detFI <= 0) {
+        System.Console.Error.WriteLine("FI not positive in MDLLattice. ");
+        return double.MaxValue;
+      }
 
       int numSymbols = allSymbols.Distinct().Count();
 
 
-      static double paramCodeLength(int idx) {
+      double paramCodeLength(int idx) {
         return 0.5 * (1 - Math.Log(3));
       }
 

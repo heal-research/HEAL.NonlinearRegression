@@ -48,10 +48,10 @@ namespace HEAL.NonlinearRegression {
       return nll;
     }
 
-    public override void NegLogLikelihoodGradient(double[] p, out double nll, double[]? nll_grad) {
+    public override void NegLogLikelihoodGradient(double[] p, out double nll, double[] nll_grad) {
       var m = y.Length;
       var n = p.Length;
-      double[,]? yJac = null;
+      double[,] yJac = null;
 
       nll = BestNegLogLikelihood(p);
       double[] yPred;

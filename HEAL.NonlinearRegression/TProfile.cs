@@ -197,9 +197,9 @@ namespace HEAL.NonlinearRegression {
 
       // from R package 'ellipse'
       double MapTau(double tauA, int aIdx, int bIdx) {
-        var a = alglib.spline1dcalc(spline_tau2p[aIdx], tauA * tauScale); // map from tau to a (using t-profile of a)
-        var b = alglib.spline1dcalc(spline_p2q[aIdx, bIdx], a); // map from a to b
-        var tauB = alglib.spline1dcalc(spline_p2tau[bIdx], b); // map from b to tau (using t-profile of b)
+        var _a = alglib.spline1dcalc(spline_tau2p[aIdx], tauA * tauScale); // map from tau to a (using t-profile of a)
+        var _b = alglib.spline1dcalc(spline_p2q[aIdx, bIdx], _a); // map from a to b
+        var tauB = alglib.spline1dcalc(spline_p2tau[bIdx], _b); // map from b to tau (using t-profile of b)
         return Math.Max(-1, Math.Min(1, tauB / tauScale));
       }
       anglePairs[0] = (0, Math.Acos(MapTau(1, pIdx, qIdx)));

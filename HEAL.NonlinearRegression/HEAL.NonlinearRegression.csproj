@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
-    <Nullable>enable</Nullable>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <Description>Fit and evaluate nonlinear regression models.</Description>
     <PackageProjectUrl>https://github.com/heal-research/HEAL.NonlinearRegression</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -60,10 +60,10 @@ namespace HEAL.NonlinearRegression {
       return nll;
     }
 
-    public override void NegLogLikelihoodGradient(double[] p, out double nll, double[]? nll_grad) {
+    public override void NegLogLikelihoodGradient(double[] p, out double nll, double[] nll_grad) {
       var m = y.Length;
       var n = p.Length;
-      double[,]? nll_jac = null;
+      double[,] nll_jac = null;
 
       // get likelihoods and gradients for each row
       var nllArr = new double[m];
@@ -86,7 +86,7 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    public void NegLogLikelihoodJacobian(double[] p, double[] nll, double[,]? nll_jac) {
+    public void NegLogLikelihoodJacobian(double[] p, double[] nll, double[,] nll_jac) {
       if (nll.Length != x.GetLength(0)) throw new ArgumentException("length != nrows(x)", nameof(nll));
 
       var yPred = interpreter.EvaluateWithJac(p, null, nll_jac);

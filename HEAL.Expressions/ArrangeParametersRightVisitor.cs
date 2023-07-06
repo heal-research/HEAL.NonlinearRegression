@@ -87,20 +87,20 @@ namespace HEAL.Expressions {
 
 
 
-    
-    
+
+
     protected override Expression VisitUnary(UnaryExpression node) {
       var operand = Visit(node.Operand);
-      switch ((node, operand)) {
-        case ( { NodeType: ExpressionType.Negate },
-              BinaryExpression(ExpressionType.ArrayIndex, _, ConstantExpression(_) constExpr) binExpr)
-        when binExpr.Left == p: {
-            return NewParam(pValues[(int)constExpr.Value] * -1);
-          }
-        case ( { NodeType: ExpressionType.UnaryPlus }, _): {
-            return operand;
-          }
-        default: return node.Update(operand);
+      if (node.NodeType == ExpressionType.Negate
+        && operand is BinaryExpression binExpr
+        && binExpr.NodeType == ExpressionType.ArrayIndex
+        && binExpr.Left == p
+        && binExpr.Right is ConstantExpression constExpr) {
+        return NewParam(pValues[(int)constExpr.Value] * -1);
+      } else if (node.NodeType == ExpressionType.UnaryPlus) {
+        return operand;
+      } else {
+        return node.Update(operand);
       }
     }
 

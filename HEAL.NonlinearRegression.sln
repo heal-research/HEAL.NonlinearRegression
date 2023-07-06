@@ -13,7 +13,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HEAL.NonlinearRegression.Co
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HEAL.NonlinearRegression.Console.Tests", "HEAL.NonlinearRegression.Console.Tests\HEAL.NonlinearRegression.Console.Tests.csproj", "{0BE7E9C3-03AD-4391-8B1F-8EF6D1F32571}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HEAL.Expressions.Benchmark", "HEAL.Expressions.Benchmark\HEAL.Expressions.Benchmark.csproj", "{BF16618A-70F0-4E47-94CD-D84E8E6172C7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HEAL.Expressions.Benchmark", "HEAL.Expressions.Benchmark\HEAL.Expressions.Benchmark.csproj", "{BF16618A-70F0-4E47-94CD-D84E8E6172C7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
