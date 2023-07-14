@@ -7,6 +7,7 @@ namespace HEAL.Expressions {
   // prepares data structures for repeated efficient evaluation of a single expression
   public class ExpressionInterpreter {
     private readonly int batchSize;
+    private readonly int m;
     private readonly double[][] x;
     private readonly double[][] xBuf;
     private readonly ParameterExpression thetaParam;
@@ -15,9 +16,11 @@ namespace HEAL.Expressions {
     private readonly Instruction[] instrArr;
 
     // x is column oriented
-    public ExpressionInterpreter(Expression<Expr.ParametricFunction> expr, double[][] x, int batchSize = 256) {
-      if (batchSize > x.First().Length) batchSize = x.First().Length;
+    public ExpressionInterpreter(Expression<Expr.ParametricFunction> expr, double[][] x, int nRows, int batchSize = 256) {
+      foreach (var xi in x) if (xi.Length != nRows) throw new ArgumentException("len(x_i) != nRows");
+      if (x.Length > 0 && batchSize > x.First().Length) batchSize = x.First().Length;
       this.batchSize = batchSize;
+      this.m = nRows;
 
       this.x = x;
       this.xBuf = x.Select(_ => new double[batchSize]).ToArray(); // buffer of batchSize for each variable
@@ -73,7 +76,6 @@ namespace HEAL.Expressions {
 
     // all rows
     public double[] Evaluate(double[] theta) {
-      var m = x.First().Length;
       var remainderStart = (m / batchSize) * batchSize; // integer divison
       var f = new double[m];
       for (int startRow = 0; startRow < remainderStart; startRow += batchSize) {
@@ -132,7 +134,6 @@ namespace HEAL.Expressions {
       return instrArr.Last().values;
     }
     public double[] EvaluateWithJac(double[] theta, double[,] jacX, double[,] jacTheta) {
-      var m = x.First().Length;
       var remainderStart = (m / batchSize) * batchSize; // integer divison
       var f = new double[m];
       for (int startRow = 0; startRow < remainderStart; startRow += batchSize) {

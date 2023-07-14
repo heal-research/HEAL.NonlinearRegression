@@ -4,6 +4,9 @@ using System.Linq.Expressions;
 namespace HEAL.NonlinearRegression {
 
   // errors are iid N(0, noise_sigma)
+  // all measurements have the same sigma
+
+  // TODO: could use GaussianLikelihood instead
   public class SimpleGaussianLikelihood : LikelihoodBase {
     private double sErr;
     public double SigmaError { get { return sErr; } set { sErr = value; } }

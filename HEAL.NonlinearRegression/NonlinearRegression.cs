@@ -190,7 +190,7 @@ namespace HEAL.NonlinearRegression {
     /// <exception cref="InvalidOperationException">When Fit() or SetModel() has not been called first.</exception>
     public double[] Predict(double[,] x) {
       if (paramEst == null) throw new InvalidOperationException("Call Fit or SetModel first.");
-      var interpreter = new ExpressionInterpreter(Likelihood.ModelExpr, Util.ToColumns(x));
+      var interpreter = new ExpressionInterpreter(Likelihood.ModelExpr, Util.ToColumns(x), x.GetLength(0));
       return interpreter.Evaluate(paramEst);
     }
 

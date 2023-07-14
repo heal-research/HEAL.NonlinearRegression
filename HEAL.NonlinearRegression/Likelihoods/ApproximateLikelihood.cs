@@ -135,7 +135,7 @@ namespace HEAL.NonlinearRegression {
       CalcParameterStatistics(pOpt, out _, out var invH, out _);
 
       // cannot use the interpreter of the likelihood because we now need to evaluate the model for a new dataset x
-      var interpreter = new ExpressionInterpreter(ModelExpr, Util.ToColumns(x));
+      var interpreter = new ExpressionInterpreter(ModelExpr, Util.ToColumns(x), numRows);
       var yPred = interpreter.EvaluateWithJac(pOpt, null, yJac);
 
       for (int i = 0; i < numRows; i++) {

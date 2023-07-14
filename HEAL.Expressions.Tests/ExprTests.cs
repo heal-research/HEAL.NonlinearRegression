@@ -777,7 +777,7 @@ namespace HEAL.Expressions.Tests {
       var jacX = new double[N, 3];
       Expr.Broadcast(Expr.Gradient(expr, t.Length)).Compile()(t, X, f, symJ);
 
-      var interpreter = new ExpressionInterpreter(expr, colX);
+      var interpreter = new ExpressionInterpreter(expr, colX, N);
       interpreter.EvaluateWithJac(t, jacX, autoJ);
       for (int i = 0; i < N; i++) {
         for (int j = 0; j < 5; j++)

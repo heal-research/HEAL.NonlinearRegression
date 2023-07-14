@@ -45,10 +45,10 @@ namespace HEAL.NonlinearRegression {
         if (modelExpr != null) {
           numModelParams = Expr.NumberOfParameters(modelExpr);
 
-          interpreter = new ExpressionInterpreter(modelExpr, xCol);
+          interpreter = new ExpressionInterpreter(modelExpr, xCol, NumberOfObservations);
           // TODO: use forward/reverse autodiff for Hessian
           ModelGradient = Enumerable.Range(0, numModelParams).Select(pIdx => Expr.Derive(modelExpr, pIdx)).ToArray();
-          gradInterpreter = ModelGradient.Select(g => new ExpressionInterpreter(g, xCol)).ToArray();
+          gradInterpreter = ModelGradient.Select(g => new ExpressionInterpreter(g, xCol, NumberOfObservations)).ToArray();
         } else {
           numModelParams = 0;
           interpreter = null;

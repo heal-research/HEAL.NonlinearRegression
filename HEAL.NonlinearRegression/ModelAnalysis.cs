@@ -88,7 +88,7 @@ namespace HEAL.NonlinearRegression {
         // skip parameters
         if (subExpr is BinaryExpression binExpr && binExpr.NodeType == ExpressionType.ArrayIndex && binExpr.Left == pParam)
           continue;
-        var subExprInterpreter = new ExpressionInterpreter(Expression.Lambda<Expr.ParametricFunction>(subExpr, pParam, xParam), likelihood.XCol);
+        var subExprInterpreter = new ExpressionInterpreter(Expression.Lambda<Expr.ParametricFunction>(subExpr, pParam, xParam), likelihood.XCol, likelihood.Y.Length);
         var eval = subExprInterpreter.Evaluate(p);
 
         var replValue = eval.Average();
