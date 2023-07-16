@@ -119,11 +119,13 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.Exp: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Exp(rightVal[i]); } break;
           case Instruction.OpcEnum.Sin: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Sin(rightVal[i]); } break;
           case Instruction.OpcEnum.Cos: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Cos(rightVal[i]); } break;
+          case Instruction.OpcEnum.Cosh: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Cosh(rightVal[i]); } break;
           case Instruction.OpcEnum.Tanh: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Tanh(rightVal[i]); } break;
           case Instruction.OpcEnum.Pow: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Pow(leftVal[i], rightVal[i]); } break;
           case Instruction.OpcEnum.Sqrt: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Sqrt(rightVal[i]); } break;
           case Instruction.OpcEnum.Cbrt: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.Cbrt(rightVal[i]); } break;
           case Instruction.OpcEnum.Sign: for (int i = 0; i < batchSize; i++) { curVal[i] = double.IsNaN(rightVal[i]) ? double.NaN : Math.Sign(rightVal[i]); } break;
+          // case Instruction.OpcEnum.AQ: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.AQ(leftVal[i], rightVal[i]); } break;
           case Instruction.OpcEnum.Logistic: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.Logistic(rightVal[i]); } break;
           case Instruction.OpcEnum.InvLogistic: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.InvLogistic(rightVal[i]); } break;
           case Instruction.OpcEnum.LogisticPrime: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.LogisticPrime(rightVal[i]); } break;
@@ -198,6 +200,7 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.Exp: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * curVal[i]; } break;
           case Instruction.OpcEnum.Sin: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Math.Cos(rightVal[i]); } break;
           case Instruction.OpcEnum.Cos: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * -Math.Sin(rightVal[i]); } break;
+          case Instruction.OpcEnum.Cosh: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Math.Sinh(rightVal[i]); } break;
           case Instruction.OpcEnum.Tanh: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * 2.0 / (Math.Cosh(2.0 * rightVal[i]) + 1); } break;
           case Instruction.OpcEnum.Pow:
             for (int i = 0; i < batchSize; i++) {
@@ -208,6 +211,12 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.Sqrt: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * 0.5 / curVal[i]; } break;
           case Instruction.OpcEnum.Cbrt: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] / (3.0 * curVal[i] * curVal[i]); } break;
           case Instruction.OpcEnum.Sign: for (int i = 0; i < batchSize; i++) { rightDiff[i] = 0.0; } break;
+          // case Instruction.OpcEnum.AQ:
+          //   for (int i = 0; i < batchSize; i++) {
+          //     leftDiff[i] = curDiff[i] / rightVal[i];
+          //     rightDiff[i] = -curDiff[i] * leftVal[i] / (rightVal[i] * rightVal[i]);
+          //   }
+          //   break;
           case Instruction.OpcEnum.Logistic: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Functions.LogisticPrime(rightVal[i]); } break;
           case Instruction.OpcEnum.InvLogistic: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Functions.InvLogisticPrime(rightVal[i]); } break;
           case Instruction.OpcEnum.LogisticPrime: for (int i = 0; i < batchSize; i++) { rightDiff[i] = curDiff[i] * Functions.LogisticPrimePrime(rightVal[i]); } break;
@@ -244,10 +253,11 @@ namespace HEAL.Expressions {
     private static readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
     private static readonly MethodInfo log = typeof(Math).GetMethod("Log", new[] { typeof(double) });
     private static readonly MethodInfo tanh = typeof(Math).GetMethod("Tanh", new[] { typeof(double) });
-    // private static readonly MethodInfo cosh = typeof(Math).GetMethod("Cosh", new[] { typeof(double) });
+    private static readonly MethodInfo cosh = typeof(Math).GetMethod("Cosh", new[] { typeof(double) });
     private static readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
     private static readonly MethodInfo cbrt = typeof(Functions).GetMethod("Cbrt", new[] { typeof(double) });
     private static readonly MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
+    // private static readonly MethodInfo aq = typeof(Functions).GetMethod("AQ", new[] { typeof(double), typeof(double) });
     private static readonly MethodInfo sign = typeof(Functions).GetMethod("Sign", new[] { typeof(double) }); // for deriv abs(x)
     private static readonly MethodInfo logistic = typeof(Functions).GetMethod("Logistic", new[] { typeof(double) });
     private static readonly MethodInfo invlogistic = typeof(Functions).GetMethod("InvLogistic", new[] { typeof(double) });
@@ -277,11 +287,13 @@ namespace HEAL.Expressions {
             if (callExpr.Method == exp) return Instruction.OpcEnum.Exp;
             if (callExpr.Method == sin) return Instruction.OpcEnum.Sin;
             if (callExpr.Method == cos) return Instruction.OpcEnum.Cos;
+            if (callExpr.Method == cosh) return Instruction.OpcEnum.Cosh;
             if (callExpr.Method == tanh) return Instruction.OpcEnum.Tanh;
             if (callExpr.Method == pow) return Instruction.OpcEnum.Pow;
             if (callExpr.Method == sqrt) return Instruction.OpcEnum.Sqrt;
             if (callExpr.Method == cbrt) return Instruction.OpcEnum.Cbrt;
             if (callExpr.Method == sign) return Instruction.OpcEnum.Sign;
+            // if (callExpr.Method == aq) return Instruction.OpcEnum.AQ;
             if (callExpr.Method == logistic) return Instruction.OpcEnum.Logistic;
             if (callExpr.Method == invlogistic) return Instruction.OpcEnum.InvLogistic;
             if (callExpr.Method == logisticPrime) return Instruction.OpcEnum.LogisticPrime;
@@ -293,7 +305,7 @@ namespace HEAL.Expressions {
     }
 
     private struct Instruction {
-      public enum OpcEnum { None, Const, Param, Var, Neg, Add, Sub, Mul, Div, Log, Abs, Exp, Sin, Cos, Tanh, Pow, Sqrt, Cbrt, Sign, Logistic, InvLogistic, LogisticPrime, InvLogisticPrime };
+      public enum OpcEnum { None, Const, Param, Var, Neg, Add, Sub, Mul, Div, Log, Abs, Exp, Sin, Cos, Cosh, Tanh, Pow, Sqrt, Cbrt, Sign, Logistic, InvLogistic, LogisticPrime, InvLogisticPrime };
       public int length;
       public OpcEnum opc;
       public double[] values;
