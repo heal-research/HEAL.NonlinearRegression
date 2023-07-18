@@ -68,7 +68,16 @@ namespace HEAL.NonlinearRegression {
 
     private void Fit(double[] p, int maxIterations = 0, double[] scale = null, double[] diagHess = null, double stepMax = 0.0, double epsF = 0.0, Func<double[], double, bool> callback = null) {
       int n = p.Length;
-      if (n == 0) return;
+      if (n == 0) {
+        OptReport = new OptimizationReport() {
+          Success = true,
+          Iterations = 0,
+          NumFuncEvals = 0,
+          NumJacEvals = 0
+        };
+
+        return;
+      }
 
 
       #region L-BFGS
