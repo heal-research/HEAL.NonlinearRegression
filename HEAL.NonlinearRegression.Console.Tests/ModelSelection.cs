@@ -52,5 +52,41 @@ namespace HEAL.NonlinearRegression.Console.Tests {
       // HEAL.NonlinearRegression.ModelAnalysis.NestedModels(likelihood.ModelExpr, nlr.ParamEst, nlr.LaplaceApproximation);
       // HEAL.NonlinearRegression.ModelSelection.MDLLatticeWithIntegerSnap(nlr.ParamEst, likelihood, nlr.LaplaceApproximation, out var bestExpr, out var bestParamEst);
     }
+
+    [Test]
+    public void PuromycinUsageExample() {
+      #region data
+      var x = new double[,] {
+                             { 0.02 },
+                             { 0.02 },
+                             { 0.06 },
+                             { 0.06 },
+                             { 0.11 },
+                             { 0.11 },
+                             { 0.22 },
+                             { 0.22 },
+                             { 0.56 },
+                             { 0.56 },
+                             { 1.10 },
+                             { 1.10 }};
+      var y = new double[] {76
+                           ,47
+                           ,97
+                           ,107
+                           ,123
+                           ,139
+                           ,159
+                           ,152
+                           ,191
+                           ,201
+                           ,207
+                           ,200 };
+      #endregion
+
+      var nlr = new NonlinearRegression();
+      var likelihood = new SimpleGaussianLikelihood(x, y, (p, x) => p[0] * x[0] / (1.0 + p[1] * x[0]));
+      nlr.Fit(p: new double[] {0.1, 0.1 }, likelihood);
+      nlr.WriteStatistics();
+    }
   }
 }
