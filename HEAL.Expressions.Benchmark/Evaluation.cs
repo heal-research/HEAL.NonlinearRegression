@@ -10,10 +10,10 @@ namespace HEAL.Expressions.Benchmark {
     public int N;
 
     // number of evaluations (after compilation) (as e.g. in CG optimizer)
-    [Params(1, 10 /* , 50*/)]
+    [Params(1, 10 /* , 50*/, 100)]
     public int numEvals;
 
-    [Params(4, 8, 16, 32, 64, 128, 256, 512, 1024)]
+    [Params(/*4, 8, 16, 32, 64, 128, */ 256/*, 512, 1024*/)]
     public int batchSize;
 
     public int Dim = 10;
@@ -44,7 +44,7 @@ namespace HEAL.Expressions.Benchmark {
     public double[] EvalWithInterpreter() {
       var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       double[] f = null;
-      var interpreter = new ExpressionInterpreter(expr, dataCols, batchSize );
+      var interpreter = new ExpressionInterpreter(expr, dataCols, N, batchSize );
       for (int i = 0; i < numEvals; i++) {
         f = interpreter.Evaluate(theta);
       }
@@ -68,7 +68,7 @@ namespace HEAL.Expressions.Benchmark {
       double[] f;
       double[,] jacP = new double[N, theta.Length];
       double[,] jacX = new double[N, Dim];
-      var interpreter = new ExpressionInterpreter(expr, dataCols, batchSize);
+      var interpreter = new ExpressionInterpreter(expr, dataCols, N, batchSize);
       for (int i = 0; i < numEvals; i++) {
         f = interpreter.EvaluateWithJac(theta, jacX, jacP);
       }
