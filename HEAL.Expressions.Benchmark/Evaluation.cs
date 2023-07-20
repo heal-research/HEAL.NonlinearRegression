@@ -51,7 +51,7 @@ namespace HEAL.Expressions.Benchmark {
       return f;
     }
 
-    // [Benchmark]
+    [Benchmark]
     public double[] EvalWithCompiler() {
       var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       var func = Expr.Broadcast(expr).Compile();
@@ -75,7 +75,7 @@ namespace HEAL.Expressions.Benchmark {
       return jacP;
     }
 
-    // [Benchmark]
+    [Benchmark]
     public double[,] EvalJacobianWithCompiler() {
       var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       var funcJac = Expr.Jacobian(expr, theta.Length).Compile();
