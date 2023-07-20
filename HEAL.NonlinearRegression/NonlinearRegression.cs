@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using HEAL.Expressions;
@@ -10,8 +11,10 @@ namespace HEAL.NonlinearRegression {
       public int NumFuncEvals { get; internal set; }
       public int Iterations { get; internal set; }
       public bool Success { get; internal set; }
+
+      public TimeSpan Runtime { get; internal set; }
       public override string ToString() {
-        return $"Successful: {Success}, NumIters: {Iterations}, NumFuncEvals: {NumFuncEvals}, NumJacEvals: {NumJacEvals}";
+        return $"Successful: {Success}, Runtime {Runtime.TotalSeconds:f2}s, NumIters: {Iterations}, NumFuncEvals: {NumFuncEvals}, NumJacEvals: {NumJacEvals}";
       }
     }
 
@@ -115,8 +118,12 @@ namespace HEAL.NonlinearRegression {
         }
       }
 
+      var sw = new Stopwatch();
+      sw.Start();
       alglib.minlbfgsoptimize(state, objFunc, _rep, obj: null);
       alglib.minlbfgsresults(state, out paramEst, out var rep);
+      sw.Stop();
+
       // alglib.minlbfgsoptguardresults(state, out var optGuardRes);
       // if(optGuardRes.badgradsuspected) {
       //   throw new InvalidProgramException();
@@ -164,7 +171,8 @@ namespace HEAL.NonlinearRegression {
           Success = true,
           Iterations = rep.iterationscount,
           NumFuncEvals = rep.nfev,
-          NumJacEvals = rep.nfev
+          NumJacEvals = rep.nfev,
+          Runtime = sw.Elapsed
         };
       } else {
         // error
@@ -173,7 +181,8 @@ namespace HEAL.NonlinearRegression {
           Success = false,
           Iterations = rep.iterationscount,
           NumFuncEvals = rep.nfev,
-          NumJacEvals = rep.nfev
+          NumJacEvals = rep.nfev,
+          Runtime = sw.Elapsed
         };
       }
     }
