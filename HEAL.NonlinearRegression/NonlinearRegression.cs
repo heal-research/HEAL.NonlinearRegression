@@ -83,7 +83,7 @@ namespace HEAL.NonlinearRegression {
 
       #region L-BFGS
       alglib.minlbfgscreate(Math.Min(30, p.Length), p, out var state); // TODO: check parameters
-      alglib.minlbfgssetcond(state,0.0, 1e-6, 1e-3, maxIterations);
+      alglib.minlbfgssetcond(state, 0.0, 0, 1e-5 , maxIterations);
       //alglib.minlbfgsoptguardgradient(state, 1e-3);
       // alglib.minlbfgsoptguardsmoothness(state);
       if (scale != null) {

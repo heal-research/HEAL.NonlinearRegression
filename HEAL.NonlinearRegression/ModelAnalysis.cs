@@ -14,30 +14,24 @@ namespace HEAL.NonlinearRegression {
     /// <summary>
     /// Replaces all references to a variable in the model by a parameter. Re-fits the model and returns the increase in R²
     /// </summary>
-    /// <param name="expr">The full model expression</param>
-    /// <param name="X">Input values</param>
-    /// <param name="y">Target values</param>
-    /// <param name="p">Initial parameter values for the full model</param>
     /// <returns></returns>
     public static Dictionary<int, double> VariableImportance(LikelihoodBase likelihood, double[] p) {
       var nlr = new NonlinearRegression();
       nlr.Fit(p, likelihood);
       var pOpt = p;
       var origExpr = likelihood.ModelExpr;
-      var stats0 = nlr.LaplaceApproximation;
       var referenceDeviance = nlr.Deviance;
       var m = likelihood.X.GetLength(0);
       var d = likelihood.X.GetLength(1);
 
       var mean = new double[d];
       for (int i = 0; i < d; i++) {
-        mean[i] = Enumerable.Range(0, m).Select(r => likelihood.X[r, i]).Average();
+        mean[i] = Enumerable.Range(0, m).Select(r => likelihood.X[r, i]).Average(); // mean of each variable (as initial value for the parameters)
       }
 
       var varExpl = new Dictionary<int, double>();
       for (int varIdx = 0; varIdx < d; varIdx++) {
-        var newExpr = Expr.ReplaceVariableWithParameter(origExpr, (double[])pOpt.Clone(),
-          varIdx, mean[varIdx], out var newThetaValues);
+        var newExpr = Expr.ReplaceVariableWithParameter(origExpr, (double[])pOpt.Clone(), varIdx, mean[varIdx], out var newThetaValues);
         newExpr = Expr.FoldParameters(newExpr, newThetaValues, out newThetaValues);
         likelihood.ModelExpr = newExpr;
         nlr = new NonlinearRegression();
@@ -46,7 +40,6 @@ namespace HEAL.NonlinearRegression {
           Console.WriteLine("Problem while fitting");
           varExpl[varIdx] = 0.0;
         } else {
-          var newStats = nlr.LaplaceApproximation;
           // increase in variance for the reduced feature = variance explained by the feature
           varExpl[varIdx] = (nlr.Deviance - referenceDeviance) / likelihood.Y.Length;
         }
@@ -159,15 +152,7 @@ namespace HEAL.NonlinearRegression {
 
     /// <summary>
     /// Replaces each parameter in the model by a zero and re-fits the model for a comparison of nested models.
-    /// We use a likelihood ratio test for model comparison which is exact for linear models.
-    /// For nonlinear models the linear approximation is ok as long as the reduced model has similar fit as the full model.
-    /// See "Bates and Watts, Nonlinear regression and its applications section on Comparing Models - Nested Models"
-    /// for the argumentation. 
     /// </summary>
-    /// <param name="expr">The full model</param>
-    /// <param name="X">Input values.</param>
-    /// <param name="y">Target variable values</param>
-    /// <param name="p">Initial parameters for the full model</param>
     /// <returns></returns>
     public static IEnumerable<Tuple<int, double, double, Expression<Expr.ParametricFunction>, double[]>> NestedModelLiklihoodRatios(LikelihoodBase likelihood,
       double[] p, int maxIterations, bool verbose = false) {
@@ -228,6 +213,10 @@ namespace HEAL.NonlinearRegression {
 
           var devianceFactor = localNlr.Deviance / refDeviance;
 
+          /// We use a likelihood ratio test for model comparison which is exact for linear models.
+          /// For nonlinear models the linear approximation is ok as long as the reduced model has similar fit as the full model.
+          /// See "Bates and Watts, Nonlinear regression and its applications section on Comparing Models - Nested Models"
+          /// for the argumentation. 
           /* TODO: implement this based on "In All Likelihood" Section 6.6
           if (verbose) {
             var reducedN = newP.Length; // number of parameters

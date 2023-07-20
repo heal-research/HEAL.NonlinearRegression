@@ -344,21 +344,10 @@ namespace HEAL.NonlinearRegression.Console {
         foreach (var subModel in allModels) {
           (parametricExpr, p) = subModel;
 
-          // output training, CV, and test result for original model
           nlr = new NonlinearRegression();
           nlr.SetModel(p, CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY));
           var stats = nlr.LaplaceApproximation;
           var deviance = nlr.Deviance;
-          // var rmseTrain = Math.Sqrt(deviance / trainY.Length);
-          // var ssrTest = EvaluateSSR(parametricExpr, p, testX, testY, out _);
-          // var rmseTest = Math.Sqrt(ssrTest / testY.Length);
-          // var cvrmseMean = double.NaN;
-          // var cvrmseStd = double.NaN;
-          // try {
-          //   var cvrmse = CrossValidate(parametricExpr, options.Likelihood, p, trainX, trainY, folds: 5);
-          //   cvrmseMean = cvrmse.Average();
-          //   cvrmseStd = Math.Sqrt(Util.Variance(cvrmse.ToArray()));
-          // } catch (Exception) { }
           var aicc = nlr.AICc;
           var bic = nlr.BIC;
           var n = p.Length;

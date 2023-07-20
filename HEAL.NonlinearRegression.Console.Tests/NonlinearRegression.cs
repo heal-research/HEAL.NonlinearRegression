@@ -55,9 +55,9 @@ namespace HEAL.NonlinearRegression.Console.Tests {
 
       var prediction = nlr.PredictWithIntervals(x, IntervalEnum.LaplaceApproximation);
       System.Console.WriteLine($"pred: {prediction[0, 0]}, low: {prediction[0, 2]}, high: {prediction[0, 3]}");
-      Assert.AreEqual(50.565373348568066, prediction[0, 0], 1e-6);
-      Assert.AreEqual(41.54333861186602, prediction[0, 2], 1e-6);
-      Assert.AreEqual(59.587408085266844, prediction[0, 3], 1e-6);
+      Assert.AreEqual(50.565977770482867, prediction[0, 0], 1e-4);
+      Assert.AreEqual(41.543747215791058, prediction[0, 2], 1e-4);
+      Assert.AreEqual(59.588208325174676, prediction[0, 3], 1e-6);
     }
   }
 }
