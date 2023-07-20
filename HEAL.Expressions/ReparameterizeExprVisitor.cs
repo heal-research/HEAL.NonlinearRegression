@@ -88,7 +88,7 @@ namespace HEAL.Expressions {
     private Expression CreateInverseFunction(Expression operand) {
       while (funcStack.Any()) {
         var f = funcStack.Pop();
-        if (f.NodeType == ExpressionType.UnaryPlus) operand = operand; // do nothing 
+        if (f.NodeType == ExpressionType.UnaryPlus) ; // do nothing 
         else if (f.NodeType == ExpressionType.Negate) operand = Expression.Negate(operand);
         else if (f is MethodCallExpression methCallExpr && methCallExpr.Method == logistic) operand = Expression.Call(invlogistic, new[] { operand });
         else throw new NotSupportedException($"inverse of {f} is not supported");

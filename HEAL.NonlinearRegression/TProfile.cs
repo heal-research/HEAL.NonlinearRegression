@@ -1,5 +1,4 @@
 ﻿using HEAL.Expressions;
-using HEAL.NonlinearRegression.Likelihoods;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,8 +9,8 @@ namespace HEAL.NonlinearRegression {
   public class TProfile {
     private readonly double[] paramEst;
     private readonly double[] paramStdError;
-    private readonly int m;
     private readonly int n;
+    private readonly int m;
 
     private readonly Tuple<double[], double[][]>[] t_profiles;
     private readonly alglib.spline1dinterpolant[] spline_tau2p;
@@ -21,16 +20,16 @@ namespace HEAL.NonlinearRegression {
     // Calculate t-profiles for all parameters.
     // Bates and Watts, Appendix A3.5
 
-    public TProfile(LaplaceApproximation statistics, LikelihoodBase likelihood) {
-      this.paramEst = statistics.ParamEst;
-      this.paramStdError = statistics.ParamStdError;
-      this.m = statistics.m;
-      this.n = statistics.n;
+    public TProfile(double[] paramEst, ApproximateLikelihood laplaceApproximation, LikelihoodBase likelihood) {
+      this.paramEst = (double[])paramEst.Clone();
+      laplaceApproximation.CalcParameterStatistics(paramEst, out this.paramStdError, out _, out _);
+      this.n = paramEst.Length;
+      this.m = likelihood.Y.Length;
 
-      t_profiles = new Tuple<double[], double[][]>[statistics.n]; // for each parameter the tau values and the matrix of parameters
+      t_profiles = new Tuple<double[], double[][]>[n]; // for each parameter the tau values and the matrix of parameters
 
-      for (int pIdx = 0; pIdx < statistics.n; pIdx++) {
-        t_profiles[pIdx] = CalcTProfile(statistics, likelihood, pIdx);
+      for (int pIdx = 0; pIdx < n; pIdx++) {
+        t_profiles[pIdx] = CalcTProfile(paramEst, laplaceApproximation, likelihood, pIdx);
       }
 
 
@@ -55,15 +54,16 @@ namespace HEAL.NonlinearRegression {
       }
     }
 
-    public static Tuple<double[], double[][]> CalcTProfile(LaplaceApproximation statistics, LikelihoodBase likelihood, int pIdx) {
+    public static Tuple<double[], double[][]> CalcTProfile(double[] paramEst, ApproximateLikelihood laplaceApproximation, LikelihoodBase likelihood, int pIdx) {
       const int kmax = 300;
       const int step = 16;
 
-      restart:
-      var paramEst = statistics.ParamEst;
+    restart:
       int n = paramEst.Length;
-      var paramStdError = statistics.ParamStdError; // approximate value, only used for scaling and to determine initial step size
-
+      // TODO: slow (do not recalculate every time)
+      laplaceApproximation.CalcParameterStatistics(paramEst, out var paramStdError, out var invH, out _); // approximate value, only used for scaling and to determine initial step size
+      var diagH = new double[paramEst.Length];
+      for (int i = 0; i < diagH.Length; i++) diagH[i] = 1.0 / invH[i, i];
 
       // in R: (parameterization taken from: https://github.com/wch/r-source/blob/03f8775bf4ae55129fa76318de2394059613353f/src/library/stats/R/nls-profile.R#L144)
       // > qf(1 - 0.01, 1L, 12 - 2) 10.04429
@@ -89,7 +89,7 @@ namespace HEAL.NonlinearRegression {
       alglib.mincgcreate(paramEst, out var state);
       alglib.mincgsetcond(state, 0.0, 0.0, 0.0, 0);
       alglib.mincgsetscale(state, paramStdError);
-      alglib.mincgsetprecdiag(state, statistics.diagH);
+      alglib.mincgsetprecdiag(state, diagH);
       // alglib.mincgoptguardgradient(state, 1e-8);
       #endregion
 
@@ -98,7 +98,7 @@ namespace HEAL.NonlinearRegression {
         var invSlope = 1.0;
         var p_cond = (double[])paramEst.Clone();
         for (int k = 0; k < kmax; k++) {
-          t = t + invSlope;
+          t += invSlope;
           var curP = paramEst[pIdx] + delta * t;
 
           // minimize
@@ -197,9 +197,9 @@ namespace HEAL.NonlinearRegression {
 
       // from R package 'ellipse'
       double MapTau(double tauA, int aIdx, int bIdx) {
-        var a = alglib.spline1dcalc(spline_tau2p[aIdx], tauA * tauScale); // map from tau to a (using t-profile of a)
-        var b = alglib.spline1dcalc(spline_p2q[aIdx, bIdx], a); // map from a to b
-        var tauB = alglib.spline1dcalc(spline_p2tau[bIdx], b); // map from b to tau (using t-profile of b)
+        var _a = alglib.spline1dcalc(spline_tau2p[aIdx], tauA * tauScale); // map from tau to a (using t-profile of a)
+        var _b = alglib.spline1dcalc(spline_p2q[aIdx, bIdx], _a); // map from a to b
+        var tauB = alglib.spline1dcalc(spline_p2tau[bIdx], _b); // map from b to tau (using t-profile of b)
         return Math.Max(-1, Math.Min(1, tauB / tauScale));
       }
       anglePairs[0] = (0, Math.Acos(MapTau(1, pIdx, qIdx)));
@@ -240,7 +240,7 @@ namespace HEAL.NonlinearRegression {
 
     public static void GetPredictionIntervals(double[,] x, NonlinearRegression nls, out double[] low, out double[] high, double alpha = 0.05) {
       var predRows = x.GetLength(0); // the points for which we calculate the prediction interval
-      var trainRows = nls.y.Length;
+      var trainRows = nls.Likelihood.Y.Length;
       var n = nls.ParamEst.Length; // number of model parameters
       var d = x.GetLength(1); // number of features
 
@@ -273,13 +273,13 @@ namespace HEAL.NonlinearRegression {
           var xi = new double[d];
           Buffer.BlockCopy(x, i * d * sizeof(double), xi, 0, d * sizeof(double));
 
-          var reparameterizedModel = Expr.ReparameterizeExpr(nls.modelExpr, xi, out var outputParamIdx);
+          var reparameterizedModel = Expr.ReparameterizeExpr(nls.Likelihood.ModelExpr, xi, out var outputParamIdx);
           paramEstExt[outputParamIdx] = yPred[i];
 
           var likelihoodExt = nls.Likelihood.Clone();
           likelihoodExt.ModelExpr = reparameterizedModel; // leads to recompilation (TODO: we can reuse one model if x parameter is extended to include x0)
 
-          var profile = CalcTProfile(new LaplaceApproximation(trainRows, n, paramEstExt, likelihoodExt), likelihoodExt, outputParamIdx); // only for the function output parameter
+          var profile = CalcTProfile(paramEstExt, likelihoodExt.LaplaceApproximation(paramEstExt), likelihoodExt, outputParamIdx); // only for the function output parameter
 
           var tau = profile.Item1;
           var theta = new double[tau.Length];

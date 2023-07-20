@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using System.Reflection.Emit;
 
 namespace HEAL.Expressions {
   // collects only the values of the parameters that actually occur in the expression
@@ -18,6 +19,13 @@ namespace HEAL.Expressions {
 
     public double[] GetNewParameterValues => newPValues.ToArray();
 
+
+    public static Expression<Expr.ParametricFunction> Execute(Expression<Expr.ParametricFunction> expr, double[] theta, out double[] newTheta) {
+      var v = new CollectParametersVisitor(expr.Parameters[0], theta);
+      var newExpr = v.Visit(expr);
+      newTheta = v.GetNewParameterValues;
+      return (Expression<Expr.ParametricFunction>)newExpr;
+    }
 
     protected override Expression VisitBinary(BinaryExpression node) {
       if (IsParam(node, out var _, out var pIdx)) {

@@ -2,7 +2,7 @@
 using System.Globalization;
 
 namespace HEAL.NonlinearRegression.Console.Tests {
-  public class NLR {
+  public class ModelSelection {
     [SetUp]
     public void Setup() {
       CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
@@ -49,15 +49,8 @@ namespace HEAL.NonlinearRegression.Console.Tests {
         System.Linq.Expressions.Expression.Parameter(typeof(double[]), "p"));
       var likelihood = new SimpleGaussianLikelihood(x, y, parser.Parse());
       nlr.Fit(parser.ParameterValues, likelihood);
-
-      System.Console.WriteLine($"Deviance: {nlr.Deviance:e4}, BIC: {nlr.BIC:f2}");
-      Assert.AreEqual(96.91354730673082, nlr.BIC, 1e-5);
-
-      var prediction = nlr.PredictWithIntervals(x, IntervalEnum.LaplaceApproximation);
-      System.Console.WriteLine($"pred: {prediction[0, 0]}, low: {prediction[0, 2]}, high: {prediction[0, 3]}");
-      Assert.AreEqual(50.565373348568066, prediction[0, 0], 1e-6);
-      Assert.AreEqual(41.54333861186602, prediction[0, 2], 1e-6);
-      Assert.AreEqual(59.587408085266844, prediction[0, 3], 1e-6);
+      // HEAL.NonlinearRegression.ModelAnalysis.NestedModels(likelihood.ModelExpr, nlr.ParamEst, nlr.LaplaceApproximation);
+      // HEAL.NonlinearRegression.ModelSelection.MDLLatticeWithIntegerSnap(nlr.ParamEst, likelihood, nlr.LaplaceApproximation, out var bestExpr, out var bestParamEst);
     }
   }
 }

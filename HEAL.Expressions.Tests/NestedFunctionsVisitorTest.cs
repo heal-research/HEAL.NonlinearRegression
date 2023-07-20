@@ -2,7 +2,6 @@ using System;
 using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
-using HEAL.Expressions;
 using NUnit.Framework;
 
 namespace HEAL.Expressions.Tests {
@@ -23,10 +22,7 @@ namespace HEAL.Expressions.Tests {
       Expression<Expr.ParametricFunction> expr = (p, x) => Math.Exp(p[0] * x[0]);
       var p = expr.Parameters[0];
       var x = expr.Parameters[1];
-      var expressions = FlattenExpressionVisitor.Execute(expr.Body);
-      var subexpressions = expressions.Where(e => !IsParameter(e, p) && 
-                                                  e is not ParameterExpression && 
-                                                  e is not ConstantExpression);
+      var subexpressions = FlattenExpressionVisitor.Execute(expr.Body);
       foreach (var subExpr in subexpressions) {
         var subExprForEval = Expr.Broadcast(Expression.Lambda<Expr.ParametricFunction>(subExpr, p, x)).Compile();
         var eval = new double[m];
@@ -36,10 +32,6 @@ namespace HEAL.Expressions.Tests {
         Console.WriteLine($"{subExpr} {reducedExpression} {string.Join(", ", newTheta.Select(ti => ti.ToString("g4")))}");
       }
 
-    }
-
-    private bool IsParameter(Expression expr, ParameterExpression p) {
-      return expr is BinaryExpression binExpr && binExpr.Left == p;
     }
   }
 }

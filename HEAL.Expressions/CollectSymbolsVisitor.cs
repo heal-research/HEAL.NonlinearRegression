@@ -26,7 +26,7 @@ namespace HEAL.Expressions {
       // do not recurse into array index expressions (do not count array indices)
       if (node.NodeType == ExpressionType.ArrayIndex)
         if (node.Left == p) {
-          Symbols.Add("param");
+          Symbols.Add("num");
           return node;
         } else {
           Symbols.Add("var_" + (int)((ConstantExpression)node.Right).Value);
@@ -88,7 +88,7 @@ namespace HEAL.Expressions {
     }
 
     protected override Expression VisitConstant(ConstantExpression node) {
-      Symbols.Add("const");
+      Symbols.Add("num");
       return node;
     }
   }

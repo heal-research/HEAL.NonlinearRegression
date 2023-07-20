@@ -111,15 +111,21 @@ namespace HEAL.Expressions {
         dfx = Expression.Divide(Expression.Constant(1.0 / 3.0),
           Expression.Call(pow, node, Expression.Constant(2.0)));
       } else if (node.Method == pow) {
-        var b = node.Arguments[0];
         var exponent = node.Arguments[1];
         if (exponent.NodeType == ExpressionType.Constant) {
+          // for efficiency
           var expVal = (double)((ConstantExpression)exponent).Value;
-          dfx = Expression.Multiply(exponent, Expression.Call(pow, b, Expression.Constant(expVal - 1)));
-        } else if (exponent is BinaryExpression binaryExpression && binaryExpression.Left == param) {
-          return Expression.Multiply(node, Expression.Add(Expression.Divide(Expression.Multiply(exponent, dx), b), Expression.Call(log, b)));
+          dfx = Expression.Multiply(exponent, Expression.Call(pow, x, Expression.Constant(expVal - 1)));
         } else {
-          throw new NotSupportedException("Exponents can only be parameters or constants.");
+          // d/dx f(x)^g(x) = f(x)^(g(x)-1) (g(x) f'(x) + f(x) (log f(x)) g'(x))
+          var dgx = Visit(exponent);
+          return Expression.Multiply(
+            Expression.Call(pow, x, Expression.Subtract(exponent, Expression.Constant(1.0))),
+            Expression.Add(Expression.Multiply(exponent, dx), 
+                           Expression.Multiply(x, 
+                              Expression.Multiply(
+                                Expression.Call(log, x), 
+                                dgx))));
         }
 
       } else if (node.Method == abs) {
