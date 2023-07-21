@@ -23,9 +23,9 @@ namespace HEAL.Expressions.Tests {
 
       {
         Expression<Expr.ParametricFunction> expr = (p, x) => 1.0;
-        var newExpr = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, nRows: N);
-        System.Console.WriteLine(GetDebugView(newExpr));
-        newExpr.Compile()(theta, X, f, Jac);
+        var newFunc = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, nRows: N);
+        // System.Console.WriteLine(GetDebugView(newExpr));
+        newFunc(theta, X, f, Jac);
 
         Expr.Jacobian(expr, 1).Compile()(theta, X, fRef, JacRef);
         for (int i = 0; i < N; i++) {
@@ -35,9 +35,9 @@ namespace HEAL.Expressions.Tests {
       }
       {
         Expression<Expr.ParametricFunction> expr = (p, x) => x[0] * p[0];
-        var newExpr = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, nRows: N);
-        System.Console.WriteLine(GetDebugView(newExpr));
-        newExpr.Compile()(theta, X, f, Jac);
+        var newFunc = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, nRows: N);
+        // System.Console.WriteLine(GetDebugView(newExpr));
+        newFunc(theta, X, f, Jac);
 
         Expr.Jacobian(expr, 1).Compile()(theta, X, fRef, JacRef);
         for (int i = 0; i < N; i++) {
@@ -47,9 +47,9 @@ namespace HEAL.Expressions.Tests {
       }
       {
         Expression<Expr.ParametricFunction> expr = (p, x) => x[0] + p[0];
-        var newExpr = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, nRows: N);
-        System.Console.WriteLine(GetDebugView(newExpr));
-        newExpr.Compile()(theta, X, f, Jac);
+        var newFunc = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, nRows: N);
+        // System.Console.WriteLine(GetDebugView(newExpr));
+        newFunc(theta, X, f, Jac);
 
         Expr.Jacobian(expr, 1).Compile()(theta, X, fRef, JacRef);
         for (int i = 0; i < N; i++) {
@@ -59,9 +59,9 @@ namespace HEAL.Expressions.Tests {
       }
       {
         Expression<Expr.ParametricFunction> expr = (p, x) => -x[0];
-        var newExpr = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, nRows: N);
-        System.Console.WriteLine(GetDebugView(newExpr));
-        newExpr.Compile()(theta, X, f, Jac);
+        var newFunc = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, nRows: N);
+        // System.Console.WriteLine(GetDebugView(newExpr));
+        newFunc(theta, X, f, Jac);
 
         Expr.Jacobian(expr, 1).Compile()(theta, X, fRef, JacRef);
         for (int i = 0; i < N; i++) {
@@ -71,9 +71,9 @@ namespace HEAL.Expressions.Tests {
       }
       {
         Expression<Expr.ParametricFunction> expr = (p, x) => Math.Exp(x[0]);
-        var newExpr = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, nRows: N);
-        System.Console.WriteLine(GetDebugView(newExpr));
-        newExpr.Compile()(theta, X, f, Jac);
+        var newFunc = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, nRows: N);
+        // System.Console.WriteLine(GetDebugView(newExpr));
+        newFunc(theta, X, f, Jac);
 
         Expr.Jacobian(expr, 1).Compile()(theta, X, fRef, JacRef);
         for (int i = 0; i < N; i++) {
@@ -83,12 +83,6 @@ namespace HEAL.Expressions.Tests {
       }
     }
 
-    public static string GetDebugView(Expression exp) {
-      if (exp == null)
-        return null;
-
-      var propertyInfo = typeof(Expression).GetProperty("DebugView", BindingFlags.Instance | BindingFlags.NonPublic);
-      return propertyInfo.GetValue(exp) as string;
-    }
+    
   }
 }

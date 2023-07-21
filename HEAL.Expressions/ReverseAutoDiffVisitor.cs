@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Reflection.Emit;
 
 namespace HEAL.Expressions {
 
@@ -27,8 +28,7 @@ namespace HEAL.Expressions {
     private static readonly MethodInfo invLogisticPrime = typeof(Functions).GetMethod("InvLogisticPrime", new[] { typeof(double) });
     private static readonly MethodInfo invLogisticPrimePrime = typeof(Functions).GetMethod("InvLogisticPrimePrime", new[] { typeof(double) });
 
-    private static readonly MethodInfo arrClear = typeof(Array).GetMethod("Clear", new[] { typeof(Array), typeof(int), typeof(int) });
-    private static readonly MethodInfo arrLength = typeof(Array).GetMethod("GetLength", new[] { typeof(int) });
+    private static readonly MethodInfo arrClear = typeof(Array).GetMethod("Clear", new[] {typeof(Array) });
     private readonly int numNodes;
     private int curIdx;
     private readonly ParameterExpression x; // double[] from original expr
@@ -55,8 +55,8 @@ namespace HEAL.Expressions {
       X = Expression.Parameter(typeof(double[,]), "X");
       f = Expression.Parameter(typeof(double[]), "f");
       Jac = Expression.Parameter(typeof(double[,]), "Jac");
-      eval = Expression.Variable(typeof(double[,]), "eval");
-      diff = Expression.Variable(typeof(double[,]), "revEval");
+      eval = Expression.Parameter(typeof(double[,]), "eval");
+      diff = Expression.Parameter(typeof(double[,]), "revEval");
       rowIdx = Expression.Variable(typeof(int), "rowIdx");
     }
 
@@ -66,33 +66,21 @@ namespace HEAL.Expressions {
     // - do not assign eval buffer for constants, parameters and variables (use the expressions directly instead) (map node to expression, which can either be a buffer access or a direct expression)
     // - investigate bad performance
     // - investigate why it does not work with RAR likelihood yet
-    // - ArrayLength Expression instead of method calls
     // - reverse call for constants not necessary
-    // - remove re-allocation of buffers (allocate once and keep in closure for returned function) eval, diff buffers do not have to be cleared because they are overwritten anyway
-    // - remove unnecessary blocks (for example in loops)
-    public static Expression<Expr.ParametricJacobianFunction> GenerateJacobianExpression(Expression<Expr.ParametricFunction> expr, int nRows) {
+    // - check assembly of generated code. potentially change code generation to produce IL directly instead of Expressions
+    // - check if generation of a static method (in a type) is faster https://stackoverflow.com/questions/5568294/compiled-c-sharp-lambda-expressions-performance#5573075 https://stackoverflow.com/questions/5053032/performance-of-compiled-to-delegate-expression
+    // - code should be at least faster than reverse autodiff interpreter (ExpressionInterpreter) because it has to perform the same steps 
+    public static Expr.ParametricJacobianFunction GenerateJacobianExpression(Expression<Expr.ParametricFunction> expr, int nRows) {
       var visitor = new ReverseAutoDiffVisitor(expr);
-
+            
       visitor.Visit(expr.Body);
 
       // we assume f, and Jac for the return values are allocated by the user
 
       var initBlock = Expression.Block(
-        // eval = new double[numNodes, numRows]        
-        Expression.Assign(visitor.eval,
-           Expression.NewArrayBounds(typeof(double),
-                                     new Expression[] { Expression.Constant(visitor.numNodes),
-                                                        Expression.Constant(nRows) })),
-
-        // diff = new double[numNodes, numRows]
-        Expression.Assign(visitor.diff,
-           Expression.NewArrayBounds(typeof(double),
-                                     new Expression[] { Expression.Constant(visitor.numNodes),
-                                                        Expression.Constant(nRows) })),
-
-        // if (Jac != null) Array.Clear(Jac, 0, Jac.GetLength(0))
+        // if (Jac != null) Array.Clear()
         Expression.IfThen(Expression.NotEqual(visitor.Jac, Expression.Constant(null)),
-          Expression.Call(arrClear, visitor.Jac, Expression.Constant(0), Expression.Call(visitor.Jac, arrLength, Expression.Constant(0)))) // clear Jac
+          Expression.Call(arrClear, visitor.Jac)) // clear Jac
         );
       #region forward 
 
@@ -105,16 +93,17 @@ namespace HEAL.Expressions {
         loopEnds[i] = Expression.Label($"endloop_{i}");
         loops[i] = Expression.Block(
           Expression.Assign(visitor.rowIdx, Expression.Constant(0)),
-          Expression.Loop(Expression.Block(
+          Expression.Loop(
           // if (rowIdx == nRows) break;
-          Expression.IfThen(Expression.Equal(visitor.rowIdx, Expression.Constant(nRows)),
-            Expression.Break(loopEnds[i])),
+          Expression.IfThenElse(Expression.Equal(visitor.rowIdx, Expression.Constant(nRows)),
+            Expression.Break(loopEnds[i]),
+            Expression.Block(
 
           // eval[...] = ...
           visitor.forwardExpressions[i],
 
           // rowIdx++
-          Expression.PostIncrementAssign(visitor.rowIdx)),
+          Expression.PostIncrementAssign(visitor.rowIdx))),
           loopEnds[i]));
       }
 
@@ -122,18 +111,18 @@ namespace HEAL.Expressions {
       loopEnds[visitor.forwardExpressions.Count] = Expression.Label($"endloop_last");
       loops[visitor.forwardExpressions.Count] = Expression.Block(
           Expression.Assign(visitor.rowIdx, Expression.Constant(0)),
-          Expression.Loop(Expression.Block(
+          Expression.Loop(
           // if (rowIdx == nRows) break;
-          Expression.IfThen(Expression.Equal(visitor.rowIdx, Expression.Constant(nRows)),
-            Expression.Break(loopEnds[visitor.forwardExpressions.Count])),
-
+          Expression.IfThenElse(Expression.Equal(visitor.rowIdx, Expression.ArrayLength(visitor.f)),
+            Expression.Break(loopEnds[visitor.forwardExpressions.Count]),
+          Expression.Block(
           // f[rowIdx] = eval[rowIdx, numNodes - 1]
           Expression.Assign(
             Expression.ArrayAccess(visitor.f, visitor.rowIdx),
             visitor.BufferAt(visitor.eval, visitor.numNodes - 1)),
 
           // rowIdx++
-          Expression.PostIncrementAssign(visitor.rowIdx)),
+          Expression.PostIncrementAssign(visitor.rowIdx))),
           loopEnds[visitor.forwardExpressions.Count]));
 
 
@@ -152,18 +141,18 @@ namespace HEAL.Expressions {
       loopEnds[0] = Expression.Label($"reverse_endloop_first");
       loops[0] = Expression.Block(
           Expression.Assign(visitor.rowIdx, Expression.Constant(0)),
-          Expression.Loop(Expression.Block(
+          Expression.Loop(
           // if (rowIdx == nRows) break;
-          Expression.IfThen(Expression.Equal(visitor.rowIdx, Expression.Constant(nRows)),
-            Expression.Break(loopEnds[0])),
-
+          Expression.IfThenElse(Expression.Equal(visitor.rowIdx, Expression.Constant(nRows)),
+            Expression.Break(loopEnds[0]),
+            Expression.Block(
           // diff[numNodes - 1, row] = 1.0
           Expression.Assign(
             Expression.ArrayAccess(visitor.diff, new Expression[] { Expression.Constant(visitor.numNodes - 1), visitor.rowIdx }),
             Expression.Constant(1.0)),
 
           // rowIdx++
-          Expression.PostIncrementAssign(visitor.rowIdx)),
+          Expression.PostIncrementAssign(visitor.rowIdx))),
           loopEnds[0]));
 
       var loopIdx = 1;
@@ -171,15 +160,15 @@ namespace HEAL.Expressions {
         loopEnds[loopIdx] = Expression.Label($"reverse_endloop_{loopIdx}");
         loops[loopIdx] = Expression.Block(
           Expression.Assign(visitor.rowIdx, Expression.Constant(0)),
-          Expression.Loop(Expression.Block(
+          Expression.Loop(
           // if (rowIdx == nRows) break;
-          Expression.IfThen(Expression.Equal(visitor.rowIdx, Expression.Constant(nRows)),
-            Expression.Break(loopEnds[loopIdx])),
-
+          Expression.IfThenElse(Expression.Equal(visitor.rowIdx, Expression.Constant(nRows)),
+            Expression.Break(loopEnds[loopIdx]),
+            Expression.Block(
           backExpr,
 
           // rowIdx++
-          Expression.PostIncrementAssign(visitor.rowIdx)),
+          Expression.PostIncrementAssign(visitor.rowIdx))),
           loopEnds[loopIdx]));
         loopIdx++;
       }
@@ -191,19 +180,24 @@ namespace HEAL.Expressions {
       #endregion
 
       var newBody = Expression.Block(
-        variables: new[] { visitor.eval, visitor.diff },
         expressions: new Expression[] { initBlock, forwardLoops, backwardLoops }
         );
 
-      return Expression.Lambda<Expr.ParametricJacobianFunction>(newBody, visitor.theta, visitor.X, visitor.f, visitor.Jac);
+      return GenerateExpression(nRows, visitor.numNodes, newBody, visitor.eval, visitor.diff, visitor.theta, visitor.X, visitor.f, visitor.Jac);
     }
 
+    private static Expr.ParametricJacobianFunction GenerateExpression(int nRows, int numNodes, BlockExpression newBody, 
+      ParameterExpression evalParam, ParameterExpression diffParam, ParameterExpression thetaParam, ParameterExpression XParam, ParameterExpression fParam, ParameterExpression JacParam) {
+      // create buffers
+      var eval = new double[numNodes, nRows];
+      var diff = new double[numNodes, nRows];
+      var expr = Expression.Lambda<Action<double[,], double[,], double[], double[,], double[], double[,]>>(newBody, evalParam, diffParam, thetaParam, XParam, fParam, JacParam);
+      // System.Console.WriteLine(GetDebugView(expr));
+      var func = expr.Compile();
+      return (double[] theta, double[,] X, double[] f, double[,] Jac) => 
+        func(eval, diff, theta, X, f, Jac);
+    }
 
-    // private static IEnumerable<Expression> Flatten(Expression expr) {
-    //   if (expr is BlockExpression blockExpr) {
-    //     return blockExpr.Expressions.SelectMany(Flatten);
-    //   } else return new[] { expr };
-    // }
 
     protected override Expression VisitConstant(ConstantExpression node) {
       Forward(node);
@@ -216,7 +210,7 @@ namespace HEAL.Expressions {
       if (node.NodeType == ExpressionType.ArrayIndex) {
         // handle parameters
         if (node.Left == theta) {
-          Forward(Expression.ArrayAccess(theta, node.Right));
+          Forward(Expression.ArrayIndex(theta, node.Right));
           // collect into Jacobian
           backwardExpressions.Add(Expression.AddAssign(Expression.ArrayAccess(Jac, new[] { rowIdx, node.Right }), BufferAt(diff, curIdx)));
           curIdx++;
@@ -507,5 +501,13 @@ namespace HEAL.Expressions {
       throw new NotSupportedException(node.ToString());
     }
     #endregion
+
+    public static string GetDebugView(Expression exp) {
+      if (exp == null)
+        return null;
+
+      var propertyInfo = typeof(Expression).GetProperty("DebugView", BindingFlags.Instance | BindingFlags.NonPublic);
+      return propertyInfo.GetValue(exp) as string;
+    }
   }
 }

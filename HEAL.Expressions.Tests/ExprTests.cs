@@ -786,10 +786,10 @@ namespace HEAL.Expressions.Tests {
       var f2 = interpreter.EvaluateWithJac(t, jacX, J2);
 
       // 3rd option: compiled reverse autodiff evaluation
-      var autoDiffExpr = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, N).Compile();
+      var autoDiffFunc = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, N);
       var f3 = new double[N];
       var J3 = new double[N, t.Length];
-      autoDiffExpr(t, X, f3, J3);
+      autoDiffFunc(t, X, f3, J3);
 
 
       for (int i = 0; i < N; i++) {
