@@ -51,24 +51,26 @@ namespace HEAL.Expressions.Tests {
       CompareSymbolicAndAutoDiffJacobian((p, x) => p[0] / x[0]);
       CompareSymbolicAndAutoDiffJacobian((p, x) => x[0] / p[0]);
       CompareSymbolicAndAutoDiffJacobian((p, x) => p[1] + x[1]);
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Abs(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Log(p[0] + x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Exp(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Sqrt(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Sqrt(Math.Abs(p[0] * x[0])));
-      CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.Cbrt(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Sin(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Cos(p[0] * x[0]));
-      CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Abs(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Tanh(p[0] * x[0]));
-      CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.Logistic(p[0] * x[0]));
-      CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.InvLogistic(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(x[0], p[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(x[0], 2.0));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(x[0], 3.0));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(p[0] * x[0], p[1]));
-      CompareSymbolicAndAutoDiffJacobian((p, x) => p[0] * x[0] / (p[1] * x[1] + p[2]));
-      CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Abs(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.Sign(p[0] * x[0]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.Cbrt(p[0] * x[0]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.Logistic(p[0] * x[0]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.InvLogistic(p[0] * x[0]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.LogisticPrime(p[0] * x[0]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.InvLogisticPrime(p[0] * x[0]));
+
+      CompareSymbolicAndAutoDiffJacobian((p, x) => p[0] * x[0] / (p[1] * x[1] + p[2]));
       Assert.Pass();
     }
 
@@ -763,26 +765,42 @@ namespace HEAL.Expressions.Tests {
       var colX = new double[3][];
       for (int i = 0; i < N; i++) {
         for (int j = 0; j < 3; j++) {
-          X[i, j] = i * 3 + j + 1 
+          X[i, j] = i * 3 + j + 1
             * ((i * 3 + j) % 2 == 0 ? 1 : -1); // alternate sign
 
           if (i == 0) colX[j] = new double[N];
           colX[j][i] = X[i, j];
         }
       }
-      var f = new double[N];
+      var f1 = new double[N];
       var t = new double[5] { 1.0, 2.0, 3.0, 4.0, 5.0 };
-      var symJ = new double[N, 5];
-      var autoJ = new double[N, 5];
+      var J1 = new double[N, 5];
+      var J2 = new double[N, 5];
       var jacX = new double[N, 3];
-      Expr.Broadcast(Expr.Gradient(expr, t.Length)).Compile()(t, X, f, symJ);
 
+      // 1st option symbolic differentiation and compilation
+      Expr.Broadcast(Expr.Gradient(expr, t.Length)).Compile()(t, X, f1, J1);
+
+      // 2nd option: reverse autodiff interpreter
       var interpreter = new ExpressionInterpreter(expr, colX, N);
-      interpreter.EvaluateWithJac(t, jacX, autoJ);
+      var f2 = interpreter.EvaluateWithJac(t, jacX, J2);
+
+      // 3rd option: compiled reverse autodiff evaluation
+      var autoDiffExpr = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, N).Compile();
+      var f3 = new double[N];
+      var J3 = new double[N, t.Length];
+      autoDiffExpr(t, X, f3, J3);
+
+
       for (int i = 0; i < N; i++) {
-        for (int j = 0; j < 5; j++)
-          Assert.AreEqual(symJ[i, j], autoJ[i, j], 1e-6);
+        Assert.AreEqual(f1[i], f2[i], 1e-6);
+        Assert.AreEqual(f2[i], f3[i], 1e-6);
+        for (int j = 0; j < 5; j++) {
+          Assert.AreEqual(J1[i, j], J2[i, j], 1e-6);
+          Assert.AreEqual(J2[i, j], J3[i, j], 1e-6);
+        }
       }
     }
   }
 }
+

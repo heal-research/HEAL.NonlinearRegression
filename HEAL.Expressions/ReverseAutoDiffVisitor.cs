@@ -13,6 +13,7 @@ namespace HEAL.Expressions {
     private static readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
     private static readonly MethodInfo sin = typeof(Math).GetMethod("Sin", new[] { typeof(double) });
     private static readonly MethodInfo cos = typeof(Math).GetMethod("Cos", new[] { typeof(double) });
+    private static readonly MethodInfo sinh = typeof(Math).GetMethod("Sinh", new[] { typeof(double) });
     private static readonly MethodInfo cosh = typeof(Math).GetMethod("Cosh", new[] { typeof(double) });
     private static readonly MethodInfo tanh = typeof(Math).GetMethod("Tanh", new[] { typeof(double) });
     private static readonly MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
@@ -22,7 +23,9 @@ namespace HEAL.Expressions {
     private static readonly MethodInfo logistic = typeof(Functions).GetMethod("Logistic", new[] { typeof(double) });
     private static readonly MethodInfo invLogistic = typeof(Functions).GetMethod("InvLogistic", new[] { typeof(double) });
     private static readonly MethodInfo logisticPrime = typeof(Functions).GetMethod("LogisticPrime", new[] { typeof(double) });
+    private static readonly MethodInfo logisticPrimePrime = typeof(Functions).GetMethod("LogisticPrimePrime", new[] { typeof(double) });
     private static readonly MethodInfo invLogisticPrime = typeof(Functions).GetMethod("InvLogisticPrime", new[] { typeof(double) });
+    private static readonly MethodInfo invLogisticPrimePrime = typeof(Functions).GetMethod("InvLogisticPrimePrime", new[] { typeof(double) });
 
     private static readonly MethodInfo arrClear = typeof(Array).GetMethod("Clear", new[] { typeof(Array), typeof(int), typeof(int) });
     private static readonly MethodInfo arrLength = typeof(Array).GetMethod("GetLength", new[] { typeof(int) });
@@ -31,7 +34,6 @@ namespace HEAL.Expressions {
     private readonly ParameterExpression x; // double[] from original expr
     private readonly ParameterExpression theta; // double[] from original expr
 
-    private readonly ParameterExpression newTheta; // double[] for new expr
     private readonly ParameterExpression X; // double[,] for new expr
     private readonly ParameterExpression f; // double[] for new expr
     private readonly ParameterExpression Jac; // double[,] for new expr
@@ -50,7 +52,6 @@ namespace HEAL.Expressions {
       numNodes = Expr.NumberOfNodes(expr);
       curIdx = 0;
 
-      newTheta = Expression.Parameter(typeof(double[]), "theta"); // TODO need two different theta parameters?
       X = Expression.Parameter(typeof(double[,]), "X");
       f = Expression.Parameter(typeof(double[]), "f");
       Jac = Expression.Parameter(typeof(double[,]), "Jac");
@@ -59,7 +60,16 @@ namespace HEAL.Expressions {
       rowIdx = Expression.Variable(typeof(int), "rowIdx");
     }
 
-    // TODO batched evaluation
+    // TODO
+    // - batched evaluation
+    // - remove unnecessary reverse expressions (leading to variables), tracing visited tape elements
+    // - do not assign eval buffer for constants, parameters and variables (use the expressions directly instead) (map node to expression, which can either be a buffer access or a direct expression)
+    // - investigate bad performance
+    // - investigate why it does not work with RAR likelihood yet
+    // - ArrayLength Expression instead of method calls
+    // - reverse call for constants not necessary
+    // - remove re-allocation of buffers (allocate once and keep in closure for returned function) eval, diff buffers do not have to be cleared because they are overwritten anyway
+    // - remove unnecessary blocks (for example in loops)
     public static Expression<Expr.ParametricJacobianFunction> GenerateJacobianExpression(Expression<Expr.ParametricFunction> expr, int nRows) {
       var visitor = new ReverseAutoDiffVisitor(expr);
 
@@ -135,6 +145,9 @@ namespace HEAL.Expressions {
       #endregion
 
       #region backward 
+      loopEnds = new LabelTarget[visitor.backwardExpressions.Count() + 1];
+      loops = new Expression[visitor.backwardExpressions.Count() + 1]; // one additional loop for copying eval results to f[]
+
       // loop for diff[i] = 1.0
       loopEnds[0] = Expression.Label($"reverse_endloop_first");
       loops[0] = Expression.Block(
@@ -154,7 +167,7 @@ namespace HEAL.Expressions {
           loopEnds[0]));
 
       var loopIdx = 1;
-      foreach(var backExpr in visitor.backwardExpressions.Reverse<Expression>()) {
+      foreach (var backExpr in visitor.backwardExpressions.Reverse<Expression>()) {
         loopEnds[loopIdx] = Expression.Label($"reverse_endloop_{loopIdx}");
         loops[loopIdx] = Expression.Block(
           Expression.Assign(visitor.rowIdx, Expression.Constant(0)),
@@ -286,22 +299,77 @@ namespace HEAL.Expressions {
       Forward(node.Update(node.Object, argIdx.Select(i => BufferAt(eval, i))));
 
       if (node.Method == log) {
+        Backpropagate(argIdx[0], Expression.Divide(BufferAt(diff, curIdx), BufferAt(eval, argIdx[0])));
       } else if (node.Method == abs) {
+        Backpropagate(argIdx[0], Expression.Multiply(BufferAt(diff, curIdx), Expression.Call(sign, BufferAt(eval, argIdx[0]))));
       } else if (node.Method == exp) {
-        Backpropagate(argIdx[0], Expression.Multiply(BufferAt(eval, curIdx), BufferAt(diff, curIdx)));
+        Backpropagate(argIdx[0], Expression.Multiply(BufferAt(diff, curIdx), BufferAt(eval, curIdx)));
       } else if (node.Method == sin) {
+        Backpropagate(argIdx[0], Expression.Multiply(BufferAt(diff, curIdx), Expression.Call(cos, BufferAt(eval, argIdx[0]))));
       } else if (node.Method == cos) {
+        Backpropagate(argIdx[0], Expression.Multiply(BufferAt(diff, curIdx), Expression.Negate(Expression.Call(sin, BufferAt(eval, argIdx[0])))));
       } else if (node.Method == cosh) {
+        Backpropagate(argIdx[0], Expression.Multiply(BufferAt(diff, curIdx), Expression.Call(sinh, BufferAt(eval, argIdx[0]))));
       } else if (node.Method == tanh) {
+        // diff * 2 / (cosh(2*eval) + 1)
+        Backpropagate(argIdx[0],
+          Expression.Multiply(
+            BufferAt(diff, curIdx),
+            Expression.Divide(
+              Expression.Constant(2.0),
+              Expression.Add(
+                 Expression.Call(cosh,
+                   Expression.Multiply(
+                     Expression.Constant(2.0),
+                     BufferAt(eval, argIdx[0]))),
+                 Expression.Constant(1.0)))));
       } else if (node.Method == pow) {
-      } else if (node.Method == sqrt) {
-      } else if (node.Method == cbrt) {
-      } else if (node.Method == sign) {
-      } else if (node.Method == logistic) {
-      } else if (node.Method == invLogistic) {
-      } else if (node.Method == logisticPrime) {
-      } else if (node.Method == invLogisticPrime) {
+        // diff[left] = diff[cur] * eval[right] * eval[cur] / eval[left]; // diff[cur] * eval[right] * eval[left] ^ ( eval[right] - 1);
+        Backpropagate(argIdx[0], Expression.Multiply(
+          BufferAt(diff, curIdx),
+          Expression.Multiply(
+            BufferAt(eval, argIdx[1]),
+            Expression.Divide(
+              BufferAt(eval, curIdx),
+              BufferAt(eval, argIdx[0])))));
 
+        // diff[right] = diff[cur] * eval[cur] * Math.Log(eval[left]);
+        Backpropagate(argIdx[1],
+          Expression.Multiply(
+            BufferAt(diff, curIdx),
+            Expression.Multiply(
+              BufferAt(eval, curIdx),
+              Expression.Call(log, BufferAt(eval, argIdx[0])))));
+      } else if (node.Method == sqrt) {
+        Backpropagate(argIdx[0], Expression.Multiply(
+          BufferAt(diff, curIdx),
+          Expression.Divide(
+            Expression.Constant(0.5),
+            BufferAt(eval, curIdx))));
+      } else if (node.Method == cbrt) {
+        Backpropagate(argIdx[0], Expression.Divide(
+          BufferAt(diff, curIdx),
+          Expression.Multiply(
+            Expression.Constant(3.0),
+            Expression.Multiply(BufferAt(eval, curIdx), BufferAt(eval, curIdx)))));
+      } else if (node.Method == sign) {
+        Backpropagate(argIdx[0], Expression.Constant(0.0));
+      } else if (node.Method == logistic) {
+        Backpropagate(argIdx[0], Expression.Multiply(
+          BufferAt(diff, curIdx),
+          Expression.Call(logisticPrime, BufferAt(eval, argIdx[0]))));
+      } else if (node.Method == invLogistic) {
+        Backpropagate(argIdx[0], Expression.Multiply(
+          BufferAt(diff, curIdx),
+          Expression.Call(invLogisticPrime, BufferAt(eval, argIdx[0]))));
+      } else if (node.Method == logisticPrime) {
+        Backpropagate(argIdx[0], Expression.Multiply(
+          BufferAt(diff, curIdx),
+          Expression.Call(logisticPrimePrime, BufferAt(eval, argIdx[0]))));
+      } else if (node.Method == invLogisticPrime) {
+        Backpropagate(argIdx[0], Expression.Multiply(
+          BufferAt(diff, curIdx),
+          Expression.Call(invLogisticPrimePrime, BufferAt(eval, argIdx[0]))));
       } else throw new NotSupportedException($"{node.Method}");
 
       curIdx++;

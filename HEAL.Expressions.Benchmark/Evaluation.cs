@@ -10,10 +10,10 @@ namespace HEAL.Expressions.Benchmark {
     public int N;
 
     // number of evaluations (after compilation) (as e.g. in CG optimizer)
-    [Params(1, 10 /* , 50*/, 100)]
+    [Params(1, 10 /* , 50*/, 100, 1000)]
     public int numEvals;
 
-    [Params(/*4, 8, 16, 32, 64, 128, */ 256/*, 512, 1024*/)]
+    [Params(/*4, 8, 16, 32, 64, 128, 256, 512,*/ 1024)]
     public int batchSize;
 
     public int Dim = 10;
@@ -40,8 +40,8 @@ namespace HEAL.Expressions.Benchmark {
       }
     }
 
-    [Benchmark]
-    public double[] EvalWithInterpreter() {
+    //[Benchmark]
+    public double[] EvalInterpreted() {
       var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       double[] f = null;
       var interpreter = new ExpressionInterpreter(expr, dataCols, N, batchSize );
@@ -51,8 +51,8 @@ namespace HEAL.Expressions.Benchmark {
       return f;
     }
 
-    [Benchmark]
-    public double[] EvalWithCompiler() {
+    //[Benchmark]
+    public double[] EvalCompiled() {
       var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       var func = Expr.Broadcast(expr).Compile();
       var f = new double[N];
@@ -63,7 +63,7 @@ namespace HEAL.Expressions.Benchmark {
     }
 
     [Benchmark]
-    public double[,] EvalJacobianWithInterpreter() {
+    public double[,] EvalInterpretedJacobian() {
       var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       double[] f;
       double[,] jacP = new double[N, theta.Length];
@@ -76,9 +76,21 @@ namespace HEAL.Expressions.Benchmark {
     }
 
     [Benchmark]
-    public double[,] EvalJacobianWithCompiler() {
+    public double[,] EvalCompiledJacobian() {
       var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       var funcJac = Expr.Jacobian(expr, theta.Length).Compile();
+      double[,] jac = new double[N, theta.Length];
+      var f = new double[N];
+      for (int i = 0; i < numEvals; i++) {
+        funcJac(theta, data, f, jac);
+      }
+      return jac;
+    }
+
+    [Benchmark]
+    public double[,] EvalCompiledJacobianReverseAutoDiff() {
+      var theta = new double[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
+      var funcJac = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, N).Compile();
       double[,] jac = new double[N, theta.Length];
       var f = new double[N];
       for (int i = 0; i < numEvals; i++) {
