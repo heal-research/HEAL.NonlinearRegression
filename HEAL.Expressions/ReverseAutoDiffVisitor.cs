@@ -31,6 +31,7 @@ namespace HEAL.Expressions {
     private static readonly MethodInfo invLogisticPrimePrime = typeof(Functions).GetMethod("InvLogisticPrimePrime", new[] { typeof(double) });
 
     private static readonly MethodInfo arrClear = typeof(Array).GetMethod("Clear", new[] { typeof(Array) });
+    private static readonly MethodInfo arrLength = typeof(Array).GetMethod("GetLength", new[] { typeof(int) });
     private readonly int numNodes;
     private readonly ParameterExpression x; // double[] from original expr
     private readonly ParameterExpression theta; // double[] from original expr
@@ -68,21 +69,26 @@ namespace HEAL.Expressions {
     // TODO
     // - batched evaluation
     // - try outer loop over rows instead of inner loops
-    // - remove unnecessary reverse expressions (leading to variables), tracing visited tape elements
+    // - remove unnecessary reverse expressions (leading to constants or variables), tracing visited tape elements
     // - investigate bad performance
     // - investigate why it does not work with RAR likelihood yet
-    // - reverse call for constants not necessary
-    // - check assembly of generated code. potentially change code generation to produce IL directly instead of Expressions
-    // - check if generation of a static method (in a type) is faster https://stackoverflow.com/questions/5568294/compiled-c-sharp-lambda-expressions-performance#5573075 https://stackoverflow.com/questions/5053032/performance-of-compiled-to-delegate-expression
     // - code should be at least faster than reverse autodiff interpreter (ExpressionInterpreter) because it has to perform the same steps 
+    // - no need to store diff in backwards evaluation in a big array. Can use stackallocated temporary arrays instead
+    // - benchmark with expression similar to RAR likelihood
+    // - change this interpreter to use one-dimensional arrays for eval and diff (jagged arrays)
+    // - think about ways to save re-evaluation of sigma_tot
+    // - think about improving ExpressionIntrepreter to remove diff arrays
     public static Expr.ParametricJacobianFunction GenerateJacobianExpression(Expression<Expr.ParametricFunction> expr, int nRows) {
       var visitor = new ReverseAutoDiffVisitor(expr);
       
       visitor.Visit(expr.Body);
 
-      // we assume f, and Jac for the return values are allocated by the user
+      var lenVar = Expression.Variable(typeof(int));
 
+      // we assume f, and Jac for the return values are allocated by the user
       var initBlock = Expression.Block(
+        // len = eval.GetLength(1)
+        Expression.Assign(lenVar, Expression.Call(visitor.eval, arrLength, Expression.Constant(1))),
         // if (Jac != null) Array.Clear()
         Expression.IfThen(Expression.NotEqual(visitor.Jac, Expression.Constant(null)),
           Expression.Call(arrClear, visitor.Jac)) // clear Jac
@@ -100,7 +106,7 @@ namespace HEAL.Expressions {
           Expression.Assign(visitor.rowIdx, Expression.Constant(0)),
           Expression.Loop(
           // if (rowIdx == nRows) break;
-          Expression.IfThenElse(Expression.Equal(visitor.rowIdx, Expression.Constant(nRows)),
+          Expression.IfThenElse(Expression.Equal(visitor.rowIdx, lenVar),
             Expression.Break(loopEnds[i]),
             Expression.Block(
 
@@ -151,7 +157,7 @@ namespace HEAL.Expressions {
             Expression.Assign(visitor.rowIdx, Expression.Constant(0)),
             Expression.Loop(
             // if (rowIdx == nRows) break;
-            Expression.IfThenElse(Expression.Equal(visitor.rowIdx, Expression.Constant(nRows)),
+            Expression.IfThenElse(Expression.Equal(visitor.rowIdx, lenVar),
               Expression.Break(loopEnds[0]),
               Expression.Block(
             // diff[numNodes - 1, row] = 1.0
@@ -170,7 +176,7 @@ namespace HEAL.Expressions {
             Expression.Assign(visitor.rowIdx, Expression.Constant(0)),
             Expression.Loop(
             // if (rowIdx == nRows) break;
-            Expression.IfThenElse(Expression.Equal(visitor.rowIdx, Expression.Constant(nRows)),
+            Expression.IfThenElse(Expression.Equal(visitor.rowIdx, lenVar),
               Expression.Break(loopEnds[loopIdx]),
               Expression.Block(
             backExpr,
@@ -191,18 +197,20 @@ namespace HEAL.Expressions {
       #endregion
 
       var newBody = Expression.Block(
+        variables: new[] {lenVar },
         expressions: new Expression[] { initBlock, forwardLoops, backwardLoops }
         );
 
-      return GenerateExpression(nRows, visitor.numNodes, newBody, visitor.eval, visitor.diff, visitor.theta, visitor.X, visitor.f, visitor.Jac);
+      var newExpr = Expression.Lambda<Action<double[,], double[,], double[], double[,], double[], double[,]>>(newBody, visitor.eval, visitor.diff, visitor.theta, visitor.X, visitor.f, visitor.Jac);
+
+      return GenerateExpression(nRows, visitor.numNodes, newExpr);
     }
 
-    private static Expr.ParametricJacobianFunction GenerateExpression(int nRows, int numNodes, BlockExpression newBody,
-      ParameterExpression evalParam, ParameterExpression diffParam, ParameterExpression thetaParam, ParameterExpression XParam, ParameterExpression fParam, ParameterExpression JacParam) {
+    private static Expr.ParametricJacobianFunction GenerateExpression(int nRows, int numNodes, Expression<Action<double[,], double[,], double[], double[,], double[], double[,]>> expr) {
       // create buffers
       var eval = new double[numNodes, nRows];
       var diff = new double[numNodes, nRows];
-      var expr = Expression.Lambda<Action<double[,], double[,], double[], double[,], double[], double[,]>>(newBody, evalParam, diffParam, thetaParam, XParam, fParam, JacParam);
+      
       // System.Console.WriteLine(GetDebugView(expr));
       var func = expr.Compile();
       return (double[] theta, double[,] X, double[] f, double[,] Jac) =>
