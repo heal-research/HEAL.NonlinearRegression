@@ -78,6 +78,7 @@ namespace HEAL.Expressions {
     // - change this interpreter to use one-dimensional arrays for eval and diff (jagged arrays)
     // - think about ways to save re-evaluation of sigma_tot
     // - think about improving ExpressionIntrepreter to remove diff arrays
+    // - Vectorization 
     public static Expr.ParametricJacobianFunction GenerateJacobianExpression(Expression<Expr.ParametricFunction> expr, int nRows) {
       var visitor = new ReverseAutoDiffVisitor(expr);
       
