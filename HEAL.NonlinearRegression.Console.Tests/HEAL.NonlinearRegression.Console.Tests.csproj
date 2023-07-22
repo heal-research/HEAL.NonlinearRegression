@@ -1,13 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-
     <IsPackable>false</IsPackable>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.5.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.0.2" />
@@ -19,12 +16,10 @@
     <PackageReference Include="NUnit" Version="3.13.3" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.4.2" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\HEAL.Expressions\HEAL.Expressions.csproj" />
     <ProjectReference Include="..\HEAL.NonlinearRegression.Console\HEAL.NonlinearRegression.Console.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <None Update="mammography.csv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -39,5 +34,4 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-
 </Project>

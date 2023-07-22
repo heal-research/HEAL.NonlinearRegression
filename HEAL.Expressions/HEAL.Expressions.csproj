@@ -1,12 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
-    <PropertyGroup>
-        <TargetFramework>netstandard2.0</TargetFramework>
-    </PropertyGroup>
-
-    <ItemGroup>
-      <Compile Remove="ExpandProductsVisitor - Copy.cs" />
-      <Compile Remove="LiftLinearParametersVisitor - Copy.cs" />
-    </ItemGroup>
-
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+  </PropertyGroup>
 </Project>
