@@ -14,7 +14,7 @@ namespace HEAL.NonlinearRegression {
 
       public TimeSpan Runtime { get; internal set; }
       public override string ToString() {
-        return $"Successful: {Success}, Runtime {Runtime.TotalSeconds:f2}s, NumIters: {Iterations}, NumFuncEvals: {NumFuncEvals}, NumJacEvals: {NumJacEvals}";
+        return $"Successful: {Success}, NumIters: {Iterations}, NumFuncEvals: {NumFuncEvals}, NumJacEvals: {NumJacEvals}";
       }
     }
 

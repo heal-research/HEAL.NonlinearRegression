@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
     <Description>Fit and evaluate nonlinear regression models.</Description>
     <PackageProjectUrl>https://github.com/heal-research/HEAL.NonlinearRegression</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -13,11 +12,9 @@
     <RepositoryUrl>https://github.com/heal-research/HEAL.NonlinearRegression.git</RepositoryUrl>
     <Title>HEAL.NonlinearRegression</Title>
   </PropertyGroup>
-
   <ItemGroup>
     <Compile Remove="LaplaceApproximation.cs" />
   </ItemGroup>
-
   <ItemGroup>
     <None Include="..\README.md">
       <Pack>True</Pack>
@@ -25,13 +22,10 @@
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="alglib.net" Version="3.18.2" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\HEAL.Expressions\HEAL.Expressions.csproj" />
   </ItemGroup>
-
 </Project>
