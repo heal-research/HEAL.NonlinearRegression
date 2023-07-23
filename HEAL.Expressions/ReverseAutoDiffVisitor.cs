@@ -49,8 +49,8 @@ namespace HEAL.Expressions {
     private readonly List<Expression> backwardExpressions = new List<Expression>();
     private int revIdx;
 
-    private readonly Dictionary<Expression, Expression> fwdExprMap = new Dictionary<Expression, Expression>();
-    private readonly Dictionary<Expression, int> revExprMap = new Dictionary<Expression, int>();
+    private readonly Dictionary<string, Expression> fwdExprMap = new Dictionary<string, Expression>();
+    private readonly Dictionary<string, int> revExprMap = new Dictionary<string, int>();
 
     private ReverseAutoDiffVisitor(Expression<Expr.ParametricFunction> expr) {
       theta = expr.Parameters[0];
@@ -81,7 +81,7 @@ namespace HEAL.Expressions {
     // - Vectorization 
     public static Expr.ParametricJacobianFunction GenerateJacobianExpression(Expression<Expr.ParametricFunction> expr, int nRows) {
       var visitor = new ReverseAutoDiffVisitor(expr);
-      
+
       visitor.Visit(expr.Body);
 
       var lenVar = Expression.Variable(typeof(int));
@@ -131,7 +131,7 @@ namespace HEAL.Expressions {
           // f[rowIdx] = eval[rowIdx, numNodes - 1]
           Expression.Assign(
             Expression.ArrayAccess(visitor.f, visitor.rowIdx),
-            visitor.fwdExprMap[expr.Body]),
+            visitor.fwdExprMap[expr.Body.ToString()]),
 
           // rowIdx++
           Expression.PostIncrementAssign(visitor.rowIdx))),
@@ -198,7 +198,7 @@ namespace HEAL.Expressions {
       #endregion
 
       var newBody = Expression.Block(
-        variables: new[] {lenVar },
+        variables: new[] { lenVar },
         expressions: new Expression[] { initBlock, forwardLoops, backwardLoops }
         );
 
@@ -211,11 +211,11 @@ namespace HEAL.Expressions {
       // create buffers
       var eval = new double[numNodes][];
       var diff = new double[numNodes][];
-      for(int i = 0;i<numNodes;i++) {
+      for (int i = 0; i < numNodes; i++) {
         eval[i] = new double[nRows];
         diff[i] = new double[nRows];
       }
-      
+
       // System.Console.WriteLine(GetDebugView(expr));
       var func = expr.Compile();
       return (double[] theta, double[,] X, double[] f, double[,] Jac) =>
@@ -224,12 +224,12 @@ namespace HEAL.Expressions {
 
 
     protected override Expression VisitConstant(ConstantExpression node) {
-      fwdExprMap.Add(node, node);
+      fwdExprMap.TryAdd(node.ToString(), node);
 
       // Forward(node);
       // Backpropagate(curIdx, Expression.Constant(0.0));
       // curIdx++;
-      revExprMap.Add(node, revIdx++);
+      if (revExprMap.TryAdd(node.ToString(), revIdx)) revIdx++;
       return node;
     }
 
@@ -238,17 +238,17 @@ namespace HEAL.Expressions {
       if (node.NodeType == ExpressionType.ArrayIndex) {
         // handle parameters
         if (node.Left == theta) {
-          fwdExprMap.Add(node, Expression.ArrayIndex(theta, node.Right));
+          fwdExprMap.TryAdd(node.ToString(), Expression.ArrayIndex(theta, node.Right));
           // Forward(Expression.ArrayIndex(theta, node.Right));
           // collect into Jacobian
           backwardExpressions.Add(Expression.AddAssign(Expression.ArrayAccess(Jac, new[] { rowIdx, node.Right }), BufferAt(diff, revIdx)));
-          revExprMap.Add(node, revIdx++);
+          if (revExprMap.TryAdd(node.ToString(), revIdx)) revIdx++;
           return node;
         } else if (node.Left == x) {
-          fwdExprMap.Add(node, Expression.ArrayAccess(X, new[] { rowIdx, node.Right }));
+          fwdExprMap.TryAdd(node.ToString(), Expression.ArrayAccess(X, new[] { rowIdx, node.Right }));
           // Forward(Expression.ArrayAccess(X, new[] { rowIdx, node.Right }));
           // no need to back-prop into variables          
-          revExprMap.Add(node, revIdx++);
+          if (revExprMap.TryAdd(node.ToString(), revIdx)) revIdx++;
           return node;
         } else throw new InvalidProgramException($"unknown array {node.Left}");
       } else {
@@ -256,10 +256,10 @@ namespace HEAL.Expressions {
         Visit(node.Left);
         Visit(node.Right);
 
-        fwdExprMap.Add(node, BufferAt(eval, forwardExpressions.Count));
+        fwdExprMap.TryAdd(node.ToString(), BufferAt(eval, forwardExpressions.Count));
 
         // eval[curIdx] = eval[leftIdx] ° eval[rightIdx]
-        Forward(node.Update(fwdExprMap[node.Left], null, fwdExprMap[node.Right]));
+        Forward(node.Update(fwdExprMap[node.Left.ToString()], null, fwdExprMap[node.Right.ToString()]));
 
         switch (node.NodeType) {
           case ExpressionType.Add: {
@@ -275,32 +275,32 @@ namespace HEAL.Expressions {
           case ExpressionType.Multiply: {
               // diff[left] = diff[cur] * eval[right]
               Backpropagate(node.Left,
-                Expression.Multiply(BufferAt(diff, revIdx), fwdExprMap[node.Right]));
+                Expression.Multiply(BufferAt(diff, revIdx), fwdExprMap[node.Right.ToString()]));
               // diff[right] = diff[cur] * eval[left]
               Backpropagate(node.Right,
-                Expression.Multiply(BufferAt(diff, revIdx), fwdExprMap[node.Left]));
+                Expression.Multiply(BufferAt(diff, revIdx), fwdExprMap[node.Left.ToString()]));
               break;
             }
           case ExpressionType.Divide: {
               // diff[left] = diff[cur] / eval[right];
               Backpropagate(node.Left,
-                Expression.Divide(BufferAt(diff, revIdx), fwdExprMap[node.Right]));
+                Expression.Divide(BufferAt(diff, revIdx), fwdExprMap[node.Right.ToString()]));
 
               // diff[right] = -diff[cur] * eval[left] / (eval[right] * eval[right]);
               Backpropagate(node.Right,
                 Expression.Multiply(
                   Expression.Negate(BufferAt(diff, revIdx)),
                   Expression.Divide(
-                    fwdExprMap[node.Left],
+                    fwdExprMap[node.Left.ToString()],
                     Expression.Multiply(
-                      fwdExprMap[node.Right],
-                      fwdExprMap[node.Right]))));
+                      fwdExprMap[node.Right.ToString()],
+                      fwdExprMap[node.Right.ToString()]))));
               break;
             }
         }
 
 
-        revExprMap.Add(node, revIdx++);
+        if (revExprMap.TryAdd(node.ToString(), revIdx)) revIdx++;
 
         return node;
       }
@@ -311,12 +311,12 @@ namespace HEAL.Expressions {
 
       Visit(node.Operand);
 
-      fwdExprMap.Add(node, BufferAt(eval, forwardExpressions.Count));
+      fwdExprMap.TryAdd(node.ToString(), BufferAt(eval, forwardExpressions.Count));
 
-      Forward(node.Update(fwdExprMap[node.Operand]));
+      Forward(node.Update(fwdExprMap[node.Operand.ToString()]));
 
       Backpropagate(node.Operand, node.Update(BufferAt(diff, revIdx)));
-      revExprMap.Add(node, revIdx++);
+      if (revExprMap.TryAdd(node.ToString(), revIdx)) revIdx++;
       return node;
     }
 
@@ -327,22 +327,22 @@ namespace HEAL.Expressions {
         Visit(node.Arguments[i]);
       }
 
-      fwdExprMap.Add(node, BufferAt(eval, forwardExpressions.Count));
+      fwdExprMap.Add(node.ToString(), BufferAt(eval, forwardExpressions.Count));
 
-      Forward(node.Update(node.Object, node.Arguments.Select(arg => fwdExprMap[arg])));
+      Forward(node.Update(node.Object, node.Arguments.Select(arg => fwdExprMap[arg.ToString()])));
 
       if (node.Method == log) {
-        Backpropagate(node.Arguments[0], Expression.Divide(BufferAt(diff, revIdx), fwdExprMap[node.Arguments[0]]));
+        Backpropagate(node.Arguments[0], Expression.Divide(BufferAt(diff, revIdx), fwdExprMap[node.Arguments[0].ToString()]));
       } else if (node.Method == abs) {
-        Backpropagate(node.Arguments[0], Expression.Multiply(BufferAt(diff, revIdx), Expression.Call(sign, fwdExprMap[node.Arguments[0]])));
+        Backpropagate(node.Arguments[0], Expression.Multiply(BufferAt(diff, revIdx), Expression.Call(sign, fwdExprMap[node.Arguments[0].ToString()])));
       } else if (node.Method == exp) {
-        Backpropagate(node.Arguments[0], Expression.Multiply(BufferAt(diff, revIdx), fwdExprMap[node]));
+        Backpropagate(node.Arguments[0], Expression.Multiply(BufferAt(diff, revIdx), fwdExprMap[node.ToString()]));
       } else if (node.Method == sin) {
-        Backpropagate(node.Arguments[0], Expression.Multiply(BufferAt(diff, revIdx), Expression.Call(cos, fwdExprMap[node.Arguments[0]])));
+        Backpropagate(node.Arguments[0], Expression.Multiply(BufferAt(diff, revIdx), Expression.Call(cos, fwdExprMap[node.Arguments[0].ToString()])));
       } else if (node.Method == cos) {
-        Backpropagate(node.Arguments[0], Expression.Multiply(BufferAt(diff, revIdx), Expression.Negate(Expression.Call(sin, fwdExprMap[node.Arguments[0]]))));
+        Backpropagate(node.Arguments[0], Expression.Multiply(BufferAt(diff, revIdx), Expression.Negate(Expression.Call(sin, fwdExprMap[node.Arguments[0].ToString()]))));
       } else if (node.Method == cosh) {
-        Backpropagate(node.Arguments[0], Expression.Multiply(BufferAt(diff, revIdx), Expression.Call(sinh, fwdExprMap[node.Arguments[0]])));
+        Backpropagate(node.Arguments[0], Expression.Multiply(BufferAt(diff, revIdx), Expression.Call(sinh, fwdExprMap[node.Arguments[0].ToString()])));
       } else if (node.Method == tanh) {
         // diff * 2 / (cosh(2*eval) + 1)
         Backpropagate(node.Arguments[0],
@@ -354,59 +354,59 @@ namespace HEAL.Expressions {
                  Expression.Call(cosh,
                    Expression.Multiply(
                      Expression.Constant(2.0),
-                     fwdExprMap[node.Arguments[0]])),
+                     fwdExprMap[node.Arguments[0].ToString()])),
                  Expression.Constant(1.0)))));
       } else if (node.Method == pow) {
         // diff[left] = diff[cur] * eval[right] * eval[cur] / eval[left]; // diff[cur] * eval[right] * eval[left] ^ ( eval[right] - 1);
         Backpropagate(node.Arguments[0], Expression.Multiply(
           BufferAt(diff, revIdx),
           Expression.Multiply(
-            fwdExprMap[node.Arguments[1]],
+            fwdExprMap[node.Arguments[1].ToString()],
             Expression.Divide(
-              fwdExprMap[node],
-              fwdExprMap[node.Arguments[0]]))));
+              fwdExprMap[node.ToString()],
+              fwdExprMap[node.Arguments[0].ToString()]))));
 
         // diff[right] = diff[cur] * eval[cur] * Math.Log(eval[left]);
         Backpropagate(node.Arguments[1],
           Expression.Multiply(
             BufferAt(diff, revIdx),
             Expression.Multiply(
-              fwdExprMap[node],
-              Expression.Call(log, fwdExprMap[node.Arguments[0]]))));
+              fwdExprMap[node.ToString()],
+              Expression.Call(log, fwdExprMap[node.Arguments[0].ToString()]))));
       } else if (node.Method == sqrt) {
         Backpropagate(node.Arguments[0], Expression.Multiply(
           BufferAt(diff, revIdx),
           Expression.Divide(
             Expression.Constant(0.5),
-            fwdExprMap[node])));
+            fwdExprMap[node.ToString()])));
       } else if (node.Method == cbrt) {
         Backpropagate(node.Arguments[0], Expression.Divide(
           BufferAt(diff, revIdx),
           Expression.Multiply(
             Expression.Constant(3.0),
-            Expression.Multiply(fwdExprMap[node], fwdExprMap[node]))));
+            Expression.Multiply(fwdExprMap[node.ToString()], fwdExprMap[node.ToString()]))));
       } else if (node.Method == sign) {
         Backpropagate(node.Arguments[0], Expression.Constant(0.0));
       } else if (node.Method == logistic) {
         Backpropagate(node.Arguments[0], Expression.Multiply(
           BufferAt(diff, revIdx),
-          Expression.Call(logisticPrime, fwdExprMap[node.Arguments[0]])));
+          Expression.Call(logisticPrime, fwdExprMap[node.Arguments[0].ToString()])));
       } else if (node.Method == invLogistic) {
         Backpropagate(node.Arguments[0], Expression.Multiply(
           BufferAt(diff, revIdx),
-          Expression.Call(invLogisticPrime, fwdExprMap[node.Arguments[0]])));
+          Expression.Call(invLogisticPrime, fwdExprMap[node.Arguments[0].ToString()])));
       } else if (node.Method == logisticPrime) {
         Backpropagate(node.Arguments[0], Expression.Multiply(
           BufferAt(diff, revIdx),
-          Expression.Call(logisticPrimePrime, fwdExprMap[node.Arguments[0]])));
+          Expression.Call(logisticPrimePrime, fwdExprMap[node.Arguments[0].ToString()])));
       } else if (node.Method == invLogisticPrime) {
         Backpropagate(node.Arguments[0], Expression.Multiply(
           BufferAt(diff, revIdx),
-          Expression.Call(invLogisticPrimePrime, fwdExprMap[node.Arguments[0]])));
+          Expression.Call(invLogisticPrimePrime, fwdExprMap[node.Arguments[0].ToString()])));
       } else throw new NotSupportedException($"{node.Method}");
 
 
-      revExprMap.Add(node, revIdx++);
+      if (revExprMap.TryAdd(node.ToString(), revIdx)) revIdx++;
 
       return node;
     }
@@ -418,7 +418,7 @@ namespace HEAL.Expressions {
 
     private void Backpropagate(Expression prevExpr, Expression expr) {
       if (prevExpr is ConstantExpression || (prevExpr is BinaryExpression binaryExpression && binaryExpression.Left == x)) return; // do not generate expressions to backpropagate error for constants or variables
-      var idx = revExprMap[prevExpr];
+      var idx = revExprMap[prevExpr.ToString()];
       backwardExpressions.Add(AssignBufferAt(diff, idx, expr));
     }
     private Expression AssignBufferAt(ParameterExpression evalBuffer, int idx, Expression expr) {
