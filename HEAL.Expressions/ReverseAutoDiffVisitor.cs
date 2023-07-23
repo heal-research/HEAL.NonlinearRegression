@@ -61,8 +61,8 @@ namespace HEAL.Expressions {
       X = Expression.Parameter(typeof(double[,]), "X");
       f = Expression.Parameter(typeof(double[]), "f");
       Jac = Expression.Parameter(typeof(double[,]), "Jac");
-      eval = Expression.Parameter(typeof(double[,]), "eval");
-      diff = Expression.Parameter(typeof(double[,]), "revEval");
+      eval = Expression.Parameter(typeof(double[][]), "eval");
+      diff = Expression.Parameter(typeof(double[][]), "revEval");
       rowIdx = Expression.Variable(typeof(int), "rowIdx");
     }
 
@@ -88,8 +88,8 @@ namespace HEAL.Expressions {
 
       // we assume f, and Jac for the return values are allocated by the user
       var initBlock = Expression.Block(
-        // len = eval.GetLength(1)
-        Expression.Assign(lenVar, Expression.Call(visitor.eval, arrLength, Expression.Constant(1))),
+        // len = eval[0].GetLength(0)
+        Expression.Assign(lenVar, Expression.Call(Expression.ArrayAccess(visitor.eval, Expression.Constant(0)), arrLength, Expression.Constant(0))),
         // if (Jac != null) Array.Clear()
         Expression.IfThen(Expression.NotEqual(visitor.Jac, Expression.Constant(null)),
           Expression.Call(arrClear, visitor.Jac)) // clear Jac
@@ -163,7 +163,7 @@ namespace HEAL.Expressions {
               Expression.Block(
             // diff[numNodes - 1, row] = 1.0
             Expression.Assign(
-              Expression.ArrayAccess(visitor.diff, new Expression[] { Expression.Constant(visitor.numNodes - 1), visitor.rowIdx }),
+              Expression.ArrayAccess(Expression.ArrayAccess(visitor.diff, Expression.Constant(visitor.numNodes - 1)), visitor.rowIdx),
               Expression.Constant(1.0)),
 
             // rowIdx++
@@ -202,15 +202,19 @@ namespace HEAL.Expressions {
         expressions: new Expression[] { initBlock, forwardLoops, backwardLoops }
         );
 
-      var newExpr = Expression.Lambda<Action<double[,], double[,], double[], double[,], double[], double[,]>>(newBody, visitor.eval, visitor.diff, visitor.theta, visitor.X, visitor.f, visitor.Jac);
+      var newExpr = Expression.Lambda<Action<double[][], double[][], double[], double[,], double[], double[,]>>(newBody, visitor.eval, visitor.diff, visitor.theta, visitor.X, visitor.f, visitor.Jac);
 
       return GenerateExpression(nRows, visitor.numNodes, newExpr);
     }
 
-    private static Expr.ParametricJacobianFunction GenerateExpression(int nRows, int numNodes, Expression<Action<double[,], double[,], double[], double[,], double[], double[,]>> expr) {
+    private static Expr.ParametricJacobianFunction GenerateExpression(int nRows, int numNodes, Expression<Action<double[][], double[][], double[], double[,], double[], double[,]>> expr) {
       // create buffers
-      var eval = new double[numNodes, nRows];
-      var diff = new double[numNodes, nRows];
+      var eval = new double[numNodes][];
+      var diff = new double[numNodes][];
+      for(int i = 0;i<numNodes;i++) {
+        eval[i] = new double[nRows];
+        diff[i] = new double[nRows];
+      }
       
       // System.Console.WriteLine(GetDebugView(expr));
       var func = expr.Compile();
@@ -422,7 +426,9 @@ namespace HEAL.Expressions {
     }
 
     private Expression BufferAt(ParameterExpression evalBuffer, int idx) {
-      return Expression.ArrayAccess(evalBuffer, new Expression[] { Expression.Constant(idx), rowIdx });
+      return Expression.ArrayAccess(
+        Expression.ArrayAccess(evalBuffer, Expression.Constant(idx)),
+        rowIdx);
     }
     #endregion
 
