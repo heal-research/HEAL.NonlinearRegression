@@ -71,6 +71,9 @@ namespace HEAL.Expressions.Tests {
       CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.InvLogisticPrime(p[0] * x[0]));
 
       CompareSymbolicAndAutoDiffJacobian((p, x) => p[0] * x[0] / (p[1] * x[1] + p[2]));
+      
+      // example with duplicate sub-expressions
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(p[0] * x[0], p[1]) + Math.Pow(p[0] * x[0], p[1]) / (p[0] * x[0]));
       Assert.Pass();
     }
 
