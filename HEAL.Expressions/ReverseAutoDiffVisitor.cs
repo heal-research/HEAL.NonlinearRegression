@@ -70,13 +70,10 @@ namespace HEAL.Expressions {
     // - batched evaluation
     // - try outer loop over rows instead of inner loops
     // - remove unnecessary reverse expressions (leading to constants or variables), tracing visited tape elements
-    // - investigate bad performance
     // - investigate why it does not work with RAR likelihood yet
-    // - code should be at least faster than reverse autodiff interpreter (ExpressionInterpreter) because it has to perform the same steps 
+    // - code should be at least as fast as reverse autodiff interpreter (ExpressionInterpreter) because it has to perform the same steps 
     // - no need to store diff in backwards evaluation in a big array. Can use stackallocated temporary arrays instead
-    // - benchmark with expression similar to RAR likelihood
     // - change this interpreter to use one-dimensional arrays for eval and diff (jagged arrays)
-    // - think about ways to save re-evaluation of sigma_tot
     // - think about improving ExpressionIntrepreter to remove diff arrays
     // - Vectorization 
     public static Expr.ParametricJacobianFunction GenerateJacobianExpression(Expression<Expr.ParametricFunction> expr, int nRows) {
@@ -163,7 +160,7 @@ namespace HEAL.Expressions {
               Expression.Block(
             // diff[numNodes - 1, row] = 1.0
             Expression.Assign(
-              Expression.ArrayAccess(Expression.ArrayAccess(visitor.diff, Expression.Constant(visitor.numNodes - 1)), visitor.rowIdx),
+              Expression.ArrayAccess(Expression.ArrayAccess(visitor.diff, Expression.Constant(visitor.revExprMap.Values.Max() )), visitor.rowIdx),
               Expression.Constant(1.0)),
 
             // rowIdx++
@@ -224,7 +221,9 @@ namespace HEAL.Expressions {
 
 
     protected override Expression VisitConstant(ConstantExpression node) {
-      fwdExprMap.TryAdd(node.ToString(), node);
+      if (fwdExprMap.ContainsKey(node.ToString())) return node;
+
+      fwdExprMap.Add(node.ToString(), node);
 
       // Forward(node);
       // Backpropagate(curIdx, Expression.Constant(0.0));
@@ -234,21 +233,22 @@ namespace HEAL.Expressions {
     }
 
     protected override Expression VisitBinary(BinaryExpression node) {
+      if (fwdExprMap.ContainsKey(node.ToString())) return node;
 
       if (node.NodeType == ExpressionType.ArrayIndex) {
         // handle parameters
         if (node.Left == theta) {
-          fwdExprMap.TryAdd(node.ToString(), Expression.ArrayIndex(theta, node.Right));
+          fwdExprMap.Add(node.ToString(), Expression.ArrayIndex(theta, node.Right));
           // Forward(Expression.ArrayIndex(theta, node.Right));
           // collect into Jacobian
           backwardExpressions.Add(Expression.AddAssign(Expression.ArrayAccess(Jac, new[] { rowIdx, node.Right }), BufferAt(diff, revIdx)));
           if (revExprMap.TryAdd(node.ToString(), revIdx)) revIdx++;
           return node;
         } else if (node.Left == x) {
-          fwdExprMap.TryAdd(node.ToString(), Expression.ArrayAccess(X, new[] { rowIdx, node.Right }));
+          fwdExprMap.Add(node.ToString(), Expression.ArrayAccess(X, new[] { rowIdx, node.Right }));
           // Forward(Expression.ArrayAccess(X, new[] { rowIdx, node.Right }));
           // no need to back-prop into variables          
-          if (revExprMap.TryAdd(node.ToString(), revIdx)) revIdx++;
+          // if (revExprMap.TryAdd(node.ToString(), revIdx)) revIdx++;
           return node;
         } else throw new InvalidProgramException($"unknown array {node.Left}");
       } else {
@@ -256,7 +256,7 @@ namespace HEAL.Expressions {
         Visit(node.Left);
         Visit(node.Right);
 
-        fwdExprMap.TryAdd(node.ToString(), BufferAt(eval, forwardExpressions.Count));
+        fwdExprMap.Add(node.ToString(), BufferAt(eval, forwardExpressions.Count));
 
         // eval[curIdx] = eval[leftIdx] ° eval[rightIdx]
         Forward(node.Update(fwdExprMap[node.Left.ToString()], null, fwdExprMap[node.Right.ToString()]));
@@ -308,10 +308,11 @@ namespace HEAL.Expressions {
 
 
     protected override Expression VisitUnary(UnaryExpression node) {
+      if (fwdExprMap.ContainsKey(node.ToString())) return node;
 
       Visit(node.Operand);
 
-      fwdExprMap.TryAdd(node.ToString(), BufferAt(eval, forwardExpressions.Count));
+      fwdExprMap.Add(node.ToString(), BufferAt(eval, forwardExpressions.Count));
 
       Forward(node.Update(fwdExprMap[node.Operand.ToString()]));
 
@@ -322,6 +323,8 @@ namespace HEAL.Expressions {
 
 
     protected override Expression VisitMethodCall(MethodCallExpression node) {
+      if (fwdExprMap.ContainsKey(node.ToString())) return node;
+
       // if (!SupportedMethods.Contains(node.Method)) throw new NotSupportedException($"unsupported method {node.Method}");
       for (int i = 0; i < node.Arguments.Count; i++) {
         Visit(node.Arguments[i]);
@@ -419,10 +422,13 @@ namespace HEAL.Expressions {
     private void Backpropagate(Expression prevExpr, Expression expr) {
       if (prevExpr is ConstantExpression || (prevExpr is BinaryExpression binaryExpression && binaryExpression.Left == x)) return; // do not generate expressions to backpropagate error for constants or variables
       var idx = revExprMap[prevExpr.ToString()];
-      backwardExpressions.Add(AssignBufferAt(diff, idx, expr));
+      backwardExpressions.Add(AddAssignBufferAt(diff, idx, expr));
     }
-    private Expression AssignBufferAt(ParameterExpression evalBuffer, int idx, Expression expr) {
-      return Expression.Assign(BufferAt(evalBuffer, idx), expr);
+    private Expression AssignBufferAt(ParameterExpression buffer, int idx, Expression expr) {
+      return Expression.Assign(BufferAt(buffer, idx), expr);
+    }
+    private Expression AddAssignBufferAt(ParameterExpression buffer, int idx, Expression expr) {
+      return Expression.AddAssign(BufferAt(buffer, idx), expr);
     }
 
     private Expression BufferAt(ParameterExpression evalBuffer, int idx) {
