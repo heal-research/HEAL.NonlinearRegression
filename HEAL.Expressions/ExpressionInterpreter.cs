@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Numerics;
 using System.Reflection;
 
 namespace HEAL.Expressions {
@@ -50,11 +51,11 @@ namespace HEAL.Expressions {
               if (binary.Left == thetaParam) {
                 curInstr.idx1 = ExtractArrIndex(curExpr);
                 curInstr.values = new double[batchSize];
-                curInstr.diffValues = new double[batchSize]; // necessary?
+                curInstr.diffValues = new double[batchSize];
               } else if (binary.Left == xParam) {
                 curInstr.idx1 = ExtractArrIndex(curExpr);
                 curInstr.values = xBuf[curInstr.idx1];
-                curInstr.diffValues = new double[batchSize]; // necessary?
+                curInstr.diffValues = new double[batchSize];
               } else throw new NotSupportedException("unknown array variable.");
             }
             break;
@@ -105,6 +106,9 @@ namespace HEAL.Expressions {
     }
 
     private double[] Evaluate(double[] theta, int startRow, int batchSize) {
+      var vecSize = System.Numerics.Vector<double>.Count;
+      if (batchSize % vecSize != 0) throw new ArgumentException("batch size must be a multiple of the vector size");
+
       // copy variable values into batch buffer
       for (int i = 0; i < x.Length; i++) {
         Buffer.BlockCopy(x[i], startRow * sizeof(double), xBuf[i], 0, batchSize * sizeof(double));
@@ -120,22 +124,22 @@ namespace HEAL.Expressions {
         switch (curInstr.opc) {
           case Instruction.OpcEnum.Var: /* nothing to do */ break;
           case Instruction.OpcEnum.Const: /* nothing to do */ break;
-          case Instruction.OpcEnum.Param: for (int i = 0; i < batchSize; i++) { curVal[i] = theta[curInstr.idx1]; } break;
-          case Instruction.OpcEnum.Neg: for (int i = 0; i < batchSize; i++) { curVal[i] = -leftVal[i]; } break;
-          case Instruction.OpcEnum.Add: for (int i = 0; i < batchSize; i++) { curVal[i] = leftVal[i] + rightVal[i]; } break;
-          case Instruction.OpcEnum.Sub: for (int i = 0; i < batchSize; i++) { curVal[i] = leftVal[i] - rightVal[i]; } break;
-          case Instruction.OpcEnum.Mul: for (int i = 0; i < batchSize; i++) { curVal[i] = leftVal[i] * rightVal[i]; } break;
-          case Instruction.OpcEnum.Div: for (int i = 0; i < batchSize; i++) { curVal[i] = leftVal[i] / rightVal[i]; } break;
+          case Instruction.OpcEnum.Param: Array.Fill(curVal, theta[curInstr.idx1]); break;
+          case Instruction.OpcEnum.Neg: for (int i = 0; i < batchSize; i += vecSize) { (-new Vector<double>(leftVal, i)).CopyTo(curVal, i); } break; // leftVal 
+          case Instruction.OpcEnum.Add: for (int i = 0; i < batchSize; i += vecSize) { (new Vector<double>(leftVal, i) + new Vector<double>(rightVal, i)).CopyTo(curVal, i); } break;
+          case Instruction.OpcEnum.Sub: for (int i = 0; i < batchSize; i += vecSize) { (new Vector<double>(leftVal, i) - new Vector<double>(rightVal, i)).CopyTo(curVal, i); } break;
+          case Instruction.OpcEnum.Mul: for (int i = 0; i < batchSize; i += vecSize) { (new Vector<double>(leftVal, i) * new Vector<double>(rightVal, i)).CopyTo(curVal, i); } break;
+          case Instruction.OpcEnum.Div: for (int i = 0; i < batchSize; i += vecSize) { (new Vector<double>(leftVal, i) / new Vector<double>(rightVal, i)).CopyTo(curVal, i); } break;
 
           case Instruction.OpcEnum.Log: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Log(leftVal[i]); } break;
-          case Instruction.OpcEnum.Abs: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Abs(leftVal[i]); } break;
+          case Instruction.OpcEnum.Abs: for (int i = 0; i < batchSize; i += vecSize) { Vector.Abs(new Vector<double>(leftVal, i)).CopyTo(curVal, i); } break;
           case Instruction.OpcEnum.Exp: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Exp(leftVal[i]); } break;
           case Instruction.OpcEnum.Sin: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Sin(leftVal[i]); } break;
           case Instruction.OpcEnum.Cos: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Cos(leftVal[i]); } break;
           case Instruction.OpcEnum.Cosh: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Cosh(leftVal[i]); } break;
           case Instruction.OpcEnum.Tanh: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Tanh(leftVal[i]); } break;
           case Instruction.OpcEnum.Pow: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Pow(leftVal[i], rightVal[i]); } break;
-          case Instruction.OpcEnum.Sqrt: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Sqrt(leftVal[i]); } break;
+          case Instruction.OpcEnum.Sqrt: for (int i = 0; i < batchSize; i += vecSize) { Vector.SquareRoot(new Vector<double>(leftVal, i)).CopyTo(curVal, i); } break;
           case Instruction.OpcEnum.Cbrt: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.Cbrt(leftVal[i]); } break;
           case Instruction.OpcEnum.Sign: for (int i = 0; i < batchSize; i++) { curVal[i] = double.IsNaN(leftVal[i]) ? double.NaN : Math.Sign(leftVal[i]); } break;
           // case Instruction.OpcEnum.AQ: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.AQ(leftVal[i], rightVal[i]); } break;
@@ -165,6 +169,7 @@ namespace HEAL.Expressions {
     }
 
     private double[] EvaluateWithJac(double[] theta, int startRow, int batchSize, double[,] jacX, double[,] jacTheta) {
+      var vecSize = Vector<double>.Count;
       // evaluate forward
       var f = (double[])Evaluate(theta, startRow, batchSize).Clone();
 
@@ -191,50 +196,115 @@ namespace HEAL.Expressions {
         var rightDiff = ch1Idx >= 0 ? instuctions[ch1Idx].diffValues : null;
         var rightVal = ch1Idx >= 0 ? instuctions[ch1Idx].values : null;
         switch (curInstr.opc) {
-          case Instruction.OpcEnum.Var: if (jacX != null && curDiff != null) for (int i = 0; i < batchSize; i++) { jacX[startRow + i, curInstr.idx1] += curDiff[i]; } break;
+          case Instruction.OpcEnum.Var: if (jacX != null) for (int i = 0; i < batchSize; i++) { jacX[startRow + i, curInstr.idx1] += curDiff[i]; } break;
           case Instruction.OpcEnum.Const: /* nothing to do */ break;
-          case Instruction.OpcEnum.Param: if (jacTheta != null && curDiff != null) for (int i = 0; i < batchSize; i++) { jacTheta[startRow + i, curInstr.idx1] += curDiff[i]; } break;
+          case Instruction.OpcEnum.Param: if (jacTheta != null) for (int i = 0; i < batchSize; i++) { jacTheta[startRow + i, curInstr.idx1] += curDiff[i]; } break;
           case Instruction.OpcEnum.Neg:
-            if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] -= curDiff[i]; }
+            if (leftDiff != null) for (int i = 0; i < batchSize; i += vecSize) { (new Vector<double>(leftDiff, i) - new Vector<double>(curDiff, i)).CopyTo(leftDiff, i); } // leftDiff -= curDiff
             break;
           case Instruction.OpcEnum.Add:
-            if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i]; }// TODO: no need to copy values
-            if (rightDiff != null) for (int i = 0; i < batchSize; i++) { rightDiff[i] += curDiff[i]; }  // TODO: no need to copy values
+            if (leftDiff != null) for (int i = 0; i < batchSize; i += vecSize) { (new Vector<double>(leftDiff, i) + new Vector<double>(curDiff, i)).CopyTo(leftDiff, i); } // leftDiff += curDiff
+            if (rightDiff != null) for (int i = 0; i < batchSize; i += vecSize) { (new Vector<double>(rightDiff, i) + new Vector<double>(curDiff, i)).CopyTo(rightDiff, i); } // rightDiff += curDiff
             break;
           case Instruction.OpcEnum.Sub:
-            if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i]; } // TODO: no need to copy values
-            if (rightDiff != null) for (int i = 0; i < batchSize; i++) { rightDiff[i] -= curDiff[i]; }
+            if (leftDiff != null) for (int i = 0; i < batchSize; i += vecSize) { (new Vector<double>(leftDiff, i) + new Vector<double>(curDiff, i)).CopyTo(leftDiff, i); } // leftDiff += curDiff
+            if (rightDiff != null) for (int i = 0; i < batchSize; i += vecSize) { (new Vector<double>(rightDiff, i) - new Vector<double>(curDiff, i)).CopyTo(rightDiff, i); } // rightDiff -= curDiff
             break;
           case Instruction.OpcEnum.Mul:
-            if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * rightVal[i]; }
-            if (rightDiff != null) for (int i = 0; i < batchSize; i++) { rightDiff[i] += curDiff[i] * leftVal[i]; }
+            if (leftDiff != null) for (int i = 0; i < batchSize; i += vecSize) {
+                // leftDiff[i] += curDiff[i] * rightVal[i];
+                var d = new Vector<double>(curDiff, i);
+                var ld = new Vector<double>(leftDiff, i);
+                var r = new Vector<double>(rightVal, i);
+                (ld + d * r).CopyTo(leftDiff, i);
+              }
+            if (rightDiff != null) for (int i = 0; i < batchSize; i += vecSize) {
+                //rightDiff[i] += curDiff[i] * leftVal[i];
+                var d = new Vector<double>(curDiff, i);
+                var rd = new Vector<double>(rightDiff, i);
+                var l = new Vector<double>(leftVal, i);
+                (rd + d * l).CopyTo(rightDiff, i);
+              }
             break;
           case Instruction.OpcEnum.Div:
-            if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] / rightVal[i]; }
-            if (rightDiff != null) for (int i = 0; i < batchSize; i++) { rightDiff[i] += -curDiff[i] * leftVal[i] / (rightVal[i] * rightVal[i]); }
+            if (leftDiff != null) for (int i = 0; i < batchSize; i += vecSize) {
+                // leftDiff[i] += curDiff[i] / rightVal[i];
+                var d = new Vector<double>(curDiff, i);
+                var ld = new Vector<double>(leftDiff, i);
+                var r = new Vector<double>(rightVal, i);
+                (ld + d / r).CopyTo(leftDiff, i);
+              }
+            if (rightDiff != null) for (int i = 0; i < batchSize; i += vecSize) {
+                // rightDiff[i] += -curDiff[i] * leftVal[i] / (rightVal[i] * rightVal[i]); 
+                var d = new Vector<double>(curDiff, i);
+                var rd = new Vector<double>(rightDiff, i);
+                var l = new Vector<double>(leftVal, i);
+                var r = new Vector<double>(rightVal, i);
+                (rd - d * l / (r * r)).CopyTo(rightDiff, i);
+              }
             break;
 
           // TODO: for unary operations we can re-use the curDiff array
-          case Instruction.OpcEnum.Log: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] / leftVal[i]; } break;
-          case Instruction.OpcEnum.Abs: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * (double.IsNaN(rightVal[i]) ? double.NaN : Math.Sign(leftVal[i])); } break;
-          case Instruction.OpcEnum.Exp: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * curVal[i]; } break;
+          case Instruction.OpcEnum.Log:
+            if (leftDiff != null) for (int i = 0; i < batchSize; i += vecSize) {
+                // leftDiff[i] += curDiff[i] / leftVal[i]; 
+                var d = new Vector<double>(curDiff, i);
+                var ld = new Vector<double>(leftDiff, i);
+                var l = new Vector<double>(leftVal, i);
+                (ld + d / l).CopyTo(leftDiff, i);
+              }
+            break;
+          case Instruction.OpcEnum.Abs:
+            if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * (double.IsNaN(leftVal[i]) ? double.NaN : Math.Sign(leftVal[i])); }
+            break;
+          case Instruction.OpcEnum.Exp:
+            if (leftDiff != null) for (int i = 0; i < batchSize; i += vecSize) {
+                // leftDiff[i] += curDiff[i] * curVal[i];
+                var d = new Vector<double>(curDiff, i);
+                var v = new Vector<double>(curVal, i);
+                var ld = new Vector<double>(leftDiff, i);
+                (ld + d * v).CopyTo(leftDiff, i);
+              }
+            break;
           case Instruction.OpcEnum.Sin: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * Math.Cos(leftVal[i]); } break;
           case Instruction.OpcEnum.Cos: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * -Math.Sin(leftVal[i]); } break;
           case Instruction.OpcEnum.Cosh: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * Math.Sinh(leftVal[i]); } break;
           case Instruction.OpcEnum.Tanh: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * 2.0 / (Math.Cosh(2.0 * leftVal[i]) + 1); } break;
           case Instruction.OpcEnum.Pow:
             if (leftDiff != null)
-              for (int i = 0; i < batchSize; i++) {
-                leftDiff[i] += curDiff[i] * rightVal[i] * curVal[i] / leftVal[i]; // curDiff[i] * rightVal[i] * Math.Pow(leftVal[i], rightVal[i] - 1);
+              for (int i = 0; i < batchSize; i += vecSize) {
+                // leftDiff[i] += curDiff[i] * rightVal[i] * curVal[i] / leftVal[i]; // curDiff[i] * rightVal[i] * Math.Pow(leftVal[i], rightVal[i] - 1);
+                var d = new Vector<double>(curDiff, i);
+                var v = new Vector<double>(curVal, i);
+                var ld = new Vector<double>(leftDiff, i);
+                var l = new Vector<double>(leftVal, i);
+                var r = new Vector<double>(rightVal, i);
+                (ld + d * r * v / l).CopyTo(leftDiff, i);
               }
             if (rightDiff != null)
               for (int i = 0; i < batchSize; i++) {
                 rightDiff[i] += curDiff[i] * curVal[i] * Math.Log(leftVal[i]);
               }
             break;
-          case Instruction.OpcEnum.Sqrt: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * 0.5 / curVal[i]; } break;
-          case Instruction.OpcEnum.Cbrt: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] / (3.0 * curVal[i] * curVal[i]); } break;
-          case Instruction.OpcEnum.Sign: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += 0.0; } break;
+          case Instruction.OpcEnum.Sqrt:
+            if (leftDiff != null) for (int i = 0; i < batchSize; i += vecSize) {
+                // leftDiff[i] += curDiff[i] * 0.5 / curVal[i]; 
+                var d = new Vector<double>(curDiff, i);
+                var v = new Vector<double>(curVal, i);
+                var ld = new Vector<double>(leftDiff, i);
+                (ld + d * 0.5 / v).CopyTo(leftDiff, i);
+              }
+            break;
+          case Instruction.OpcEnum.Cbrt:
+            if (leftDiff != null) for (int i = 0; i < batchSize; i += vecSize) {
+                // leftDiff[i] += curDiff[i] / (3.0 * curVal[i] * curVal[i]); 
+                var d = new Vector<double>(curDiff, i);
+                var v = new Vector<double>(curVal, i);
+                var ld = new Vector<double>(leftDiff, i);
+                (ld + d / (3.0 * v * v)).CopyTo(leftDiff, i);
+              }
+            break;
+          case Instruction.OpcEnum.Sign: /* nothing to do */ break;
           // case Instruction.OpcEnum.AQ:
           //   for (int i = 0; i < batchSize; i++) {
           //     leftDiff[i] = curDiff[i] / rightVal[i];

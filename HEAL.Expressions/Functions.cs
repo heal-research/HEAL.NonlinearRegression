@@ -52,7 +52,7 @@ namespace HEAL.Expressions {
 
     public static double Sign(double x) {
       if (double.IsNaN(x)) return double.NaN;
-      return (double)Math.Sign(x); // a version of sign that returns double
+      return Math.Sign(x); // a version of sign that returns double
     }
 
   }
