@@ -762,7 +762,7 @@ namespace HEAL.Expressions.Tests {
     }
 
     private static void CompareSymbolicAndAutoDiffJacobian(Expression<Expr.ParametricFunction> expr) {
-      int N = 10;
+      int N = 16;
       var rand = new Random(1234);
       var X = new double[N, 3];
       var colX = new double[3][];
