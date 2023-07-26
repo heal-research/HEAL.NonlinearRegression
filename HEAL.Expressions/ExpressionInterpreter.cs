@@ -181,7 +181,7 @@ namespace HEAL.Expressions {
 
       // backpropagate
       var lastInstr = instuctions.Last();
-      for (int i = 0; i < batchSize; i++) lastInstr.diffValues[i] = 1.0;
+      if (lastInstr.diffValues != null) Array.Fill(lastInstr.diffValues, 1.0);
 
       for (int instrIdx = instuctions.Count - 1; instrIdx >= 0; instrIdx--) {
         var curInstr = instuctions[instrIdx];
