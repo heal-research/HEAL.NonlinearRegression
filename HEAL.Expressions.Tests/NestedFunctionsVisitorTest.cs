@@ -1,17 +1,18 @@
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
-using NUnit.Framework;
 
 namespace HEAL.Expressions.Tests {
+  [TestClass]
   public class FunctionLinearityCheckVisitorTests {
-    [SetUp]
+    [TestInitialize]
     public void Setup() {
     }
 
    
-    [Test]
+    [TestMethod]
     public void NodeImpacts() {
       double[] theta = new[] { -1.0 };
       var X = new double[,] {

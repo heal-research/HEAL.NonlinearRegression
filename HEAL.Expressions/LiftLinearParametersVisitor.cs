@@ -24,14 +24,14 @@ namespace HEAL.Expressions {
       var updatedThetaValues = v.thetaValues.ToArray();
 
       // replace parameters with the value 1.0, -1.0, 0.0 with constants
-      var selectedIdx = Enumerable.Range(0, updatedThetaValues.Length)
-        .Where(idx => updatedThetaValues[idx] == 1.0
-        || updatedThetaValues[idx] == -1.0
-        || updatedThetaValues[idx] == 0.0)
-        .ToArray();
-
-      var replV = new ReplaceParameterWithNumberVisitor(expr.p, updatedThetaValues, selectedIdx);
-      newExpr = (Expression<ParametricFunction>)replV.Visit(newExpr);
+      // var selectedIdx = Enumerable.Range(0, updatedThetaValues.Length)
+      //   .Where(idx => updatedThetaValues[idx] == 1.0
+      //   || updatedThetaValues[idx] == -1.0
+      //   || updatedThetaValues[idx] == 0.0)
+      //   .ToArray();
+      // 
+      // var replV = new ReplaceParameterWithNumberVisitor(expr.p, updatedThetaValues, selectedIdx);
+      // newExpr = (Expression<ParametricFunction>)replV.Visit(newExpr);
 
       // remove unused parameters
       var collectVisitor = new CollectParametersVisitor(expr.p, updatedThetaValues);

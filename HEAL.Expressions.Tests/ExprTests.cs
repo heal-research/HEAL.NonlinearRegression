@@ -1,20 +1,19 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Runtime.InteropServices;
-using NUnit.Framework;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HEAL.Expressions.Tests {
+  [TestClass]
   public class ExprTests {
-    [SetUp]
+    [TestInitialize]
     public void Setup() {
       System.Threading.Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
       System.Threading.Thread.CurrentThread.CurrentUICulture = System.Globalization.CultureInfo.InvariantCulture;
     }
 
-    [Test]
+    [TestMethod]
     public void Broadcast() {
       CompileAndRun((p, x) => p[0] * x[0]);
       CompileAndRun((a, b) => a[0] * b[0]);
@@ -25,10 +24,9 @@ namespace HEAL.Expressions.Tests {
       CompileAndRun((p, x) => Math.Exp(p[0] * x[0]));
       CompileAndRun((p, x) => Math.Sin(p[0] * x[0]));
       CompileAndRun((p, x) => Math.Cos(p[0] * x[0]));
-      Assert.Pass();
     }
 
-    [Test]
+    [TestMethod]
     public void BroadcastGradient() {
       CompileAndRunJacobian((p, x, g) => p[0] * x[0]);
       CompileAndRunJacobian((a, b, g) => a[0] * b[0]);
@@ -39,10 +37,9 @@ namespace HEAL.Expressions.Tests {
       CompileAndRunJacobian((p, x, g) => Math.Exp(p[0] * x[0]));
       CompileAndRunJacobian((p, x, g) => Math.Sin(p[0] * x[0]));
       CompileAndRunJacobian((p, x, g) => Math.Cos(p[0] * x[0]));
-      Assert.Pass();
     }
 
-    [Test]
+    [TestMethod]
     public void Autodiff() {
       CompareSymbolicAndAutoDiffJacobian((p, x) => p[0] * x[0]);
       CompareSymbolicAndAutoDiffJacobian((a, b) => a[0] * b[0]);
@@ -71,13 +68,12 @@ namespace HEAL.Expressions.Tests {
       CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.InvLogisticPrime(p[0] * x[0]));
 
       CompareSymbolicAndAutoDiffJacobian((p, x) => p[0] * x[0] / (p[1] * x[1] + p[2]));
-      
+
       // example with duplicate sub-expressions
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(p[0] * x[0], p[1]) + Math.Pow(p[0] * x[0], p[1]) / (p[0] * x[0]));
-      Assert.Pass();
     }
 
-    [Test]
+    [TestMethod]
     public void Derive() {
       {
         var dfx_dx = Expr.Derive((p, x) => p[0] * x[0], 0);
@@ -102,16 +98,15 @@ namespace HEAL.Expressions.Tests {
       }
     }
 
-    [Test]
+    [TestMethod]
     public void Hessian() {
       CompileAndRunHessian((double[] p, double[] x) => Math.Log(p[0] + x[0]));
       CompileAndRunHessian((double[] p, double[] x) => Math.Exp(p[0] * x[0]));
       CompileAndRunHessian((double[] p, double[] x) => Math.Sin(p[0] * x[0]));
       CompileAndRunHessian((double[] p, double[] x) => Math.Cos(p[0] * x[0]));
-      Assert.Pass();
     }
 
-    [Test]
+    [TestMethod]
     public void FoldParameters() {
       {
         var paramValues = new[] { 2.0, 2.0, 3.0, 4.0 };
@@ -188,7 +183,7 @@ namespace HEAL.Expressions.Tests {
       }
     }
 
-    [Test]
+    [TestMethod]
     public void ReplaceVariable() {
       var theta = new double[] { 1.0, 2.0, 3.0 };
       Expression<Expr.ParametricFunction> f = (p, x) => (p[0] * x[0] + Math.Log(x[1] * p[1]) + x[1] * x[2]);
@@ -210,7 +205,7 @@ namespace HEAL.Expressions.Tests {
       }
     }
 
-    [Test]
+    [TestMethod]
     public void LiftParameters() {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Log(p[0] * x[0] + p[1] * x[1]);
@@ -381,7 +376,7 @@ namespace HEAL.Expressions.Tests {
       return expr.expr;
     }
 
-    [Test]
+    [TestMethod]
     public void LowerNegation() {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => -(p[0]);
@@ -435,7 +430,7 @@ namespace HEAL.Expressions.Tests {
       return expr.expr;
     }
 
-    [Test]
+    [TestMethod]
     public void Simplify() {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] - p[1] * (p[2] * x[0] + p[3]);
@@ -498,6 +493,9 @@ namespace HEAL.Expressions.Tests {
         } while (newSimplifiedStr != oldSimplifiedStr);
 
       }
+
+
+
       // {
       //   Expression<Expr.ParametricFunction> f = (p, x) => p[0] + -p[1] * (Math.Sqrt(p[2] * x[0]) - (p[3] * x[1] + (p[4] - (Math.Log(p[5] * x[2]) + Math.Log(Math.Log(p[6] * x[3]))) - Math.Log(p[7] * x[4]) + (Math.Sqrt(Math.Log(p[8] * x[5])) - Math.Sqrt(p[9] * x[6]) - Math.Log(p[10] * x[7])) * p[11])));
       //   var theta = new double[] { 4.11006, 0.141145, 0.240224, 0.355864, 1.68955, 0.258132, 1.11302, 0.554311, 0.182776, 1.11302, 0.182776, 1.86428 };
@@ -520,7 +518,35 @@ namespace HEAL.Expressions.Tests {
     }
 
 
-    [Test]
+    [DataTestMethod]
+    [DataRow("x - x", "0.0")]
+    [DataRow("1.0 - 2.0", "p[0]")]
+    [DataRow("1.0f - 2.0f", "-1")]
+    [DataRow("x / x", "1.0")]
+    [DataRow("1.0 / 2.0", "p[0]")]
+    [DataRow("abs(-x)", "abs(x)")]
+    [DataRow("pow(0f, x)", "0f")]
+    [DataRow("pow(1f, x)", "1f")]
+    [DataRow("x*x*x", "pow(x, 3f)")]
+    [DataRow("x*x*x*x", "pow(x, 4f)")]
+    [DataRow("x*x/x", "x")]
+    [DataRow("x/(x*x)", "1f/x")] // generally replace division by negative power?
+    [DataRow("1/pow(x1, x2)", "pow(x1, -x2)")]
+    [DataRow("pow(1/x1, x2)", "pow(x1, -x2)")]
+    [DataRow("x1 / pow(x1, x2)", "pow(x1, 1 - x2)")]
+    [DataRow("pow(x1, x2) / x1","pow(x1, x2 - 1)")]
+    
+    public void SimplifyExpr(string exprStr, string expected) {
+      var xParam = Expression.Parameter(typeof(double[]), "x");
+      var pParam = Expression.Parameter(typeof(double[]), "p");
+      var parser = new Parser.ExprParser(exprStr, new[] { "x", "x1", "x2", "x3" }, xParam, pParam);
+      var expr = parser.Parse();
+      var p = parser.ParameterValues;
+      var simplifiedExpr = Expr.Simplify(expr, p, out var newP);
+      Assert.AreEqual(expected, simplifiedExpr.Body.ToString());
+    }
+
+    [TestMethod]
     public void Graphviz() {
       Expression<Expr.ParametricFunction> expr = (p, x) => 2.0 * x[0] + x[0] * p[0] + x[1] + Math.Log(x[1] * p[1] + 1.0) + 1 / (x[1] * p[2]);
       Console.WriteLine(Expr.ToGraphViz(expr));
@@ -537,7 +563,7 @@ namespace HEAL.Expressions.Tests {
       Console.WriteLine(Expr.ToGraphViz(expr, saturation: sat));
     }
 
-    [Test]
+    [TestMethod]
     public void CollectTerms() {
       {
         Expression<Expr.ParametricFunction> expr = (p, x) => p[0] + p[1] + x[0] + x[1] + 3.0;
@@ -572,7 +598,7 @@ namespace HEAL.Expressions.Tests {
 
     }
 
-    [Test]
+    [TestMethod]
     public void CollectFactors() {
       {
         Expression<Expr.ParametricFunction> expr = (p, x) => p[0] + p[1];
@@ -641,7 +667,7 @@ namespace HEAL.Expressions.Tests {
       }
     }
 
-    [Test]
+    [TestMethod]
     public void FixRedundantParameters() {
       {
         Expression<Expr.ParametricFunction> expr = (p, x) => (p[0] + x[1] + p[1]);

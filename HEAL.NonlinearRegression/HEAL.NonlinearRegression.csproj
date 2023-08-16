@@ -23,7 +23,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="alglib.net" Version="3.18.2" />
+    <PackageReference Include="alglib.net" Version="3.19.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\HEAL.Expressions\HEAL.Expressions.csproj" />

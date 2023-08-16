@@ -375,11 +375,15 @@ namespace HEAL.Expressions {
       return simplifiedExpr;
     }
 
+    
+    // Notes: 
+    // px + px == (p+p) * x == p
+    // was ist der Nutzen von Hashing?
+    // - auch für lange expressions effizient (keine Strings notwendig)
+    // alle parameter haben denselben Hashwert == Parameter sind austauschbar (p1 <-> p2)
+    // alle sub-ausdrücke die nur Parameter und/oder Konstanten enthalten zusammenziehen
 
-    // TODO:
-    // - simplify abs(neg (x))  -> abs(x)
-    // - x1 / x1 = 1
-    // - p / p = p
+
 
 
     public static Expression<ParametricFunction> FoldParameters(Expression<ParametricFunction> expr,
