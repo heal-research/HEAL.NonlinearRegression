@@ -77,7 +77,7 @@ namespace HEAL.Expressions {
     }
 
     protected override Expression VisitMethodCall(MethodCallExpression node) {
-      var args = node.Arguments.Select(arg => Visit(arg)).ToArray();
+      var args = node.Arguments.Select(Visit).ToArray();
       // if all arguments to this function are parameters then we can remove the function and use a parameter instead
       if (args.All(arg => IsParam(arg, out _, out _))) {
         var argValues = new object[args.Length];

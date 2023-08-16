@@ -274,16 +274,7 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
     private static void Simplify(Expression<Expr.ParametricFunction> parametricExpr, double[] p, out Expression<Expr.ParametricFunction> simplifiedExpr, out double[] newP) {
-      simplifiedExpr = Expr.FoldParameters(parametricExpr, p, out newP);
-      var newSimplifiedStr = simplifiedExpr.ToString();
-      var exprSet = new HashSet<string>();
-      // simplify until no change (TODO: this shouldn't be necessary if visitors are implemented carefully)
-      do {
-        exprSet.Add(newSimplifiedStr);
-        simplifiedExpr = Expr.FoldParameters(simplifiedExpr, newP, out newP);
-        // System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
-        newSimplifiedStr = simplifiedExpr.ToString();
-      } while (!exprSet.Contains(newSimplifiedStr));
+      simplifiedExpr = Expr.Simplify(parametricExpr, p, out newP);
     }
 
     private static void GenerateNestedModels(NestedModelsOptions options) {

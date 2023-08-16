@@ -342,19 +342,13 @@ namespace HEAL.Expressions {
     /// <param name="expr">The expression to simplify</param>
     /// <returns>A new expression with folded double constants.</returns>
     public static Expression<ParametricFunction> FoldConstants(Expression<ParametricFunction> expr) {
-      var simplifyVisitor = new FoldConstantsVisitor();
-      return (Expression<ParametricFunction>)simplifyVisitor.Visit(expr);
+      var foldConstantsVisitor = new FoldConstantsVisitor();
+      return (Expression<ParametricFunction>)foldConstantsVisitor.Visit(expr);
     }
 
 
-    /// <summary>
-    /// As simplify but also reduces the length of the parameter vector to include only the parameters
-    /// that are still referenced in the simplified expression. 
-    /// </summary>
-    /// <param name="expr"></param>
-    /// <param name="thetaValues"></param>
-    /// <param name="newThetaValues"></param>
-    /// <returns></returns>
+    // Reduces the length of the parameter vector to include only the parameters
+    // that are still referenced in the simplified expression. 
     public static Expression<ParametricFunction> SimplifyAndRemoveParameters(Expression<ParametricFunction> expr, double[] thetaValues, out double[] newThetaValues) {
       var theta = expr.Parameters[0];
       var simplifyVisitor = new FoldConstantsVisitor();
@@ -364,6 +358,27 @@ namespace HEAL.Expressions {
       newThetaValues = collectParamVisitor.GetNewParameterValues;
       return simplifiedExpr;
     }
+
+
+    // this calls FoldParameters repeately until the expression does not change anymore
+    public static Expression<ParametricFunction> Simplify(Expression<ParametricFunction> parametricExpr, double[] p, out double[] newP) {
+      var simplifiedExpr = FoldParameters(parametricExpr, p, out newP);
+      var newSimplifiedStr = simplifiedExpr.ToString();
+      var exprSet = new HashSet<string>();
+      // simplify until no change (TODO: this shouldn't be necessary if visitors are implemented carefully)
+      do {
+        exprSet.Add(newSimplifiedStr);
+        simplifiedExpr = FoldParameters(simplifiedExpr, newP, out newP);
+        // System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
+        newSimplifiedStr = simplifiedExpr.ToString();
+      } while (!exprSet.Contains(newSimplifiedStr));
+      return simplifiedExpr;
+    }
+
+
+    // TODO:
+    // - simplify abs(neg (x))  -> abs(x)
+
 
     public static Expression<ParametricFunction> FoldParameters(Expression<ParametricFunction> expr,
       double[] parameterValues, out double[] newParameterValues) {

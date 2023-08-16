@@ -92,7 +92,7 @@ namespace HEAL.Expressions {
       // log(p1 f(x)) = log(f(x)) + log(p1), p1 > 0, p1 * f(x) > 0
       // exp(f(x) + p1) = exp(p1) * exp(f(x)) 
 
-      var args = node.Arguments.Select(arg => Visit(arg)).ToArray();
+      var args = node.Arguments.Select(Visit).ToArray();
 
       if (node.Method.Name == "Sqrt") {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
@@ -101,7 +101,6 @@ namespace HEAL.Expressions {
           terms = terms.Select(t => ScaleTerm(t, 1.0 / p0));
           return Expression.Multiply(node.Update(node.Object, new[] { terms.Aggregate(Expression.Add) }), NewParam(Math.Sqrt(p0)));
         }
-        node.Update(node.Object, args);
       } else if (node.Method.Name == "Abs") {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
         if (terms.All(HasScalingParameter)) {
@@ -110,7 +109,6 @@ namespace HEAL.Expressions {
 
           return Expression.Multiply(node.Update(node.Object, new[] { terms.Aggregate(Expression.Add) }), NewParam(p0));
         }
-        node.Update(node.Object, args);
       } else if (node.Method.Name == "Cbrt") {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
         if (terms.All(HasScalingParameter)) {
@@ -119,23 +117,23 @@ namespace HEAL.Expressions {
 
           return Expression.Multiply(node.Update(node.Object, new[] { terms.Aggregate(Expression.Add) }), NewParam(Functions.Cbrt(p0)));
         }
-        node.Update(node.Object, args);
       } else if (node.Method.Name == "Pow") {
-        var terms = CollectTermsVisitor.CollectTerms(args[0]);
-        double exponent;
-        if (args[1] is ConstantExpression constExpr) {
-          exponent = (double)constExpr.Value; // this has to be a constant
-        } else if (IsParameter(args[1])) {
-          exponent = thetaValues[ParameterIndex(args[1])];
-        } else throw new NotSupportedException("Power can only have constant or parameter exponents.");
+        if (args[1] is ConstantExpression || IsParameter(args[1])) {
+          var terms = CollectTermsVisitor.CollectTerms(args[0]);
+          double exponent;
+          if (args[1] is ConstantExpression constExpr) {
+            exponent = (double)constExpr.Value; // this has to be a double
+          } else if (IsParameter(args[1])) {
+            exponent = thetaValues[ParameterIndex(args[1])];
+          } else throw new InvalidProgramException("not possible");
 
-        if (terms.All(HasScalingParameter)) {
-          var p0 = ParameterValue(FindScalingParameter(terms.First()));
-          terms = terms.Select(t => ScaleTerm(t, 1.0 / p0));
+          if (terms.All(HasScalingParameter)) {
+            var p0 = ParameterValue(FindScalingParameter(terms.First()));
+            terms = terms.Select(t => ScaleTerm(t, 1.0 / p0));
 
-          return Expression.Multiply(node.Update(node.Object, new[] { terms.Aggregate(Expression.Add), args[1] }), NewParam(Math.Pow(p0, exponent)));
+            return Expression.Multiply(node.Update(node.Object, new[] { terms.Aggregate(Expression.Add), args[1] }), NewParam(Math.Pow(p0, exponent)));
+          }
         }
-        node.Update(node.Object, args);
       } else if (node.Method.Name == "Log") {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
 
@@ -144,9 +142,7 @@ namespace HEAL.Expressions {
           terms = terms.Select(t => ScaleTerm(t, 1.0 / p0));
 
           return Expression.Add(node.Update(node.Object, new[] { terms.Aggregate(Expression.Add) }), NewParam(Math.Log(p0)));
-        }
-        node.Update(node.Object, args);
-
+        } else return node.Update(node.Object, args);
       } else if (node.Method.Name == "Exp") {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
         var parameterTerms = terms.Where(IsParameter);
@@ -155,12 +151,12 @@ namespace HEAL.Expressions {
           var offset = parameterTerms.Sum(t => Math.Exp(ParameterValue(t)));
           return Expression.Multiply(node.Update(node.Object, new[] { remainingTerms.Aggregate(Expression.Add) }), NewParam(offset));
         }
-        node.Update(node.Object, args);
       } else if (node.Method.Name == "AQ") {
         // aq(x,y) = aq(1,y)*x
         return Expression.Multiply(node.Update(node.Object, new[] { Expression.Constant(1.0), args[1] }), args[0]);
       }
-      // cannot extract parameters from: sin, cos, tan, tanh
+
+      // all others:
       return node.Update(node.Object, args);
     }
 

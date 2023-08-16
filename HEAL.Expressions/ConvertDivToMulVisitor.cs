@@ -23,6 +23,10 @@ namespace HEAL.Expressions {
           // (a / b) / c -> a * 1/(b * c)
           var leftBin = left as BinaryExpression;
           return Expression.Multiply(leftBin.Left, Inverse(Expression.Multiply(leftBin.Right, right)));
+        } else if (right.NodeType == ExpressionType.Divide) {
+          // a / ( b / c) -> a * c * (1/b)
+          var rightBin = right as BinaryExpression;
+          return Expression.Multiply(left, Expression.Multiply(rightBin.Right, Inverse(rightBin.Left)));
         } else {
           // a / b -> a * 1/b
           return Expression.Multiply(left, Inverse(right));
