@@ -109,16 +109,5 @@ namespace HEAL.Expressions.Benchmark {
       return jac;
     }
 
-    [Benchmark]
-    public double[,] EvalCompiledJacobianReverseAutoDiff() {
-      var theta = new double[] { 1.0, 2.0 };
-      var funcJac = ReverseAutoDiffVisitor.GenerateJacobianExpression(expr, N);
-      double[,] jac = new double[N, theta.Length];
-      var f = new double[N];
-      for (int i = 0; i < numEvals; i++) {
-        funcJac(theta, data, f, jac);
-      }
-      return jac;
-    }
   }
 }

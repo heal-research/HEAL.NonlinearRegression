@@ -378,6 +378,8 @@ namespace HEAL.Expressions {
 
     // TODO:
     // - simplify abs(neg (x))  -> abs(x)
+    // - x1 / x1 = 1
+    // - p / p = p
 
 
     public static Expression<ParametricFunction> FoldParameters(Expression<ParametricFunction> expr,
