@@ -187,13 +187,16 @@ namespace HEAL.Expressions {
         var curDiff = curInstr.diffValues;
         var curVal = curInstr.values;
 
-        var ch0Idx = curInstr.idx1;
-        var leftDiff = ch0Idx >= 0 ? instuctions[ch0Idx].diffValues : null;
-        var leftVal = ch0Idx >= 0 ? instuctions[ch0Idx].values : null;
+        double[] leftVal = null, leftDiff = null, rightVal = null, rightDiff = null;
+        if (curInstr.opc != Instruction.OpcEnum.Var && curInstr.opc != Instruction.OpcEnum.Param) {
+          var ch0Idx = curInstr.idx1;
+          leftDiff = ch0Idx >= 0 ? instuctions[ch0Idx].diffValues : null;
+          leftVal = ch0Idx >= 0 ? instuctions[ch0Idx].values : null;
 
-        var ch1Idx = curInstr.idx2;
-        var rightDiff = ch1Idx >= 0 ? instuctions[ch1Idx].diffValues : null;
-        var rightVal = ch1Idx >= 0 ? instuctions[ch1Idx].values : null;
+          var ch1Idx = curInstr.idx2;
+          rightDiff = ch1Idx >= 0 ? instuctions[ch1Idx].diffValues : null;
+          rightVal = ch1Idx >= 0 ? instuctions[ch1Idx].values : null;
+        }
         switch (curInstr.opc) {
           case Instruction.OpcEnum.Var: if (jacX != null) for (int i = 0; i < batchSize; i++) { jacX[startRow + i, curInstr.idx1] += curDiff[i]; } break;
           case Instruction.OpcEnum.Const: /* nothing to do */ break;
