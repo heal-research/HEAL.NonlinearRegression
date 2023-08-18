@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using static HEAL.Expressions.Expr;
+using static System.Formats.Asn1.AsnWriter;
 
 namespace HEAL.Expressions {
   /// <summary>
@@ -24,6 +25,7 @@ namespace HEAL.Expressions {
       var newExpr = (Expression<ParametricFunction>)v.Visit(expr.expr);
       var updatedThetaValues = v.thetaValues.ToArray();
 
+      // NOTE: the following would also replace exising parameters that happen to be 1, -1, 0 and therefore would (incorrectly) reduce the dof of the expression.
       // replace parameters with the value 1.0, -1.0, 0.0 with constants
       // var selectedIdx = Enumerable.Range(0, updatedThetaValues.Length)
       //   .Where(idx => updatedThetaValues[idx] == 1.0
@@ -48,13 +50,13 @@ namespace HEAL.Expressions {
         var leftScale = 1.0;
         if (leftTerms.All(HasScalingParameter)) {
           leftScale = ParameterValue(FindScalingParameter(leftTerms.First()));
-          leftTerms = leftTerms.Select(t => ScaleTerm(t, 1.0 / leftScale));
+          leftTerms = ScaleTerms(leftTerms.First(), leftTerms.Skip(1), leftScale);
         }
         var rightScale = 1.0;
         var rightTerms = CollectTermsVisitor.CollectTerms(right);
         if (rightTerms.All(HasScalingParameter)) {
           rightScale = ParameterValue(FindScalingParameter(rightTerms.First()));
-          rightTerms = rightTerms.Select(t => ScaleTerm(t, 1.0 / rightScale));
+          rightTerms = ScaleTerms(rightTerms.First(), rightTerms.Skip(1), rightScale);
         }
         if (leftScale != 1.0 || rightScale != 1.0) {
           return Expression.Multiply(
@@ -69,6 +71,7 @@ namespace HEAL.Expressions {
       return node.Update(left, null, right);
     }
 
+
     protected override Expression VisitUnary(UnaryExpression node) {
       // lift parameters out of negation if possible
       var opd = Visit(node.Operand);
@@ -78,7 +81,7 @@ namespace HEAL.Expressions {
         var terms = CollectTermsVisitor.CollectTerms(opd); // addition or subtraction
         if (terms.All(HasScalingParameter)) {
           var p0 = ParameterValue(FindScalingParameter(terms.Last()));
-          terms = terms.Select(t => ScaleTerm(t, 1.0 / p0));
+          terms = ScaleTerms(terms.Last(), terms.Take(terms.Count()-1), p0);
           return Expression.Multiply(terms.Aggregate(Expression.Add), NewParam(-p0));
         }
       }
@@ -98,23 +101,21 @@ namespace HEAL.Expressions {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
         if (terms.All(HasScalingParameter)) {
           var p0 = Math.Abs(ParameterValue(FindScalingParameter(terms.First())));
-          terms = terms.Select(t => ScaleTerm(t, 1.0 / p0));
+          terms = ScaleTerms(terms.First(), terms.Skip(1), p0);
           return Expression.Multiply(node.Update(node.Object, new[] { terms.Aggregate(Expression.Add) }), NewParam(Math.Sqrt(p0)));
         }
       } else if (node.Method.Name == "Abs") {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
         if (terms.All(HasScalingParameter)) {
           var p0 = Math.Abs(ParameterValue(FindScalingParameter(terms.First())));
-          terms = terms.Select(t => ScaleTerm(t, 1.0 / p0));
-
+          terms = ScaleTerms(terms.First(), terms.Skip(1), p0);
           return Expression.Multiply(node.Update(node.Object, new[] { terms.Aggregate(Expression.Add) }), NewParam(p0));
         }
       } else if (node.Method.Name == "Cbrt") {
         var terms = CollectTermsVisitor.CollectTerms(args[0]);
         if (terms.All(HasScalingParameter)) {
           var p0 = ParameterValue(FindScalingParameter(terms.First()));
-          terms = terms.Select(t => ScaleTerm(t, 1.0 / p0));
-
+          terms = ScaleTerms(terms.First(), terms.Skip(1), p0);
           return Expression.Multiply(node.Update(node.Object, new[] { terms.Aggregate(Expression.Add) }), NewParam(Functions.Cbrt(p0)));
         }
       } else if (node.Method.Name == "Pow") {
@@ -129,7 +130,7 @@ namespace HEAL.Expressions {
 
           if (terms.All(HasScalingParameter)) {
             var p0 = ParameterValue(FindScalingParameter(terms.First()));
-            terms = terms.Select(t => ScaleTerm(t, 1.0 / p0));
+            terms = ScaleTerms(terms.First(), terms.Skip(1), p0);
 
             return Expression.Multiply(node.Update(node.Object, new[] { terms.Aggregate(Expression.Add), args[1] }), NewParam(Math.Pow(p0, exponent)));
           }
@@ -139,7 +140,7 @@ namespace HEAL.Expressions {
 
         if (terms.All(HasScalingParameter)) {
           var p0 = Math.Abs(ParameterValue(FindScalingParameter(terms.First())));
-          terms = terms.Select(t => ScaleTerm(t, 1.0 / p0));
+          terms = ScaleTerms(terms.First(), terms.Skip(1), p0);
 
           return Expression.Add(node.Update(node.Object, new[] { terms.Aggregate(Expression.Add) }), NewParam(Math.Log(p0)));
         } else return node.Update(node.Object, args);
@@ -160,6 +161,23 @@ namespace HEAL.Expressions {
       return node.Update(node.Object, args);
     }
 
+    private IEnumerable<Expression> ScaleTerms(Expression parameterlessTerm, IEnumerable<Expression> parametricTerms, double scale) {
+      // TODO: remove scaling factor from first term
+      return new[] { RemoveScale(parameterlessTerm, scale) }.Concat(parametricTerms.Select(t => ScaleTerm(t, 1.0 / scale)));
+    }
+
+    private Expression RemoveScale(Expression term, double scale) {
+      var factors = CollectFactorsVisitor.CollectFactors(term);
+      // product of parameter values
+      var currentScalingFactor = factors.Where(IsParameter).Aggregate(1.0, (agg, f) => agg * ParameterValue(f)); // fold product
+      var otherFactors = factors.Where(f => !IsParameter(f));
+      if (otherFactors.Count() == factors.Count()) throw new InvalidProgramException(); // we must have at least one scaling parameter
+      if (otherFactors.Any())
+        return Expression.Multiply(otherFactors.Aggregate(Expression.Multiply), Expression.Constant(currentScalingFactor / scale));
+      else
+        return Expression.Constant(currentScalingFactor / scale);
+
+    }
     private Expression ScaleTerm(Expression term, double scale) {
       // return expr;
       if (scale == 1.0) return term; // nothing to do
@@ -177,6 +195,7 @@ namespace HEAL.Expressions {
     }
 
     private Expression NewParam(double val) {
+
       thetaValues.Add(val);
       return Expression.ArrayIndex(theta, Expression.Constant(thetaValues.Count - 1));
     }

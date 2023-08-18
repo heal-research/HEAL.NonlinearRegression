@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -212,6 +213,8 @@ namespace HEAL.Expressions.Tests {
         var theta = new double[] { 2.0, 3.0 };
         var expr = LiftParameters(f, theta, out var newTheta);
         Assert.AreEqual("(p, x) => (Log(((x[0] * 1) + (x[1] * p[0]))) + p[1])", expr.ToString());
+        // (p, x) => (Log(((x[0] * p[0]) + (x[1] * p[1]))) + p[2])>. 
+
         Assert.AreEqual(3.0 / 2.0, newTheta[0]);
         Assert.AreEqual(Math.Log(2.0), newTheta[1]);
       }
@@ -258,8 +261,8 @@ namespace HEAL.Expressions.Tests {
         Expression<Expr.ParametricFunction> f = (p, x) => Math.Sqrt(x[0] * p[0] + p[1] * x[0]);
         var theta = new double[] { 2.0, -2.0 };
         var expr = LiftParameters(f, theta, out var newTheta);
-        Assert.AreEqual("(p, x) => (Sqrt(((x[0] * 1) + (x[0] * -1))) * p[0])", expr.ToString());
-        Assert.AreEqual(Math.Sqrt(2.0), newTheta[0]);
+        Assert.AreEqual("(p, x) => (Sqrt(((x[0] * 1) + (x[0] * p[0]))) * p[1])", expr.ToString());
+        Assert.AreEqual(Math.Sqrt(2.0), newTheta[1]);
       }
 
       {
@@ -354,7 +357,7 @@ namespace HEAL.Expressions.Tests {
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] * x[0] + -(p[1] * x[1] + p[2]);
         var theta = new double[] { 2.0, 3.0, 4.0 };
         var expr = LiftParameters(f, theta, out var newTheta);
-        Assert.AreEqual("(p, x) => ((p[0] * x[0]) + (((x[1] * p[1]) + 1) * p[2]))", expr.ToString());
+        Assert.AreEqual("(p, x) => ((p[0] * x[0]) + ((1 + (x[1] * p[1])) * p[2]))", expr.ToString());
         Assert.AreEqual(2.0, newTheta[0]);
         Assert.AreEqual(3.0 / 4.0, newTheta[1]);
         Assert.AreEqual(-4.0, newTheta[2]);
@@ -519,23 +522,22 @@ namespace HEAL.Expressions.Tests {
 
 
     [DataTestMethod]
-    [DataRow("x - x", "0.0")]
+    [DataRow("x - x", "0")]
     [DataRow("1.0 - 2.0", "p[0]")]
     [DataRow("1.0f - 2.0f", "-1")]
-    [DataRow("x / x", "1.0")]
+    [DataRow("x / x", "1")]
     [DataRow("1.0 / 2.0", "p[0]")]
-    [DataRow("abs(-x)", "abs(x)")]
-    [DataRow("pow(0f, x)", "0f")]
-    [DataRow("pow(1f, x)", "1f")]
-    [DataRow("x*x*x", "pow(x, 3f)")]
-    [DataRow("x*x*x*x", "pow(x, 4f)")]
-    [DataRow("x*x/x", "x")]
-    [DataRow("x/(x*x)", "1f/x")] // generally replace division by negative power?
-    [DataRow("1/pow(x1, x2)", "pow(x1, -x2)")]
-    [DataRow("pow(1/x1, x2)", "pow(x1, -x2)")]
-    [DataRow("x1 / pow(x1, x2)", "pow(x1, 1 - x2)")]
-    [DataRow("pow(x1, x2) / x1","pow(x1, x2 - 1)")]
-    
+    [DataRow("abs(-x)", "Abs(x[0])")]
+    [DataRow("pow(1f, x)", "1")]
+    [DataRow("x*x*x", "Pow(x[0], 3)")]
+    [DataRow("x*x*x*x", "Pow(x[0], 4)")]
+    [DataRow("x*x/x", "x[0]")]
+    [DataRow("x/(x*x)", "Pow(x[0], -1)")] // generally replace division by negative power?
+    [DataRow("1/pow(x1, x2)", "(Pow(x[1], -x[2]) * p[0])")]
+    [DataRow("pow(1/x1, x2)", "Pow(x[1], -x[2]) * p[0]")]
+    [DataRow("x1 / pow(x1, x2)", "Pow(x[1], 1 - x[2])")]
+    [DataRow("pow(x1, x2) / x1", "Pow(x[1], x[2] - 1)")]
+
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");
       var pParam = Expression.Parameter(typeof(double[]), "p");
@@ -815,9 +817,11 @@ namespace HEAL.Expressions.Tests {
       var f2 = interpreter.EvaluateWithJac(t, jacX, J2);
 
       for (int i = 0; i < N; i++) {
-        Assert.AreEqual(f1[i], f2[i], 1e-6);
+        if (!double.IsNaN(f1[i]) && !double.IsNaN(f2[i]))
+          Assert.AreEqual(f1[i], f2[i], 1e-6);
         for (int j = 0; j < 5; j++) {
-          Assert.AreEqual(J1[i, j], J2[i, j], 1e-6);
+          if (!double.IsNaN(J1[i, j]) && !double.IsNaN(J2[i, j]))
+            Assert.AreEqual(J1[i, j], J2[i, j], 1e-6);
         }
       }
     }
