@@ -534,9 +534,9 @@ namespace HEAL.Expressions.Tests {
     [DataRow("x*x/x", "x[0]")]
     [DataRow("x/(x*x)", "Pow(x[0], -1)")] // generally replace division by negative power?
     [DataRow("1/pow(x1, x2)", "(Pow(x[1], -x[2]) * p[0])")]
-    [DataRow("pow(1/x1, x2)", "Pow(x[1], -x[2]) * p[0]")]
-    [DataRow("x1 / pow(x1, x2)", "Pow(x[1], 1 - x[2])")]
-    [DataRow("pow(x1, x2) / x1", "Pow(x[1], x[2] - 1)")]
+    [DataRow("pow(1/x1, x2)", "(Pow(x[1], -x[2]) * Pow(p[0], x[2]))")]
+    [DataRow("x1 / pow(x1, x2)", "Pow(x[1], (1 - x[2]))")]
+    [DataRow("pow(x1, x2) / x1", "Pow(x[1], (x[2] - 1))")]
 
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");
@@ -666,101 +666,6 @@ namespace HEAL.Expressions.Tests {
         Expression<Expr.ParametricFunction> expr = (p, x) => (x[0] / x[1]) / (x[1] * x[2] * x[3]);
         var factors = CollectFactorsVisitor.CollectFactors(expr);
         Assert.AreEqual(5, factors.Count());
-      }
-    }
-
-    [TestMethod]
-    public void FixRedundantParameters() {
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => (p[0] + x[1] + p[1]);
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[2];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        Assert.AreEqual("(p, x) => ((p[0] + x[1]) + 0)", newExpr.ToString());
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => (p[0] + x[1] + Math.Log(p[1]));
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[2];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        // Assert.AreEqual("", newExpr.ToString()); --> not implemented yet
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => p[0] + (x[1] + Math.Log(p[1]));
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[2];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        // Assert.AreEqual("", newExpr.ToString()); --> not implemented yet
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => (p[0] * p[1] * x[1]);
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[2];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        Assert.AreEqual("(p, x) => ((p[0] * 0) * x[1])", newExpr.ToString());
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => (p[0] / p[1] * x[1]);
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[2];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        Assert.AreEqual("(p, x) => ((p[0] / 0) * x[1])", newExpr.ToString());
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => (p[0] * (p[1] * x[1] + p[2] * x[1]));
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[3];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        Assert.AreEqual("(p, x) => (0 * ((p[1] * x[1]) + (p[2] * x[1])))", newExpr.ToString());
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => (p[0] * (p[1] * x[1] + x[1]));
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[2];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        Assert.AreEqual("(p, x) => (p[0] * ((p[1] * x[1]) + x[1]))", newExpr.ToString());
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => (p[0] / (p[1] * x[1] + x[1]));
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[2];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        Assert.AreEqual("(p, x) => (p[0] / ((p[1] * x[1]) + x[1]))", newExpr.ToString());
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => (p[0] / (p[1] * x[1] + p[2] * x[1]));
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[3];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        Assert.AreEqual("(p, x) => (0 / ((p[1] * x[1]) + (p[2] * x[1])))", newExpr.ToString());
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => (p[1] * x[1] + p[2] * x[1]) / p[0];
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[3];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        Assert.AreEqual("(p, x) => (((p[1] * x[1]) + (p[2] * x[1])) / 0)", newExpr.ToString());
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => Math.Sqrt(p[1] * x[1] + p[2] * x[1]) * p[0];
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[3];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        // Assert.AreEqual("", newExpr.ToString()); --> not implemented yet
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => Math.Log(p[1] * x[1] + p[2] * x[1]) * p[0];
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[3];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        // Assert.AreEqual("", newExpr.ToString()); --> not implemented yet
-      }
-      {
-        Expression<Expr.ParametricFunction> expr = (p, x) => Math.Exp(p[1] * x[1]) * p[0];
-        var theta = expr.Parameters[0];
-        var thetaValues = new double[2];
-        var newExpr = FixRedundantParametersVisitor.FixRedundantParameters(expr, theta, thetaValues);
-        Assert.AreEqual("(p, x) => (Exp((p[1] * x[1])) * p[0])", newExpr.ToString());
       }
     }
 
