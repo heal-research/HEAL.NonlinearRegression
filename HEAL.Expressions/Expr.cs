@@ -390,7 +390,7 @@ namespace HEAL.Expressions {
       double[] parameterValues, out double[] newParameterValues) {
       var theta = expr.Parameters[0];
 
-      expr = (Expression<ParametricFunction>)ConvertSubToAddVisitor.Convert(ConvertDivToMulVisitor.Convert(expr));
+      // expr = (Expression<ParametricFunction>)ConvertSubToAddVisitor.Convert(ConvertDivToMulVisitor.Convert(expr));
       expr = (Expression<ParametricFunction>)RotateBinaryExpressionsVisitor.Rotate(expr);
       // Console.WriteLine($"Rotated: {expr}");
 
@@ -399,10 +399,11 @@ namespace HEAL.Expressions {
       var parameterizedExpr = ArrangeParametersRightVisitor.Execute(new ParameterizedExpression(expr, theta, parameterValues));
       // Console.WriteLine($"Rearranged: {expr}");
 
+      parameterizedExpr = RuleBasedSimplificationVisitor.Simplify(parameterizedExpr);
+
       parameterizedExpr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr);
       // expr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr.expr, parameterizedExpr.p, parameterizedExpr.pValues, out var newPValues);
       // parameterizedExpr = new ParameterizedExpression(expr, parameterizedExpr.p, newPValues);
-      parameterizedExpr = LowerNegationVisitor.LowerNegation(parameterizedExpr);
 
       parameterizedExpr = LiftParametersVisitor.LiftParameters(parameterizedExpr);
 

@@ -392,7 +392,7 @@ namespace HEAL.Expressions.Tests {
         Expression<Expr.ParametricFunction> f = (p, x) => -(x[0] * p[0] + p[1] * x[0]);
         var theta = new double[] { 2.0, 3.0, 4.0 };
         var expr = LowerNegation(f, theta, out var newTheta);
-        Assert.AreEqual("(p, x) => ((x[0] * p[3]) + (p[4] * x[0]))", expr.ToString());
+        Assert.AreEqual("(p, x) => ((x[0] * p[3]) + (x[0] * p[4]))", expr.ToString());
         Assert.AreEqual(-2.0, newTheta[3]);
         Assert.AreEqual(-3.0, newTheta[4]);
       }
@@ -400,7 +400,7 @@ namespace HEAL.Expressions.Tests {
         Expression<Expr.ParametricFunction> f = (p, x) => -(x[0] * p[0] * -(p[1] * x[0]));
         var theta = new double[] { 2.0, 3.0, 4.0 };
         var expr = LowerNegation(f, theta, out var newTheta);
-        Assert.AreEqual("(p, x) => ((x[0] * p[0]) * (p[4] * x[0]))", expr.ToString());
+        Assert.AreEqual("(p, x) => (((x[0] * p[0]) * x[0]) * p[4])", expr.ToString());
         Assert.AreEqual(2.0, newTheta[0]);
         Assert.AreEqual(3.0, newTheta[4]);
       }
@@ -408,27 +408,27 @@ namespace HEAL.Expressions.Tests {
         Expression<Expr.ParametricFunction> f = (p, x) => -(Math.Sin(p[0]));
         var theta = new double[] { 2.0, 3.0, 4.0 };
         var expr = LowerNegation(f, theta, out var newTheta);
-        Assert.AreEqual("(p, x) => Sin(p[3])", expr.ToString());
-        Assert.AreEqual(-2.0, newTheta[3]);
+        Assert.AreEqual("(p, x) => p[4]", expr.ToString());
+        Assert.AreEqual(-Math.Sin(theta[0]), newTheta[4]);
       }
       {
-        Expression<Expr.ParametricFunction> f = (p, x) => -(Math.Cbrt(p[0]));
+        Expression<Expr.ParametricFunction> f = (p, x) => -(Functions.Cbrt(p[0]));
         var theta = new double[] { 2.0, 3.0, 4.0 };
         var expr = LowerNegation(f, theta, out var newTheta);
-        Assert.AreEqual("(p, x) => Cbrt(p[3])", expr.ToString());
-        Assert.AreEqual(-2.0, newTheta[3]);
+        Assert.AreEqual("(p, x) => p[4]", expr.ToString());
+        Assert.AreEqual(-Functions.Cbrt(theta[0]), newTheta[4]);
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => -(Math.Cos(p[0]));
         var theta = new double[] { 2.0, 3.0, 4.0 };
         var expr = LowerNegation(f, theta, out var newTheta);
-        Assert.AreEqual("(p, x) => Sin((p[3] + -1.5707963267948966))", expr.ToString());
-        Assert.AreEqual(-2.0, newTheta[3]);
+        Assert.AreEqual("(p, x) => p[4]", expr.ToString());
+        Assert.AreEqual(-Math.Cos(theta[0]), newTheta[4]);
       }
     }
 
     private static Expression<Expr.ParametricFunction> LowerNegation(Expression<Expr.ParametricFunction> f, double[] theta, out double[] newTheta) {
-      var expr = LowerNegationVisitor.LowerNegation(new ParameterizedExpression(f, f.Parameters[0], theta));
+      var expr = RuleBasedSimplificationVisitor.Simplify(new ParameterizedExpression(f, f.Parameters[0], theta));
       newTheta = expr.pValues;
       return expr.expr;
     }

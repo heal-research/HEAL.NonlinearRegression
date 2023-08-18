@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -9,8 +10,9 @@ namespace HEAL.Expressions {
   /// </summary>
   // NOTE: All visitors should always be made consistent!
   // TODO: derive other visitors from this class?
-  public class CheckExprVisitor : ExpressionVisitor {
+  public class CheckExprVisitor :ExpressionVisitor {
     private readonly ParameterExpression x;
+    private readonly Dictionary<int, int> parameterOccurances;
     private readonly ParameterExpression theta;
 
     private static readonly MethodInfo[] SupportedMethods = new[] {
@@ -34,27 +36,36 @@ namespace HEAL.Expressions {
     private CheckExprVisitor(ParameterExpression theta, ParameterExpression x) {
       this.theta = theta;
       this.x = x;
+      this.parameterOccurances = new Dictionary<int, int>(); // index -> freq
     }
 
     public static bool CheckValid(Expression<Expr.ParametricFunction> expr) {
       var visitor = new CheckExprVisitor(expr.Parameters[0], expr.Parameters[1]);
       visitor.Visit(expr.Body);
+
       return true; // otherwise Visit throws an Exception
     }
 
     protected override Expression VisitBinary(BinaryExpression node) {
-      if  (node.NodeType != ExpressionType.Add &&
+      if (node.NodeType != ExpressionType.Add &&
            node.NodeType != ExpressionType.Subtract &&
            node.NodeType != ExpressionType.Multiply &&
            node.NodeType != ExpressionType.Divide &&
            (node.NodeType != ExpressionType.ArrayIndex || !ArrayIndexValid(node))
           ) throw new NotSupportedException(node.ToString());
 
+      if (node.NodeType == ExpressionType.ArrayIndex && node.Left == theta) {
+        var paramIdx = (int)((ConstantExpression)node.Right).Value;
+        if (parameterOccurances.ContainsKey(paramIdx))
+          parameterOccurances[paramIdx]++;
+        else
+          parameterOccurances.Add(paramIdx, 1);
+      }
       return base.VisitBinary(node);
     }
 
     protected override Expression VisitUnary(UnaryExpression node) {
-      if (node.NodeType != ExpressionType.Negate) {
+      if (node.NodeType != ExpressionType.Negate && node.NodeType != ExpressionType.UnaryPlus) {
         throw new NotSupportedException(node.ToString());
       }
       return base.VisitUnary(node);
@@ -73,11 +84,11 @@ namespace HEAL.Expressions {
     private bool ArrayIndexValid(BinaryExpression node) {
       var left = node.Left;
       // only theta and x allowed
-      if(left != theta && left != x) throw new NotSupportedException($"other variables than theta and x are not allowed {left}");
+      if (left != theta && left != x) throw new NotSupportedException($"other variables than theta and x are not allowed {left}");
       if (!(node.Right is ConstantExpression)) throw new NotSupportedException($"array index must be constant {node.Right}");
       return true;
     }
-    
+
     #region unsupported
     protected override Expression VisitBlock(BlockExpression node) {
       throw new NotSupportedException(node.ToString());
