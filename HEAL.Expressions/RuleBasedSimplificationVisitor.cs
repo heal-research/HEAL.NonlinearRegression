@@ -41,6 +41,42 @@ namespace HEAL.Expressions {
         e => e.NodeType == ExpressionType.Multiply && e.Left.ToString() == e.Right.ToString(),
         e => Visit(Expression.Call(pow, e.Left, Expression.Constant(2.0)))
         ),
+
+      // (a / b) / (c / d) -->  (a * d) / (b * c)
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Divide
+          && e.Left.NodeType == ExpressionType.Divide
+          && e.Right.NodeType == ExpressionType.Divide,
+        e => {
+          var left = (BinaryExpression)e.Left;
+          var right = (BinaryExpression)e.Right;
+          return Expression.Divide(
+            Expression.Multiply(left.Left, right.Right),
+            Expression.Multiply(left.Right, right.Left));
+        }
+        ),
+      // (a / b) / c -->  a / (b * c)
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Divide
+          && e.Left.NodeType == ExpressionType.Divide,
+        e => {
+          var left = (BinaryExpression)e.Left;
+          return Expression.Divide(
+            left.Left,
+            Expression.Multiply(left.Right, e.Right));
+        }
+        ),
+      // a / (b / c) -->  (a * c) / b 
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Divide
+          && e.Right.NodeType == ExpressionType.Divide,
+        e => {
+          var right = (BinaryExpression)e.Right;
+          return Expression.Divide(
+            Expression.Multiply(e.Left, right.Right),
+            right.Left);
+        }
+        ),
       // x * pow(x, z) => pow(x, z+1)
       new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Multiply && e.Right is MethodCallExpression callExpr && callExpr.Method == pow

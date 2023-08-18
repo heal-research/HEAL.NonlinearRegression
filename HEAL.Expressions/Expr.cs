@@ -416,7 +416,6 @@ namespace HEAL.Expressions {
       newParameterValues = parameterizedExpr.pValues;
 
       expr = FoldConstants(expr);
-      expr = (Expression<ParametricFunction>)SimplifyDivisionVisitor.Simplify(expr);
 
       var collectVisitor = new CollectParametersVisitor(theta, newParameterValues);
       expr = (Expression<ParametricFunction>)collectVisitor.Visit(expr);
