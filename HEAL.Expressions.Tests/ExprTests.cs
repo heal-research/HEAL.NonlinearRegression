@@ -96,6 +96,7 @@ namespace HEAL.Expressions.Tests {
         var dfx_dx = Expr.Derive((p, x) => Math.Pow(p[0] * x[0], 2), 0);
         CompileAndRun(dfx_dx);
         Assert.AreEqual("(p, x) => (Pow(x[0], 2) * (2 * p[0]))", dfx_dx.ToString());
+        // (p, x) => (((2 * x[0]) * p[0]) * x[0])
       }
     }
 
@@ -169,18 +170,18 @@ namespace HEAL.Expressions.Tests {
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
         var expr = Expr.FoldParameters((p, x) => (p[0] * x[0] + p[1] * x[1]) / (p[2] * x[0] + x[1]) * p[3], paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => (((x[0] + (x[1] * p[0])) / ((x[0] * p[1]) + x[1])) * p[2])", expr.ToString());
+        Assert.AreEqual("(p, x) => (((x[0] + (x[1] * p[0])) * p[1]) / ((x[0] * p[2]) + x[1]))", expr.ToString());
         Assert.AreEqual(3.0 / 2.0, newParamValues[0]);
-        Assert.AreEqual(4.0, newParamValues[1]);
-        Assert.AreEqual(10.0, newParamValues[2]);
+        Assert.AreEqual(10.0, newParamValues[1]);
+        Assert.AreEqual(4.0, newParamValues[2]);
       }
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
         var expr = Expr.FoldParameters((p, x) => (p[0] * x[0] + p[1] * x[1]) / (p[2] * x[0] + p[3] * x[1]), paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => (((x[0] + (x[1] * p[0])) / (x[0] + (x[1] * p[1]))) * p[2])", expr.ToString());
+        Assert.AreEqual("(p, x) => (((x[0] + (x[1] * p[0])) * p[1]) / (x[0] + (x[1] * p[2])))", expr.ToString());
         Assert.AreEqual(3.0 / 2.0, newParamValues[0]);
-        Assert.AreEqual(5.0 / 4.0, newParamValues[1]);
-        Assert.AreEqual(2.0 / 4.0, newParamValues[2]);
+        Assert.AreEqual(2.0 / 4.0, newParamValues[1]);
+        Assert.AreEqual(5.0 / 4.0, newParamValues[2]);
       }
     }
 

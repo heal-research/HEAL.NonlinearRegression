@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using static HEAL.Expressions.Expr;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace HEAL.Expressions {
   /// <summary>

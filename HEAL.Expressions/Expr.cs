@@ -220,9 +220,11 @@ namespace HEAL.Expressions {
     /// <exception cref="NotSupportedException"></exception>
     public static Expression<ParametricFunction> Derive(Expression<ParametricFunction> expr, ParameterExpression param, int dxIdx) {
       if (!CheckExprVisitor.CheckValid(expr)) throw new NotSupportedException(expr.ToString());
-      expr = FoldConstants(expr);
       var deriveVisitor = new DeriveVisitor(param, dxIdx);
-      return FoldConstants((Expression<ParametricFunction>)deriveVisitor.Visit(expr));
+      var df = (Expression<ParametricFunction>)deriveVisitor.Visit(expr);
+      // here we do not care about parameter values
+      var zero = new double[CountParametersVisitor.Count(df, df.Parameters[0])];
+      return FoldConstants(new ParameterizedExpression(df, df.Parameters[0], zero)).expr;
     }
 
     // Symbolic gradient
@@ -337,13 +339,12 @@ namespace HEAL.Expressions {
 
 
     /// <summary>
-    /// Takes an expression and folds double constants. 
+    /// Takes an expression and folds constants. 
     /// </summary>
     /// <param name="expr">The expression to simplify</param>
     /// <returns>A new expression with folded double constants.</returns>
-    public static Expression<ParametricFunction> FoldConstants(Expression<ParametricFunction> expr) {
-      var foldConstantsVisitor = new FoldConstantsVisitor();
-      return (Expression<ParametricFunction>)foldConstantsVisitor.Visit(expr);
+    public static ParameterizedExpression FoldConstants(ParameterizedExpression expr) {
+      return RuleBasedSimplificationVisitor.Simplify(expr);
     }
 
 
@@ -351,10 +352,10 @@ namespace HEAL.Expressions {
     // that are still referenced in the simplified expression. 
     public static Expression<ParametricFunction> SimplifyAndRemoveParameters(Expression<ParametricFunction> expr, double[] thetaValues, out double[] newThetaValues) {
       var theta = expr.Parameters[0];
-      var simplifyVisitor = new FoldConstantsVisitor();
-      var simplifiedExpr = (Expression<ParametricFunction>)simplifyVisitor.Visit(expr);
-      var collectParamVisitor = new CollectParametersVisitor(theta, thetaValues);
-      simplifiedExpr = (Expression<ParametricFunction>)collectParamVisitor.Visit(simplifiedExpr);
+      var parameterizedExpr = new ParameterizedExpression(expr, theta, thetaValues);
+      parameterizedExpr = RuleBasedSimplificationVisitor.Simplify(parameterizedExpr);
+      var collectParamVisitor = new CollectParametersVisitor(parameterizedExpr.p, parameterizedExpr.pValues);
+      var simplifiedExpr = (Expression<ParametricFunction>)collectParamVisitor.Visit(parameterizedExpr.expr);
       newThetaValues = collectParamVisitor.GetNewParameterValues;
       return simplifiedExpr;
     }
@@ -390,14 +391,9 @@ namespace HEAL.Expressions {
       double[] parameterValues, out double[] newParameterValues) {
       var theta = expr.Parameters[0];
 
-      // expr = (Expression<ParametricFunction>)ConvertSubToAddVisitor.Convert(ConvertDivToMulVisitor.Convert(expr));
-      expr = (Expression<ParametricFunction>)RotateBinaryExpressionsVisitor.Rotate(expr);
-      // Console.WriteLine($"Rotated: {expr}");
-
       // TODO use parameterizedExpression in all visitors
 
-      var parameterizedExpr = ArrangeParametersRightVisitor.Execute(new ParameterizedExpression(expr, theta, parameterValues));
-      // Console.WriteLine($"Rearranged: {expr}");
+      var parameterizedExpr = new ParameterizedExpression(expr, theta, parameterValues);
 
       parameterizedExpr = RuleBasedSimplificationVisitor.Simplify(parameterizedExpr);
 
@@ -411,11 +407,10 @@ namespace HEAL.Expressions {
       parameterizedExpr = ExpandProductsVisitor.Expand(parameterizedExpr);
       // Console.WriteLine($"Folded parameters: {newExpr}");
 
-      // deconstruct expression for the following visitors
+      parameterizedExpr = FoldConstants(parameterizedExpr);
+
       expr = parameterizedExpr.expr;
       newParameterValues = parameterizedExpr.pValues;
-
-      expr = FoldConstants(expr);
 
       var collectVisitor = new CollectParametersVisitor(theta, newParameterValues);
       expr = (Expression<ParametricFunction>)collectVisitor.Visit(expr);
