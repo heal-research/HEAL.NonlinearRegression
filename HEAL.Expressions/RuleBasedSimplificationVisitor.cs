@@ -701,7 +701,7 @@ namespace HEAL.Expressions {
       if (typeCmp != 0) return typeCmp;
       else {
         // same type: compare by size (larger expressions first)
-        return CountNodesVisitor.Count(left) - CountNodesVisitor.Count(right);
+        return CountNodesVisitor.Count(right) - CountNodesVisitor.Count(left);
       }
     }
 
