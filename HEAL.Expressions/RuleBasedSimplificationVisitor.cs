@@ -22,12 +22,22 @@ namespace HEAL.Expressions {
       this.p = p;
       this.pValues = pValues.ToList();
 
+      AddBasicRules();
+      AddReparameterizationRules();
+
       // NOTE: We must be careful because parameters might occur multiple times.
       // TODO: Some of the other visitors can be replaced by rules to simplify the code base.
       // TODO: memoization of Visit methods
+    }
 
+    private void ClearRules() {
+      binaryRules.Clear();
+      unaryRules.Clear();
+      callRules.Clear();
+    }
+
+    private void AddBasicRules() {
       binaryRules.AddRange(new[] {
-        #region constants
         // x (+/-) 0.0
         new BinaryExpressionRule(
         e => (e.NodeType == ExpressionType.Add || e.NodeType == ExpressionType.Subtract)
@@ -106,27 +116,117 @@ namespace HEAL.Expressions {
         && e.Left is ConstantExpression constExpr && (double)constExpr.Value == 0.0,
         e => e.Left // 0.0
         ),
-        #endregion
-
-      // sort arguments for commutative 
-      // new BinaryExpressionRule(
-      //   e => IsCommutative(e) && e.Left.To
-      //   String().CompareTo(e.Right.ToString()) > 0,
-      //   e => e.Update(e.Right, null, e.Left)
-      //   ),
-      
-
-        // x / x => 1.0
+        // const ° const -> const
         new BinaryExpressionRule(
+        e => IsConstant(e.Left) && IsConstant(e.Right),
+        e => Expression.Constant(Apply(e.NodeType, GetConstantValue(e.Left), GetConstantValue(e.Right)))
+        ),
+      // (a ° const) ° const
+      new BinaryExpressionRule(
+        e => IsAssociative(e) && e.Left.NodeType == e.NodeType && e.Left is BinaryExpression leftExpr
+        && IsConstant(leftExpr.Right) && IsConstant(e.Right),
+        e => {
+          var leftExpr = (BinaryExpression)e.Left;
+          return Visit(e.Update(leftExpr.Left, null,
+            Expression.Constant(Apply(e.NodeType, GetConstantValue(leftExpr.Right), GetConstantValue(e.Right)))));
+            }
+        ),
+            // x / x => 1.0
+      new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Divide && e.Left.ToString() == e.Right.ToString(),
         e => Expression.Constant(1.0)
         ),
+      // (a * x) / x => a
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Divide && e.Left is BinaryExpression left &&
+        left.NodeType == ExpressionType.Multiply && left.Right.ToString() == e.Right.ToString(),
+        e => ((BinaryExpression)e.Left).Left
+        ),
+      // (a / x) * x => a
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Multiply && e.Left is BinaryExpression left &&
+        left.NodeType == ExpressionType.Divide && left.Right.ToString() == e.Right.ToString(),
+        e => ((BinaryExpression)e.Left).Left
+        ),
+
       // x - x => 0.0
       new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Subtract && e.Left.ToString() == e.Right.ToString(),
         e => Expression.Constant(0.0)
         ),
+       // (a + x) - x -> a
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Subtract && e.Left.NodeType == ExpressionType.Add &&
+             e.Left is BinaryExpression binExpr && binExpr.Right.ToString() == e.Right.ToString(),
+        e => ((BinaryExpression)e.Left).Left
+        ),
+      // (a - x) + x -> a
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Add && e.Left.NodeType == ExpressionType.Subtract &&
+             e.Left is BinaryExpression binExpr && binExpr.Right.ToString() == e.Right.ToString(),
+        e => ((BinaryExpression)e.Left).Left
+        ),
+
+      // x + x => x * 2
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Add && e.Left.ToString() == e.Right.ToString(),
+        e => Visit(Expression.Multiply(e.Left, Expression.Constant(2.0)))
+        ),
+      // (a + x) + x => a + x * 2
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Add
+          && e.Left is BinaryExpression left && left.NodeType == ExpressionType.Add
+          && left.Right.ToString() == e.Right.ToString(),
+        e => {
+          var left = (BinaryExpression)e.Left;
+          return Visit(left.Update(left.Left, null, Expression.Multiply(left.Right, Expression.Constant(2.0))));
+          }
+        ),
+
+
+      // x * a (+/-) x  -> x * (a (+/-) 1)
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Add && e.Left is BinaryExpression left
+          && left.NodeType == ExpressionType.Multiply && left.Left.ToString() == e.Right.ToString(),
+        e => {
+          var left = (BinaryExpression)e.Left;
+          return Visit(Expression.Multiply(left.Left, Expression.Add(left.Right, Expression.Constant(1.0))));
+          }
+        ),
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Subtract && e.Left is BinaryExpression left
+          && left.NodeType == ExpressionType.Multiply && left.Left.ToString() == e.Right.ToString(),
+        e => {
+          var left = (BinaryExpression)e.Left;
+          return Visit(Expression.Multiply(left.Left, Expression.Subtract(left.Right, Expression.Constant(1.0))));
+          }
+        ),
+      // x * alpha (+/-) x * beta -> x * (alpha (+/-) beta)
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Add
+          && e.Left is BinaryExpression left && e.Right is BinaryExpression right
+          && left.NodeType == ExpressionType.Multiply && right.NodeType == ExpressionType.Multiply
+          && left.Left.ToString() == right.Left.ToString(),
+        e => {
+          var left = (BinaryExpression)e.Left;
+          var right = (BinaryExpression)e.Right;
+          return Visit(Expression.Multiply(left.Left, Expression.Add(left.Right, right.Right)));
+          }
+        ),
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Subtract
+          && e.Left is BinaryExpression left && e.Right is BinaryExpression right
+          && left.NodeType == ExpressionType.Multiply && right.NodeType == ExpressionType.Multiply
+          && left.Left.ToString() == right.Left.ToString(),
+        e => {
+          var left = (BinaryExpression)e.Left;
+          var right = (BinaryExpression)e.Right;
+          return Visit(Expression.Multiply(left.Left, Expression.Subtract(left.Right, right.Right)));
+          }
+        ),
+
       // x * x => pow(x, 2)
+      // TODO: (a * x) * x
       new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Multiply && e.Left.ToString() == e.Right.ToString(),
         e => Visit(Expression.Call(pow, e.Left, Expression.Constant(2.0)))
@@ -148,8 +248,24 @@ namespace HEAL.Expressions {
           return Visit(Expression.Divide(Expression.Multiply(e.Left, binExpr.Left), binExpr.Right));
           }
         ),
+      // x + (-(x))
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Add && e.Right.NodeType == ExpressionType.Negate
+          && e.Right is UnaryExpression negExpr && negExpr.Operand.ToString() == e.Left.ToString(),
+        e => Expression.Constant(0.0)
+        ),
+      // (a + x) + (-(x))
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Add && e.Left.NodeType == ExpressionType.Add
+             && e.Right.NodeType == ExpressionType.Negate
+             && e.Left is BinaryExpression left
+             && e.Right is UnaryExpression negExpr && negExpr.Operand.ToString() == left.Right.ToString(),
+        e => {
+          var leftBin = (BinaryExpression)e.Left;
+          return leftBin.Left;
+          }
+        ),
 
-      // TODO: order a, b, c by size ?
 
       // a ° (b ° c) -> (a ° b) ° c
       // This implicitly handles (a ° b) ° (c ° d) -> ((a ° b) ° c) ° d
@@ -161,7 +277,24 @@ namespace HEAL.Expressions {
         }
         ),
       
-      // TODO: sort arguments in commutative operations
+      // sort arguments in (+,*) operations
+      // (a ° c) ° b -> (a ° b) ° c   (with compare(b,c) <= 0)
+      new BinaryExpressionRule(
+        e => IsCommutative(e) && IsAssociative(e) && e.Left.NodeType == e.NodeType &&
+        e.Left is BinaryExpression left && Compare(left.Right, e.Right) > 0,
+        e => {
+          var left = (BinaryExpression)e.Left;
+          return Visit(e.Update(left.Update(left.Left, null, e.Right), null, left.Right));
+        }
+        ),
+      // c ° b -> b ° c   (with compare(b,c) <= 0)
+      new BinaryExpressionRule(
+        e => IsCommutative(e) && Compare(e.Left, e.Right) > 0,
+        e => {
+          return Visit(e.Update(e.Right, null, e.Left));
+        }
+        ),
+      
 
       // (a / b) / (c / d) -->  (a * d) / (b * c)
       new BinaryExpressionRule(
@@ -199,9 +332,10 @@ namespace HEAL.Expressions {
         }
         ),
       // x * pow(x, z) => pow(x, z+1)
+      // TODO: (a * x) * pow(x, z)
       new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Multiply && e.Right is MethodCallExpression callExpr && callExpr.Method == pow
-        && e.Left.ToString() == e.Right.ToString(),
+        && e.Left.ToString() == callExpr.Arguments[0].ToString(),
         e => {
           var callExpr = (MethodCallExpression)e.Right;
           return Visit(callExpr.Update(callExpr.Object,
@@ -209,7 +343,8 @@ namespace HEAL.Expressions {
               Expression.Add(callExpr.Arguments[1], Expression.Constant(1.0)) }));
         }
         ),
-      // pow(x, z) * x => pow(x, z+1)
+      // pow(x, z) * x => pow(x, z+1) // TODO: not possible because calls are ordered right of binary expressions
+      
       new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Multiply && e.Left is MethodCallExpression callExpr && callExpr.Method == pow
         && callExpr.Arguments[0].ToString() == e.Right.ToString(),
@@ -241,26 +376,6 @@ namespace HEAL.Expressions {
               Expression.Subtract(Expression.Constant(1.0), callExpr.Arguments[1]) }));
         }
         ),
-      // const ° const -> const
-      new BinaryExpressionRule(
-        e => IsConstant(e.Left) && IsConstant(e.Right),
-        e => Expression.Constant(Apply(e.NodeType, GetConstantValue(e.Left), GetConstantValue(e.Right)))
-        ),
-      // param ° param -> param
-      new BinaryExpressionRule(
-        e => IsParameter(e.Left) && IsParameter(e.Right),
-        e => NewParameter(Apply(e.NodeType, GetParameterValue(e.Left), GetParameterValue(e.Right)))
-        ),
-      // param ° const -> param
-      new BinaryExpressionRule(
-        e => IsParameter(e.Left) && IsConstant(e.Right),
-        e => NewParameter(Apply(e.NodeType, GetParameterValue(e.Left), GetConstantValue(e.Right)))
-        ),
-      // const ° param -> param
-      new BinaryExpressionRule(
-        e => IsConstant(e.Left) && IsParameter(e.Right),
-        e => NewParameter(Apply(e.NodeType, GetConstantValue(e.Left), GetParameterValue(e.Right)))
-        ),
       // nest associative left a ° (b ° c) -> (a ° b) ° c
       new BinaryExpressionRule(
         e => IsAssociative(e) && e.Right is BinaryExpression rightBinExpr && rightBinExpr.NodeType == e.NodeType,
@@ -269,36 +384,24 @@ namespace HEAL.Expressions {
           return Visit(rightBin.Update(e.Update(e.Left, null, rightBin.Left), null, rightBin.Right));
           }
         ),
-
-        // TODO (a ° p) ° b --> (a ° b) ° p ?
-
-       // move parameters right p ° x -> x ° p
-       new BinaryExpressionRule(
-        e => IsCommutative(e) && IsParameter(e.Left),
-        e => e.Update(e.Right, null, e.Left)
-        ),
+       // // move parameters right p ° x -> x ° p (but not if x is a constant or another parameter)
+       // This rule is a special case of the general sorting rule
+       // new BinaryExpressionRule(
+       //  e => IsCommutative(e) && IsParameter(e.Left) && !IsConstant(e.Right) && !IsParameter(e.Right),
+       //  e => e.Update(e.Right, null, e.Left)
+       //  ),
        // p / x -> 1/x * p (helpful?)
+       // TODO (a * p) / x
        new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Divide && IsParameter(e.Left) && !IsParameter(e.Right),
         e => Visit(Expression.Multiply(Expression.Divide(Expression.Constant(1.0), e.Right), e.Left))
         ),
        // p - x -> -x + p (helpful?)
+       // TODO (a (+/-) p) - x
        new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Subtract && IsParameter(e.Left) && !IsParameter(e.Right),
         e => Visit(Expression.Add(Expression.Negate(e.Right), e.Left))
         ),
-       // x - p -> x + (-p)
-       new BinaryExpressionRule(
-        e => e.NodeType == ExpressionType.Subtract && IsParameter(e.Right),
-        e => Visit(Expression.Add(e.Left, NewParameter(-GetParameterValue(e.Right))))
-        ),
-       // x / p -> x * (1/p)
-       new BinaryExpressionRule(
-        e => e.NodeType == ExpressionType.Divide && IsParameter(e.Right),
-        e => Visit(Expression.Multiply(e.Left, NewParameter(1.0 / GetParameterValue(e.Right))))
-        ),
-
-
        // 1/pow(x, y) -> pow(x, -y)
        new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Divide && e.Right is MethodCallExpression callExpr && callExpr.Method == pow,
@@ -309,19 +412,13 @@ namespace HEAL.Expressions {
         ),
 
       });
-
       unaryRules.AddRange(new[] {
         // +x -> x
         new UnaryExpressionRule(
           e => e.NodeType == ExpressionType.UnaryPlus,
           e => e.Operand
           ),
-        // -(p) -> p
-        new UnaryExpressionRule(
-          e => e.NodeType == ExpressionType.Negate && IsParameter(e.Operand),
-          e => NewParameter(-GetParameterValue(e.Operand))
-          ),
-        // -(const) -> -const
+                // -(const) -> -const
         new UnaryExpressionRule(
           e => e.NodeType == ExpressionType.Negate && IsConstant(e.Operand),
           e => Expression.Constant(-GetConstantValue(e.Operand))
@@ -375,35 +472,23 @@ namespace HEAL.Expressions {
           ),
 
       });
-
       callRules.AddRange(new[] {
       // fold constants
       new MethodCallExpressionRule(
         e => e.Arguments.All(IsConstant),
         e => Expression.Constant(e.Method.Invoke(e.Object, e.Arguments.Select(GetConstantValue).OfType<object>().ToArray()))
         ),
-      // fold parameters
-      new MethodCallExpressionRule(
-        e => e.Arguments.All(IsParameter),
-        e => NewParameter((double) e.Method.Invoke(e.Object, e.Arguments.Select(GetParameterValue).OfType<object>().ToArray()))
-        ),
-      // only parameters and constants (rule for folding constants should be applied first)
-      new MethodCallExpressionRule(
-        e => e.Arguments.All(e => IsParameter(e) || IsConstant(e)),
-        e => NewParameter((double) e.Method.Invoke(e.Object, e.Arguments.Select(GetParameterOrConstantValue).OfType<object>().ToArray()))
-        ),
-      // abs(-(x)) -> abs(x)
+            // abs(-(x)) -> abs(x)
       new MethodCallExpressionRule(
         e => e.Method == abs && e.Arguments[0].NodeType == ExpressionType.Negate,
-        e => e.Update(e.Object, new [] {((UnaryExpression) e.Arguments[0]).Operand
-})
+        e => e.Update(e.Object, new [] {((UnaryExpression) e.Arguments[0]).Operand})
         ),
       // pow(x, 0) -> 1
       new MethodCallExpressionRule(
         e => e.Method == pow && IsConstant(e.Arguments[1]) && GetConstantValue(e.Arguments[1]) == 0.0,
         e => Expression.Constant(1.0)
         ),
-      // pow(x, 1) -> 1
+      // pow(x, 1) -> x
       new MethodCallExpressionRule(
         e => e.Method == pow && IsConstant(e.Arguments[1]) && GetConstantValue(e.Arguments[1]) == 1.0,
         e => e.Arguments[0]
@@ -432,19 +517,132 @@ namespace HEAL.Expressions {
             Expression.Call(pow, div.Right, e.Arguments[1])));
         }
         ),
-      // TODO
+      // pow(pow(a, x), y) -> pow(a, x * y)
+      new MethodCallExpressionRule(
+        e => e.Method == pow && e.Arguments[0] is MethodCallExpression callExpr && callExpr.Method == pow,
+        e => {
+          var inner = (MethodCallExpression)e.Arguments[0];
+          return Visit(e.Update(e.Object, new [] {inner.Arguments[0], Expression.Multiply(e.Arguments[1], inner.Arguments[1]) }));
+            }
+        ),
       // exp(x)^c = exp(c*x)
-
+      // exp(x)^p = exp(p*x)
+      new MethodCallExpressionRule(
+        e => e.Method == pow && e.Arguments[0] is MethodCallExpression inner && inner.Method == exp,
+        e => {
+          var inner = (MethodCallExpression)e.Arguments[0];
+          return Visit(inner.Update(inner.Object, new [] {Expression.Multiply(inner.Arguments[0], e.Arguments[1]) }));
+        })
 
       });
     }
 
-    private bool IsCommutative(BinaryExpression e) => e.NodeType == ExpressionType.Add || e.NodeType == ExpressionType.Multiply;
+    private void AddReparameterizationRules() {
+      binaryRules.AddRange(new[] {
+      // param ° param -> param
+      new BinaryExpressionRule(
+        e => IsParameter(e.Left) && IsParameter(e.Right),
+        e => NewParameter(Apply(e.NodeType, GetParameterValue(e.Left), GetParameterValue(e.Right)))
+        ),
+      // (a ° param) ° param
+      new BinaryExpressionRule(
+        e => IsAssociative(e) && e.Left.NodeType == e.NodeType && e.Left is BinaryExpression leftExpr
+        && IsParameter(leftExpr.Right) && IsParameter(e.Right),
+        e => {
+          var leftExpr = (BinaryExpression)e.Left;
+          return Visit(e.Update(leftExpr.Left, null,
+            NewParameter(Apply(e.NodeType, GetParameterValue(leftExpr.Right), GetParameterValue(e.Right)))));
+            }
+        ),
+      // param ° const -> param
+      new BinaryExpressionRule(
+        e => IsParameter(e.Left) && IsConstant(e.Right),
+        e => NewParameter(Apply(e.NodeType, GetParameterValue(e.Left), GetConstantValue(e.Right)))
+        ),
+      // (a ° param) ° const (TODO: combine param / const rules)
+      new BinaryExpressionRule(
+        e => IsAssociative(e) && e.Left.NodeType == e.NodeType && e.Left is BinaryExpression leftExpr
+        && IsParameter(leftExpr.Right) && IsConstant(e.Right),
+        e => {
+          var leftExpr = (BinaryExpression)e.Left;
+          return Visit(e.Update(leftExpr.Left, null,
+            NewParameter(Apply(e.NodeType, GetParameterValue(leftExpr.Right), GetConstantValue(e.Right)))));
+            }
+        ),
+      // const ° param -> param
+      new BinaryExpressionRule(
+        e => IsConstant(e.Left) && IsParameter(e.Right),
+        e => NewParameter(Apply(e.NodeType, GetConstantValue(e.Left), GetParameterValue(e.Right)))
+        ),
+      // (a ° const) ° param (TODO: combine rules param/const)
+      new BinaryExpressionRule(
+        e => IsAssociative(e) && e.Left.NodeType == e.NodeType && e.Left is BinaryExpression leftExpr
+        && IsConstant(leftExpr.Right) && IsParameter(e.Right),
+        e => {
+          var leftExpr = (BinaryExpression)e.Left;
+          return Visit(e.Update(leftExpr.Left, null,
+            NewParameter(Apply(e.NodeType, GetConstantValue(leftExpr.Right), GetParameterValue(e.Right)))));
+            }
+        ),
+
+       // x - p -> x + (-p)
+       // TODO (a (+/-) x) - p
+       new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Subtract && IsParameter(e.Right),
+        e => Visit(Expression.Add(e.Left, NewParameter(-GetParameterValue(e.Right))))
+        ),
+       // x / p -> x * (1/p)
+       // TODO (a * x) / p -> (a * x) * (1/p)
+       new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Divide && IsParameter(e.Right),
+        e => Visit(Expression.Multiply(e.Left, NewParameter(1.0 / GetParameterValue(e.Right))))
+        ),
+      });
+
+      unaryRules.AddRange(new[] {
+        // -(p) -> p
+        new UnaryExpressionRule(
+          e => e.NodeType == ExpressionType.Negate && IsParameter(e.Operand),
+          e => NewParameter(-GetParameterValue(e.Operand))
+          ),
+      });
+
+      callRules.AddRange(new[] {
+      // fold parameters
+      new MethodCallExpressionRule(
+        e => e.Arguments.All(IsParameter),
+        e => NewParameter((double) e.Method.Invoke(e.Object, e.Arguments.Select(GetParameterValue).OfType<object>().ToArray()))
+        ),
+      // only parameters and constants (rule for folding constants should be applied first)
+      new MethodCallExpressionRule(
+        e => e.Arguments.All(e => IsParameter(e) || IsConstant(e)),
+        e => NewParameter((double) e.Method.Invoke(e.Object, e.Arguments.Select(GetParameterOrConstantValue).OfType<object>().ToArray()))
+        ),
+
+      // TODO: delete FoldParametersVisitor
+      });
+
+    }
+
+
 
     public static ParameterizedExpression Simplify(ParameterizedExpression expr) {
       if (!CheckExprVisitor.CheckValid(expr.expr)) throw new NotSupportedException();
 
       var v = new RuleBasedSimplificationVisitor(expr.p, expr.pValues);
+      var body = v.Visit(expr.expr.Body);
+      return new ParameterizedExpression(expr.expr.Update(body, expr.expr.Parameters), expr.p, v.pValues.ToArray());
+    }
+
+    public static ParameterizedExpression FoldConstants(ParameterizedExpression expr) {
+      // This uses only a reduced set of rules to fold constants and optimize operations without effect (*0, *1, +/-0 ...)
+      // This is necessary for simplification where it is not allowed to re-parameterize the expression.
+      // For example, when simplifying the derivative of an expression.
+      if (!CheckExprVisitor.CheckValid(expr.expr)) throw new NotSupportedException();
+
+      var v = new RuleBasedSimplificationVisitor(expr.p, expr.pValues);
+      v.ClearRules();
+      v.AddBasicRules();
       var body = v.Visit(expr.expr.Body);
       return new ParameterizedExpression(expr.expr.Update(body, expr.expr.Parameters), expr.p, v.pValues.ToArray());
     }
@@ -490,6 +688,40 @@ namespace HEAL.Expressions {
       return result;
     }
 
+
+    private int Compare(Expression left, Expression right) {
+      // left < right -> -1
+      // left = right -> 0
+      // left > right -> 1
+      // order: terms < parameters < constants
+      // terms are ordered by expression type (binary before unary before call).
+      // within the same type expressions are ordered by size
+      // order of parameters and constants is irrelevant
+      var typeCmp = CompareType(left, right);
+      if (typeCmp != 0) return typeCmp;
+      else {
+        // same type: compare by size (larger expressions first)
+        return CountNodesVisitor.Count(left) - CountNodesVisitor.Count(right);
+      }
+    }
+
+    private int CompareType(Expression left, Expression right) {
+
+      var leftOrd = OrdinalNumber(left);
+      var rightOrd = OrdinalNumber(right);
+      return leftOrd.CompareTo(rightOrd);
+    }
+
+    private int OrdinalNumber(Expression e) {
+      return IsConstant(e) ? 5
+        : IsParameter(e) ? 4
+        : e is MethodCallExpression ? 3
+        : e is UnaryExpression ? 2
+        : e is BinaryExpression ? 1
+        : throw new NotSupportedException();
+    }
+
+    private bool IsCommutative(BinaryExpression e) => e.NodeType == ExpressionType.Add || e.NodeType == ExpressionType.Multiply;
 
     private bool IsOddFunction(MethodCallExpression callExpr) => callExpr.Method == sin || callExpr.Method == cbrt;
 

@@ -344,7 +344,7 @@ namespace HEAL.Expressions {
     /// <param name="expr">The expression to simplify</param>
     /// <returns>A new expression with folded double constants.</returns>
     public static ParameterizedExpression FoldConstants(ParameterizedExpression expr) {
-      return RuleBasedSimplificationVisitor.Simplify(expr);
+      return RuleBasedSimplificationVisitor.FoldConstants(expr);
     }
 
 

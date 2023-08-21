@@ -33,7 +33,7 @@ namespace HEAL.Expressions.Parser {
     }
 
     public Expression<Expr.ParametricFunction> Parse() {
-      return Expression.Lambda<Expr.ParametricFunction>(Expr(), parameterSymbol, variableSymbol);
+      return Expression.Lambda<Expr.ParametricFunction>(S(), parameterSymbol, variableSymbol);
     }
 
 
@@ -47,6 +47,12 @@ namespace HEAL.Expressions.Parser {
     //              | ident ParamList                           // function call
     //             ) [ ('**' | '^') Fact ]
     // ParamList = '(' Expr { ',' Expr } ')' 
+
+    private Expression S() {
+      var expr = Expr();
+      if (Sy != TokenEnum.Eof) throw new ArgumentException("invalid expression");
+      return expr;
+    }
 
     // A simple recursive descent parser
     private Expression Expr() {

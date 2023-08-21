@@ -6,7 +6,7 @@ namespace HEAL.Expressions {
     private int numNodes = 0;
 
     private CountNodesVisitor() : base() { }
-    public static int Count(Expression<ParametricFunction> expr) {
+    public static int Count(Expression expr) {
       var v = new CountNodesVisitor();
       v.Visit(expr);
       return v.numNodes;
