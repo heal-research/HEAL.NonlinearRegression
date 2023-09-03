@@ -124,7 +124,7 @@ namespace HEAL.Expressions {
           // ExtractScaleAndIntercept(allTerms, out var scale, out var intercept);
           var intercept = leftTerms.Where(IsParameter).Sum(ParameterValue) 
             - rightTerms.Where(IsParameter).Sum(ParameterValue);
-          var leftRemaining = leftTerms.Where(t => !IsParameter(t));
+          var leftRemaining = leftTerms.Where(t => !IsParameter(t)).DefaultIfEmpty(Expression.Constant(0.0));
           var rightRemaining = rightTerms.Where(t => !IsParameter(t));
           var remaining = leftRemaining.Concat(rightRemaining);
           if (remaining.All(HasScalingParameter)) {
@@ -134,7 +134,7 @@ namespace HEAL.Expressions {
           }
 
           var newNode = Expression.Subtract(
-            leftRemaining.Aggregate(Expression.Add),
+            leftRemaining.Aggregate((Expression)Expression.Constant(0.0), Expression.Add),
             rightRemaining.Aggregate(Expression.Add));
           if (scale != 1.0) {
             newNode = Expression.Multiply(newNode, NewParam(scale));

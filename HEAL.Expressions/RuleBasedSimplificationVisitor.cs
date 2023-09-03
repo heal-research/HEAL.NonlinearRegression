@@ -11,7 +11,7 @@ namespace HEAL.Expressions {
 
 
 
-  public class RuleBasedSimplificationVisitor :ExpressionVisitor {
+  public class RuleBasedSimplificationVisitor : ExpressionVisitor {
     private readonly List<(Func<BinaryExpression, bool> Match, Func<BinaryExpression, Expression> Apply)> binaryRules = new List<BinaryExpressionRule>();
     private readonly List<(Func<UnaryExpression, bool> Match, Func<UnaryExpression, Expression> Apply)> unaryRules = new List<UnaryExpressionRule>();
     private readonly List<(Func<MethodCallExpression, bool> Match, Func<MethodCallExpression, Expression> Apply)> callRules = new List<MethodCallExpressionRule>();
@@ -131,7 +131,7 @@ namespace HEAL.Expressions {
             Expression.Constant(Apply(e.NodeType, GetConstantValue(leftExpr.Right), GetConstantValue(e.Right)))));
             }
         ),
-            // x / x => 1.0
+      // x / x => 1.0
       new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Divide && e.Left.ToString() == e.Right.ToString(),
         e => Expression.Constant(1.0)
@@ -248,12 +248,25 @@ namespace HEAL.Expressions {
           return Visit(Expression.Divide(Expression.Multiply(e.Left, binExpr.Left), binExpr.Right));
           }
         ),
-      // x + (-(x))
+      // x + (-y) -> x - y 
       new BinaryExpressionRule(
-        e => e.NodeType == ExpressionType.Add && e.Right.NodeType == ExpressionType.Negate
-          && e.Right is UnaryExpression negExpr && negExpr.Operand.ToString() == e.Left.ToString(),
-        e => Expression.Constant(0.0)
+        e => e.NodeType == ExpressionType.Add && e.Right.NodeType == ExpressionType.Negate,
+        e => Visit(Expression.Subtract(e.Left, ((UnaryExpression)e.Right).Operand))
         ),
+      
+      // x + -c -> x - c  (negative constant)
+      new BinaryExpressionRule(
+        e => e.NodeType == ExpressionType.Add && e.Right is ConstantExpression constExpr && (double)constExpr.Value < 0.0,
+        e => Visit(Expression.Subtract(e.Left, Expression.Constant(- (double)((ConstantExpression)e.Right).Value)))
+        ),
+
+      // x + (-(x))
+      // TODO: necessary?
+      // new BinaryExpressionRule(
+      //   e => e.NodeType == ExpressionType.Add && e.Right.NodeType == ExpressionType.Negate
+      //     && e.Right is UnaryExpression negExpr && negExpr.Operand.ToString() == e.Left.ToString(),
+      //   e => Expression.Constant(0.0)
+      //   ),
       // (a + x) + (-(x))
       new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Add && e.Left.NodeType == ExpressionType.Add
@@ -398,10 +411,10 @@ namespace HEAL.Expressions {
         ),
        // p - x -> -x + p (helpful?)
        // TODO (a (+/-) p) - x
-       new BinaryExpressionRule(
-        e => e.NodeType == ExpressionType.Subtract && IsParameter(e.Left) && !IsParameter(e.Right),
-        e => Visit(Expression.Add(Expression.Negate(e.Right), e.Left))
-        ),
+       //new BinaryExpressionRule(
+       // e => e.NodeType == ExpressionType.Subtract && IsParameter(e.Left) && !IsParameter(e.Right),
+       // e => Visit(Expression.Add(Expression.Negate(e.Right), e.Left))
+       // ),
        // 1/pow(x, y) -> pow(x, -y)
        new BinaryExpressionRule(
         e => e.NodeType == ExpressionType.Divide && e.Right is MethodCallExpression callExpr && callExpr.Method == pow,
@@ -418,7 +431,7 @@ namespace HEAL.Expressions {
           e => e.NodeType == ExpressionType.UnaryPlus,
           e => e.Operand
           ),
-                // -(const) -> -const
+        // -(const) -> -const
         new UnaryExpressionRule(
           e => e.NodeType == ExpressionType.Negate && IsConstant(e.Operand),
           e => Expression.Constant(-GetConstantValue(e.Operand))
@@ -455,9 +468,11 @@ namespace HEAL.Expressions {
           e => e.NodeType == ExpressionType.Negate && e.Operand.NodeType == ExpressionType.Divide,
           e => {
             var binExpr = (BinaryExpression)e.Operand;
-            return Visit(binExpr.Update(binExpr.Left, null, Expression.Negate(binExpr.Right)));
-              }
-          ),
+            // prefer negation for parameters or constants
+            if(binExpr.Left is ConstantExpression || IsParameter(binExpr.Left)) {
+              return Visit(binExpr.Update(Expression.Negate(binExpr.Left), null, binExpr.Right));
+            } else return Visit(binExpr.Update(binExpr.Left, null, Expression.Negate(binExpr.Right)));
+          }),
         // odd functions: -f(x) = f(-x)
         new UnaryExpressionRule(
           e => e.NodeType == ExpressionType.Negate && e.Operand is MethodCallExpression callExpr && IsOddFunction(callExpr),
@@ -472,13 +487,14 @@ namespace HEAL.Expressions {
           ),
 
       });
+
       callRules.AddRange(new[] {
       // fold constants
       new MethodCallExpressionRule(
         e => e.Arguments.All(IsConstant),
         e => Expression.Constant(e.Method.Invoke(e.Object, e.Arguments.Select(GetConstantValue).OfType<object>().ToArray()))
         ),
-            // abs(-(x)) -> abs(x)
+      // abs(-(x)) -> abs(x)
       new MethodCallExpressionRule(
         e => e.Method == abs && e.Arguments[0].NodeType == ExpressionType.Negate,
         e => e.Update(e.Object, new [] {((UnaryExpression) e.Arguments[0]).Operand})
@@ -488,6 +504,13 @@ namespace HEAL.Expressions {
         e => e.Method == pow && IsConstant(e.Arguments[1]) && GetConstantValue(e.Arguments[1]) == 0.0,
         e => Expression.Constant(1.0)
         ),
+      // pow(0, x) -> 0
+      // (this is not 100% correct because 0^0 is not defined. But for our purposes 0^0 is irrelevant
+      new MethodCallExpressionRule(
+        e => e.Method == pow && IsConstant(e.Arguments[0]) && GetConstantValue(e.Arguments[0]) == 0.0,
+        e => Expression.Constant(0.0)
+        ),
+
       // pow(x, 1) -> x
       new MethodCallExpressionRule(
         e => e.Method == pow && IsConstant(e.Arguments[1]) && GetConstantValue(e.Arguments[1]) == 1.0,
