@@ -32,7 +32,7 @@ namespace HEAL.NonlinearRegression {
       var varExpl = new Dictionary<int, double>();
       for (int varIdx = 0; varIdx < d; varIdx++) {
         var newExpr = Expr.ReplaceVariableWithParameter(origExpr, (double[])pOpt.Clone(), varIdx, mean[varIdx], out var newThetaValues);
-        newExpr = Expr.FoldParameters(newExpr, newThetaValues, out newThetaValues);
+        newExpr = Expr.Simplify(newExpr, newThetaValues, out newThetaValues);
         likelihood.ModelExpr = newExpr;
         nlr = new NonlinearRegression();
         nlr.Fit(newThetaValues, likelihood);
@@ -86,7 +86,7 @@ namespace HEAL.NonlinearRegression {
 
         var replValue = eval.Average();
         var reducedExpression = ReplaceSubexpressionWithParameterVisitor.Execute(expr, subExpr, p, replValue, out var newTheta);
-        reducedExpression = Expr.FoldParameters(reducedExpression, newTheta, out newTheta);
+        reducedExpression = Expr.Simplify(reducedExpression, newTheta, out newTheta);
 
 
         // fit reduced model
@@ -116,20 +116,20 @@ namespace HEAL.NonlinearRegression {
         // replace each parameter with zero
         if (low[i] <= 0.0 && high[i] >= 0.0) {
           var newExpr = ReplaceParameterWithConstantVisitor.Execute(expr, expr.Parameters[0], i, 0.0);
-          newExpr = Expr.FoldParameters(newExpr, theta, out var newTheta);
+          newExpr = Expr.Simplify(newExpr, theta, out var newTheta);
           yield return (newExpr, newTheta);
         }
 
         // replace each parameter with -1
         if (theta[i] < 0 && low[i] <= -1.0 && high[i] >= -1.0) {
           var newExpr = ReplaceParameterWithConstantVisitor.Execute(expr, expr.Parameters[0], i, -1);
-          newExpr = Expr.FoldParameters(newExpr, theta, out var newTheta);
+          newExpr = Expr.Simplify(newExpr, theta, out var newTheta);
           yield return (newExpr, newTheta);
         }
         // replace each parameter with 1
         if (theta[i] > 0 && low[i] <= 1.0 && high[i] >= 1.0) {
           var newExpr = ReplaceParameterWithConstantVisitor.Execute(expr, expr.Parameters[0], i, 1);
-          newExpr = Expr.FoldParameters(newExpr, theta, out var newTheta);
+          newExpr = Expr.Simplify(newExpr, theta, out var newTheta);
           yield return (newExpr, newTheta);
         }
 
@@ -143,7 +143,7 @@ namespace HEAL.NonlinearRegression {
           // var paramDL = 0.5 * (-Math.Log(3) + Math.Log(laplaceApproximation.diagH[i])) + Math.Log(Math.Abs(theta[i]));
           // if (constDL < paramDL) {
           var newExpr = ReplaceParameterWithConstantVisitor.Execute(expr, expr.Parameters[0], i, Math.Round(theta[i]));
-          newExpr = Expr.FoldParameters(newExpr, theta, out var newTheta);
+          newExpr = Expr.Simplify(newExpr, theta, out var newTheta);
           yield return (newExpr, newTheta);
           // }
         }
@@ -198,7 +198,7 @@ namespace HEAL.NonlinearRegression {
         // simplify until no change (TODO: this shouldn't be necessary if visitors are implemented carefully)
         do {
           exprSet.Add(newSimplifiedStr);
-          reducedExpression = Expr.FoldParameters(reducedExpression, newP, out newP);
+          reducedExpression = Expr.Simplify(reducedExpression, newP, out newP);
           newSimplifiedStr = reducedExpression.ToString();
         } while (!exprSet.Contains(newSimplifiedStr));
 

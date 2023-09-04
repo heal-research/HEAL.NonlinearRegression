@@ -44,9 +44,9 @@ namespace HEAL.Expressions {
           var rightFactors = CollectFactorsVisitor.CollectFactors(right).ToArray();
           var p0 = rightFactors.Where(IsParameter).Aggregate(1.0, (prod, f) => prod * ParameterValue(f));
 
-          var remainingFactors = rightFactors.Where(f=>!IsParameter(f));
+          var remainingFactors = rightFactors.Where(f => !IsParameter(f));
           Expression rightWithoutScaling = null;
-          if(remainingFactors.Any()) rightWithoutScaling = remainingFactors.Aggregate(Expression.Multiply);
+          if (remainingFactors.Any()) rightWithoutScaling = remainingFactors.Aggregate(Expression.Multiply);
 
           foreach (var lt in leftTerms) {
             if (HasScalingParameter(lt)) {
@@ -61,19 +61,26 @@ namespace HEAL.Expressions {
           }
 
           if (sumOfTermsWithoutScaling == null) return sumOfTermsWithScaling;
-          else if (sumOfTermsWithScaling == null) return Expression.Multiply(sumOfTermsWithoutScaling, right);
-          else return Expression.Add(sumOfTermsWithScaling, Expression.Multiply(sumOfTermsWithoutScaling, right)); // right is used only once
+          else if (sumOfTermsWithScaling == null) return Multiply(sumOfTermsWithoutScaling, right);
+          else return Expression.Add(sumOfTermsWithScaling, Multiply(sumOfTermsWithoutScaling, right));
         }
       }
       return node.Update(left, null, right);
     }
 
+    private Expression Multiply(Expression sumOfTermsWithoutScaling, Expression right) {
+      if (sumOfTermsWithoutScaling.NodeType == ExpressionType.Divide) {
+        var divExpr = (BinaryExpression)sumOfTermsWithoutScaling;
+        return divExpr.Update(Expression.Multiply(divExpr.Left, right), null, divExpr.Right);
+      }
+      return Expression.Multiply(sumOfTermsWithoutScaling, right);
+    }
 
     private Expression ScaleTerm(Expression expr, double scale) {
       // return expr;
       if (scale == 1.0) return expr; // nothing to do
-      // TODO handle x * 0.0?
-      
+                                     // TODO handle x * 0.0?
+
       var factors = CollectFactorsVisitor.CollectFactors(expr);
       // product of parameter values
       var currentScalingFactor = factors.Where(IsParameter).Aggregate(1.0, (agg, f) => agg * ParameterValue(f)); // fold product

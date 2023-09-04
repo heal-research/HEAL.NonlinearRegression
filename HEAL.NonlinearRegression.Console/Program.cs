@@ -274,7 +274,7 @@ namespace HEAL.NonlinearRegression.Console {
     }
 
     private static void Simplify(Expression<Expr.ParametricFunction> parametricExpr, double[] p, out Expression<Expr.ParametricFunction> simplifiedExpr, out double[] newP) {
-      simplifiedExpr = Expr.Simplify(parametricExpr, p, out newP);
+      simplifiedExpr = Expr.SimplifyRepeated(parametricExpr, p, out newP);
     }
 
     private static void GenerateNestedModels(NestedModelsOptions options) {

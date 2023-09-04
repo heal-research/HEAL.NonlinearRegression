@@ -112,64 +112,64 @@ namespace HEAL.Expressions.Tests {
     public void FoldParameters() {
       {
         var paramValues = new[] { 2.0, 2.0, 3.0, 4.0 };
-        var expr = Expr.FoldParameters((p, x) => (p[0] + p[1]), paramValues, out var newParamValues);
+        var expr = Expr.Simplify((p, x) => (p[0] + p[1]), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => p[0]", expr.ToString());
         Assert.AreEqual(4.0, newParamValues[0]);
       }
       {
         var paramValues = new[] { 2.0, 2.0, 3.0, 4.0 };
-        var expr = Expr.FoldParameters((p, x) => (p[0] * (x[0] * p[1])), paramValues, out var newParamValues);
+        var expr = Expr.Simplify((p, x) => (p[0] * (x[0] * p[1])), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => (x[0] * p[0])", expr.ToString());
         Assert.AreEqual(4.0, newParamValues[0]);
       }
       {
         var paramValues = new[] { 2.0, 2.0, 3.0, 4.0 };
-        var expr = Expr.FoldParameters((p, x) => (p[0] + (x[0] + p[1])), paramValues, out var newParamValues);
+        var expr = Expr.Simplify((p, x) => (p[0] + (x[0] + p[1])), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => (x[0] + p[0])", expr.ToString());
         Assert.AreEqual(4.0, newParamValues[0]);
       }
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
-        var expr = Expr.FoldParameters((p, x) => (p[0] / (x[0] * p[1] + p[2])), paramValues, out var newParamValues);
+        var expr = Expr.Simplify((p, x) => (p[0] / (x[0] * p[1] + p[2])), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => ((1 / (x[0] + p[0])) * p[1])", expr.ToString());
         Assert.AreEqual(4.0 / 3.0, newParamValues[0]);
         Assert.AreEqual(2.0 / 3.0, newParamValues[1]);
       }
       {
         var paramValues = new[] { 2.0, 2.0, 3.0, 4.0 };
-        var expr = Expr.FoldParameters((p, x) => Math.Log(p[0]), paramValues, out var newParamValues);
+        var expr = Expr.Simplify((p, x) => Math.Log(p[0]), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => p[0]", expr.ToString());
         Assert.AreEqual(Math.Log(2), newParamValues[0]);
       }
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
-        var expr = Expr.FoldParameters((p, x) => p[2] * (p[0] * x[0] + p[1] * x[1]), paramValues, out var newParamValues);
+        var expr = Expr.Simplify((p, x) => p[2] * (p[0] * x[0] + p[1] * x[1]), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => ((x[1] * p[0]) + (x[0] * p[1]))", expr.ToString());
         Assert.AreEqual(12.0, newParamValues[0]);
         Assert.AreEqual(8.0, newParamValues[1]);
       }
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
-        var expr = Expr.FoldParameters((p, x) => 1.0 / (p[0] * x[0] + p[1] * x[1]) * p[2], paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => ((1 / ((x[1] * p[0]) + x[0])) * p[1])", expr.ToString());
+        var expr = Expr.Simplify((p, x) => 1.0 / (p[0] * x[0] + p[1] * x[1]) * p[2], paramValues, out var newParamValues);
+        Assert.AreEqual("(p, x) => ((1 / (x[0] + (x[1] * p[0]))) * p[1])", expr.ToString());
         Assert.AreEqual(3.0 / 2.0, newParamValues[0]);
         Assert.AreEqual(4.0 / 2.0, newParamValues[1]);
       }
       {
         var paramValues = new[] { 2.0 };
-        var expr = Expr.FoldParameters((p, x) => Math.Log(p[0]), paramValues, out var newParamValues);
+        var expr = Expr.Simplify((p, x) => Math.Log(p[0]), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => p[0]", expr.ToString());
         Assert.AreEqual(Math.Log(2.0), newParamValues[0]);
       }
       {
         var paramValues = new[] { 2.0, 3.0 };
-        var expr = Expr.FoldParameters((p, x) => Math.Pow(p[0], p[1]), paramValues, out var newParamValues);
+        var expr = Expr.Simplify((p, x) => Math.Pow(p[0], p[1]), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => p[0]", expr.ToString());
         Assert.AreEqual(8, newParamValues[0]);
       }
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
-        var expr = Expr.FoldParameters((p, x) => (p[0] * x[0] + p[1] * x[1]) / (p[2] * x[0] + x[1]) * p[3], paramValues, out var newParamValues);
+        var expr = Expr.Simplify((p, x) => (p[0] * x[0] + p[1] * x[1]) / (p[2] * x[0] + x[1]) * p[3], paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => ((((x[1] * p[0]) + x[0]) / ((x[0] * p[1]) + x[1])) * p[2])", expr.ToString());
         Assert.AreEqual(3.0 / 2.0, newParamValues[0]);
         Assert.AreEqual(4.0, newParamValues[1]);
@@ -177,7 +177,7 @@ namespace HEAL.Expressions.Tests {
       }
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
-        var expr = Expr.FoldParameters((p, x) => (p[0] * x[0] + p[1] * x[1]) / (p[2] * x[0] + p[3] * x[1]), paramValues, out var newParamValues);
+        var expr = Expr.Simplify((p, x) => (p[0] * x[0] + p[1] * x[1]) / (p[2] * x[0] + p[3] * x[1]), paramValues, out var newParamValues);
         Assert.AreEqual("(p, x) => ((((x[1] * p[0]) + x[0]) / ((x[1] * p[1]) + x[0])) * p[2])", expr.ToString());
         Assert.AreEqual(3.0 / 2.0, newParamValues[0]);
         Assert.AreEqual(5.0 / 4.0, newParamValues[1]);
@@ -437,7 +437,7 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => p[0] - p[1] * (p[2] * x[0] + p[3]);
         var theta = new double[] { 2.0, 3.0, 4.0, 5.0 };
-        var simplifiedExpr = Expr.FoldParameters(f, theta, out var newP);
+        var simplifiedExpr = Expr.Simplify(f, theta, out var newP);
         Assert.AreEqual("(p, x) => ((x[0] * p[0]) + p[1])", simplifiedExpr.ToString());
         Assert.AreEqual(-12.0, newP[0]);
         Assert.AreEqual(-13.0, newP[1]);
@@ -445,14 +445,14 @@ namespace HEAL.Expressions.Tests {
       {
         Expression<Expr.ParametricFunction> f = (p, x) => 1.0 / x[0] * x[1] * p[0];
         var theta = new double[] { 2.0, 3.0, 4.0, 5.0 };
-        var simplifiedExpr = Expr.FoldParameters(f, theta, out var newP);
-        Assert.AreEqual("(p, x) => ((x[1] / x[0]) * p[0])", simplifiedExpr.ToString());
+        var simplifiedExpr = Expr.Simplify(f, theta, out var newP);
+        Assert.AreEqual("(p, x) => ((x[1] * p[0]) / x[0])", simplifiedExpr.ToString());
         Assert.AreEqual(2.0, newP[0]);
       }
       {
         Expression<Expr.ParametricFunction> f = (p, x) => 1 / (x[0] * p[0] + x[1] * p[1] + p[2]) * (x[2] * p[3] + p[4]) * p[5];
         var theta = new double[] { 2.0, 3.0, 4.0, 5.0, 6.0, 7.0 };
-        var simplifiedExpr = Expr.FoldParameters(f, theta, out var newP);
+        var simplifiedExpr = Expr.Simplify(f, theta, out var newP);
         Assert.AreEqual("(p, x) => (((x[2] + p[0]) / (((x[1] * p[1]) + x[0]) + p[2])) * p[3])", simplifiedExpr.ToString());
       }
       {
@@ -460,7 +460,7 @@ namespace HEAL.Expressions.Tests {
         var theta = new double[] { 5.42128, -1.12871, -0.230468, 0.531836, 0.693147, 0.531836, 0.693147, 3.14159, 1.77245 };
         Console.WriteLine(f.ToString());
         Console.WriteLine(string.Join(" ", theta.Select(pi => pi.ToString("e4"))));
-        var simplifiedExpr = Expr.FoldParameters(f, theta, out var newP);
+        var simplifiedExpr = Expr.Simplify(f, theta, out var newP);
         var newSimplifiedStr = simplifiedExpr.ToString();
         Console.WriteLine(newSimplifiedStr);
         Console.WriteLine(string.Join(" ", newP.Select(pi => pi.ToString("e4"))));
@@ -468,7 +468,7 @@ namespace HEAL.Expressions.Tests {
         // simplify until no change (TODO: this shouldn't be necessary if foldParameters is implemented correctly)
         do {
           oldSimplifiedStr = newSimplifiedStr;
-          simplifiedExpr = Expr.FoldParameters(simplifiedExpr, newP, out newP);
+          simplifiedExpr = Expr.Simplify(simplifiedExpr, newP, out newP);
           newSimplifiedStr = simplifiedExpr.ToString();
           Console.WriteLine(newSimplifiedStr);
           Console.WriteLine(string.Join(" ", newP.Select(pi => pi.ToString("e4"))));
@@ -480,7 +480,7 @@ namespace HEAL.Expressions.Tests {
 
         Console.WriteLine(f.ToString());
         Console.WriteLine(string.Join(" ", theta.Select(pi => pi.ToString("e4"))));
-        var simplifiedExpr = Expr.FoldParameters(f, theta, out var newP);
+        var simplifiedExpr = Expr.Simplify(f, theta, out var newP);
         var newSimplifiedStr = simplifiedExpr.ToString();
         Console.WriteLine(newSimplifiedStr);
         Console.WriteLine(string.Join(" ", newP.Select(pi => pi.ToString("e4"))));
@@ -488,7 +488,7 @@ namespace HEAL.Expressions.Tests {
         // simplify until no change (TODO: this shouldn't be necessary if foldParameters is implemented correctly)
         do {
           oldSimplifiedStr = newSimplifiedStr;
-          simplifiedExpr = Expr.FoldParameters(simplifiedExpr, newP, out newP);
+          simplifiedExpr = Expr.Simplify(simplifiedExpr, newP, out newP);
           newSimplifiedStr = simplifiedExpr.ToString();
           Console.WriteLine(newSimplifiedStr);
           Console.WriteLine(string.Join(" ", newP.Select(pi => pi.ToString("e4"))));
@@ -529,7 +529,7 @@ namespace HEAL.Expressions.Tests {
     [DataRow("0f ** x", "0")]
     [DataRow("x + (-1f)", "(x[0] - 1)")]
     [DataRow("x - 1f", "(x[0] - 1)")]
-    [DataRow("2.0 / x", "p[0] / x[0]")]
+    [DataRow("2.0 / x", "(p[0] / x[0])")]
     [DataRow("1.0 / 2.0", "p[0]")]
     [DataRow("abs(-x)", "Abs(x[0])")]
     [DataRow("pow(1f, x)", "1")]
@@ -544,8 +544,9 @@ namespace HEAL.Expressions.Tests {
     [DataRow("1.0 - x - x - x", "((-x[0] * 3) + p[0])")]
     [DataRow("1.0 * x + 2.0 * x", "(x[0] * p[0])")]
     [DataRow("1.0 * x - 2.0 * x", "(x[0] * p[0])")]
-    [DataRow("(1 / x) + (x - (1 / x))", "(((1 / x[0]) * p[0]) + x[0])")]
+    [DataRow("(1 / x) + (x - (1 / x))", "((p[0] / x[0]) + x[0])")]
     [DataRow("(1f / x) + (x - (1f / x))", "x[0]")]
+    [DataRow("1f / (x * 2.0 + x1 * 3.0 + 4.0) * (x2 * 5.0 + 6.0) * 7.0", "((x[2] * p[0] + p[1]) / (((x[1] * p[2]) + x[0]) + p[3]))")] 
 
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");
@@ -553,7 +554,7 @@ namespace HEAL.Expressions.Tests {
       var parser = new Parser.ExprParser(exprStr, new[] { "x", "x1", "x2", "x3" }, xParam, pParam);
       var expr = parser.Parse();
       var p = parser.ParameterValues;
-      var simplifiedExpr = Expr.Simplify(expr, p, out var newP);
+      var simplifiedExpr = Expr.SimplifyRepeated(expr, p, out var newP);
       Assert.AreEqual(expected, simplifiedExpr.Body.ToString());
     }
 

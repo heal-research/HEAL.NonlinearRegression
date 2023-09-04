@@ -224,7 +224,7 @@ namespace HEAL.Expressions {
       var df = (Expression<ParametricFunction>)deriveVisitor.Visit(expr);
       // here we do not care about parameter values
       var zero = new double[CountParametersVisitor.Count(df, df.Parameters[0])];
-      return FoldConstants(new ParameterizedExpression(df, df.Parameters[0], zero)).expr;
+      return SimplifyWithoutReparameterization(new ParameterizedExpression(df, df.Parameters[0], zero)).expr;
     }
 
     // Symbolic gradient
@@ -339,14 +339,22 @@ namespace HEAL.Expressions {
 
 
     /// <summary>
-    /// Takes an expression and folds constants. 
+    /// Simplifies an expression by folding constants only. 
     /// </summary>
     /// <param name="expr">The expression to simplify</param>
-    /// <returns>A new expression with folded double constants.</returns>
+    /// <returns>A new expression with folded constants.</returns>
     public static ParameterizedExpression FoldConstants(ParameterizedExpression expr) {
       return RuleBasedSimplificationVisitor.FoldConstants(expr);
     }
 
+    /// <summary>
+    /// Simplifies and expression without reparameterization (all parameters keep their values). 
+    /// </summary>
+    /// <param name="expr">The expression to simplify</param>
+    /// <returns>A new expression with folded double constants.</returns>
+    public static ParameterizedExpression SimplifyWithoutReparameterization(ParameterizedExpression expr) {
+      return RuleBasedSimplificationVisitor.SimplifyWithoutReparameterization(expr);
+    }
 
     // Reduces the length of the parameter vector to include only the parameters
     // that are still referenced in the simplified expression. 
@@ -362,14 +370,14 @@ namespace HEAL.Expressions {
 
 
     // this calls FoldParameters repeately until the expression does not change anymore
-    public static Expression<ParametricFunction> Simplify(Expression<ParametricFunction> parametricExpr, double[] p, out double[] newP) {
-      var simplifiedExpr = FoldParameters(parametricExpr, p, out newP);
+    public static Expression<ParametricFunction> SimplifyRepeated(Expression<ParametricFunction> parametricExpr, double[] p, out double[] newP) {
+      var simplifiedExpr = Simplify(parametricExpr, p, out newP);
       var newSimplifiedStr = simplifiedExpr.ToString();
       var exprSet = new HashSet<string>();
       // simplify until no change (TODO: this shouldn't be necessary if visitors are implemented carefully)
       do {
         exprSet.Add(newSimplifiedStr);
-        simplifiedExpr = FoldParameters(simplifiedExpr, newP, out newP);
+        simplifiedExpr = Simplify(simplifiedExpr, newP, out newP);
         // System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
         newSimplifiedStr = simplifiedExpr.ToString();
       } while (!exprSet.Contains(newSimplifiedStr));
@@ -387,7 +395,7 @@ namespace HEAL.Expressions {
 
 
 
-    public static Expression<ParametricFunction> FoldParameters(Expression<ParametricFunction> expr,
+    public static Expression<ParametricFunction> Simplify(Expression<ParametricFunction> expr,
       double[] parameterValues, out double[] newParameterValues) {
       var theta = expr.Parameters[0];
 
