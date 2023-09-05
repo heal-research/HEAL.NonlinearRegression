@@ -409,7 +409,6 @@ namespace HEAL.Expressions {
       // expr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr.expr, parameterizedExpr.p, parameterizedExpr.pValues, out var newPValues);
       // parameterizedExpr = new ParameterizedExpression(expr, parameterizedExpr.p, newPValues);
 
-      parameterizedExpr = FoldParametersVisitor.FoldParameters(parameterizedExpr);
       parameterizedExpr = ExpandProductsVisitor.Expand(parameterizedExpr);
       // Console.WriteLine($"Folded parameters: {newExpr}");
 

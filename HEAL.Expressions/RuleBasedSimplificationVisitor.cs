@@ -663,6 +663,27 @@ namespace HEAL.Expressions {
         e => e.Arguments.All(e => IsParameter(e) || IsConstant(e)),
         e => NewParameter((double) e.Method.Invoke(e.Object, e.Arguments.Select(GetParameterOrConstantValue).OfType<object>().ToArray()))
         ),
+      // exp(x)^p = exp(p*x)
+      new MethodCallExpressionRule(
+        e => e.Method == pow && e.Arguments[0] is MethodCallExpression callExpr && callExpr.Method == exp,
+        e => {
+          var exp = (MethodCallExpression)e.Arguments[0];
+          var exponent = e.Arguments[1];
+          return Visit(exp.Update(exp.Object, new [] {Expression.Multiply(exp.Arguments[0], exponent) }));
+        }),
+
+      // aq(x, p) = x / sqrt(1 + p²) = x * 1/sqrt(1+p²) = x * p'
+      new MethodCallExpressionRule(
+        e => e.Method == aq && IsParameterOrConstant(e.Arguments[1]),
+        e => {
+          if(IsParameter(e.Arguments[1])) {
+            return Visit(Expression.Multiply(e.Arguments[0], NewParameter(1.0 / Math.Sqrt(1.0 + GetParameterValue(e.Arguments[1])))));
+          } else {
+            // is constant
+            return Visit(Expression.Multiply(e.Arguments[0], Expression.Constant(1.0 / Math.Sqrt(1.0 + GetConstantValue(e.Arguments[1])))));
+          }
+        }),  
+
       // aq(x, y) -> aq(1,y) * x
       new MethodCallExpressionRule(
         e => e.Method == aq,
@@ -713,9 +734,7 @@ namespace HEAL.Expressions {
           var exponent = GetParameterOrConstantValue(e.Arguments[1]);
           return Visit(Expression.Multiply(e.Update(e.Object, new [] { scaledAffine }), NewParameter(Math.Pow(scale, exponent))));
         }),
-
-      // TODO: delete FoldParametersVisitor
-      });
+    });
 
     }
 
