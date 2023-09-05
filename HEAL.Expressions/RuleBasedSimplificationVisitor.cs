@@ -625,6 +625,16 @@ namespace HEAL.Expressions {
         e => e.NodeType == ExpressionType.Divide && IsParameter(e.Right),
         e => Visit(Expression.Multiply(e.Left, NewParameter(1.0 / GetParameterValue(e.Right))))
         ),
+
+       // extract scaling parameter out of affine form a 
+       // a / b -> p * a' / b  | (a is affine) or (b is affine)
+       new BinaryExpressionRule(
+         e => e.NodeType == ExpressionType.Divide && (IsAffine(e.Left) || IsAffine(e.Right)),
+         e => {
+           (var scaledLeft, var scaleLeft) = ExtractScaleFromAffine(e.Left);
+           (var scaledRight, var scaleRight) = ExtractScaleFromAffine(e.Right);
+           return Visit(Expression.Multiply(Expression.Divide(scaledLeft, scaledRight), NewParameter(scaleLeft / scaleRight)));
+           })
       });
 
       unaryRules.AddRange(new[] {
@@ -633,6 +643,13 @@ namespace HEAL.Expressions {
           e => e.NodeType == ExpressionType.Negate && IsParameter(e.Operand),
           e => NewParameter(-GetParameterValue(e.Operand))
           ),
+        // -(a) -> a' * p | a is affine 
+        new UnaryExpressionRule(
+          e => e.NodeType == ExpressionType.Negate && IsAffine(e.Operand),
+          e => {
+            (var scaledAffine, var scale) = ExtractScaleFromAffine(e.Operand);
+              return Visit(Expression.Multiply(scaledAffine, NewParameter(-scale)));
+            }),
       });
 
       callRules.AddRange(new[] {
@@ -646,12 +663,61 @@ namespace HEAL.Expressions {
         e => e.Arguments.All(e => IsParameter(e) || IsConstant(e)),
         e => NewParameter((double) e.Method.Invoke(e.Object, e.Arguments.Select(GetParameterOrConstantValue).OfType<object>().ToArray()))
         ),
+      // aq(x, y) -> aq(1,y) * x
+      new MethodCallExpressionRule(
+        e => e.Method == aq,
+        e => Visit(Expression.Multiply(e.Update(e.Object, new [] { Expression.Constant(1), e.Arguments[1] }), e.Arguments[0]))
+        ),
+
+
+      // sqrt(a) -> sqrt(a') * p | a is affine, p is positive
+      new MethodCallExpressionRule(
+        e => e.Method == sqrt && IsAffine(e.Arguments[0]),
+        e => {
+          (var scaledAffine, var scale) = ExtractPositiveScaleFromAffine(e.Arguments[0]);
+          return Visit(Expression.Multiply(e.Update(e.Object, new [] { scaledAffine }), NewParameter(Math.Sqrt(scale))));
+        }),
+      // cbrt(a) -> cbrt(a') * p | a is affine
+      new MethodCallExpressionRule(
+        e => e.Method == cbrt && IsAffine(e.Arguments[0]),
+        e => {
+          (var scaledAffine, var scale) = ExtractScaleFromAffine(e.Arguments[0]);
+          return Visit(Expression.Multiply(e.Update(e.Object, new [] { scaledAffine }), NewParameter(Functions.Cbrt(scale))));
+        }),
+      // abs(a) -> abs(a') * p | a is affine, p is positive
+      new MethodCallExpressionRule(
+        e => e.Method == abs && IsAffine(e.Arguments[0]),
+        e => {
+          (var scaledAffine, var scale) = ExtractPositiveScaleFromAffine(e.Arguments[0]);
+          return Visit(Expression.Multiply(e.Update(e.Object, new [] { scaledAffine }), NewParameter(scale)));
+        }),
+      // log(a) -> log(a') * p | a is affine, p is positive
+      new MethodCallExpressionRule(
+        e => e.Method == log && IsAffine(e.Arguments[0]),
+        e => {
+          (var scaledAffine, var scale) = ExtractPositiveScaleFromAffine(e.Arguments[0]);
+          return Visit(Expression.Add(e.Update(e.Object, new [] { scaledAffine }), NewParameter(Math.Log(scale))));
+        }),
+      // exp(x + ... + y) -> exp(x) * ... * exp(y)
+      new MethodCallExpressionRule(
+        e => e.Method == exp && (e.Arguments[0].NodeType == ExpressionType.Add || e.Arguments[0].NodeType == ExpressionType.Subtract),
+        e => {
+          var terms = CollectTermsVisitor.CollectTerms(e.Arguments[0]);
+          return Visit(terms.Select(t => Expression.Call(exp, new [] { t})).Aggregate<Expression>(Expression.Multiply));
+        }),
+      // pow(a ^ p) | a is affine, p is param or const
+      new MethodCallExpressionRule(
+        e => e.Method == pow && IsAffine(e.Arguments[0]) && IsParameterOrConstant(e.Arguments[1]),
+        e => {
+          (var scaledAffine, var scale) = ExtractScaleFromAffine(e.Arguments[0]);
+          var exponent = GetParameterOrConstantValue(e.Arguments[1]);
+          return Visit(Expression.Multiply(e.Update(e.Object, new [] { scaledAffine }), NewParameter(Math.Pow(scale, exponent))));
+        }),
 
       // TODO: delete FoldParametersVisitor
       });
 
     }
-
 
 
     public static ParameterizedExpression Simplify(ParameterizedExpression expr) {
@@ -797,6 +863,57 @@ namespace HEAL.Expressions {
     private bool IsParameterOrConstant(Expression expr) => IsConstant(expr) || IsParameter(expr);
 
     private bool HasParameters(Expression left) => CountParametersVisitor.Count(left, p) > 0;
+
+    private bool IsAffine(Expression expr) => CollectTermsVisitor.CollectTerms(expr).All(HasScalingParameter); // constants as well
+
+    private bool HasScalingParameter(Expression arg) {
+      return IsParameter(arg) ||
+        arg is BinaryExpression binExpr && binExpr.NodeType == ExpressionType.Multiply && (IsParameter(binExpr.Left) || IsParameter(binExpr.Right)); // constants as well
+    }
+
+    private (Expression scaledAffine, double scale) ExtractScaleFromAffine(Expression affine) {
+      if (!IsAffine(affine)) return (affine, 1.0);
+      // p1 x + p2 x + ... + pk -> p1 * (x + p2' x + ... + pk')
+      // Only parameters are allowed for p1 .. pk.
+      // It would be possible to allow constants as well, as long as there is one parameter that can be extracted.
+      // However, in this case we would need to make sure that constants are replaced by constants and parameters by parameters
+
+      var terms = CollectTermsVisitor.CollectTerms(affine);
+      var firstTerm = terms.First();
+      (var scaledAffine, var scale) = ExtractScaleFromTerm(firstTerm);
+      foreach (var t in terms.Skip(1)) {
+        (var scaledT, var s) = ExtractScaleFromTerm(t);
+        scaledAffine = Expression.Add(scaledAffine, Expression.Multiply(scaledT, NewParameter(s / scale)));
+      }
+      return (scaledAffine, scale);
+    }
+
+
+    private (Expression scaledAffine, double scale) ExtractPositiveScaleFromAffine(Expression affine) {
+      // same as above but returns only positive scale.
+      // This is required for extracting parameters out of sqrt and log
+      if (!IsAffine(affine)) return (affine, 1.0);
+
+      var terms = CollectTermsVisitor.CollectTerms(affine);
+      var firstTerm = terms.First();
+      (var scaledAffine, var scale) = ExtractScaleFromTerm(firstTerm);
+      if (scale < 0) {
+        scaledAffine = Expression.Negate(scaledAffine);
+        scale *= -1.0;
+      }
+      foreach (var t in terms.Skip(1)) {
+        (var scaledT, var s) = ExtractScaleFromTerm(t);
+        scaledAffine = Expression.Add(scaledAffine, Expression.Multiply(scaledT, NewParameter(s / scale)));
+      }
+      return (scaledAffine, scale);
+    }
+
+    private (Expression scaledTerm, double scale) ExtractScaleFromTerm(Expression term) {
+      // t = f1 * .. * fk, we can assume that one of the factors is a parameter
+      var factors = CollectFactorsVisitor.CollectFactors(term);
+      var scale = factors.First(IsParameter); // constants as well
+      return (factors.Except(new[] { scale }).DefaultIfEmpty(Expression.Constant(1.0)).Aggregate(Expression.Multiply), GetParameterValue(scale));
+    }
 
     private readonly MethodInfo abs = typeof(Math).GetMethod("Abs", new[] { typeof(double) });
     private readonly MethodInfo log = typeof(Math).GetMethod("Log", new[] { typeof(double) });
