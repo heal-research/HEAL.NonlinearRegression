@@ -19,7 +19,7 @@ namespace HEAL.Expressions {
     private readonly ParameterExpression p;
     private readonly List<double> pValues;
 
-    private readonly List<(string, Expression)> matchedRules = new(); // for debugging which rules are actually used
+    private readonly List<(string rule, Expression from, Expression to)> matchedRules = new(); // for debugging which rules are actually used
 
     public RuleBasedSimplificationVisitor(ParameterExpression p, double[] pValues, bool debugRules = false) {
       this.p = p;
@@ -295,7 +295,7 @@ namespace HEAL.Expressions {
 
       // 
       new BinaryExpressionRule(
-        "(1/x) * y",
+        "(x/y) * z -> (x*z) / y | z is no parameter",
         e => e.NodeType == ExpressionType.Multiply && e.Left.NodeType == ExpressionType.Divide && !IsParameter(e.Right),
         e => {
           var binExpr = (BinaryExpression)e.Left;
@@ -304,7 +304,7 @@ namespace HEAL.Expressions {
         ),
       //
       new BinaryExpressionRule(
-        "y * (1/x)",
+        "x * (y/z) -> (x*y) / z",
         e => e.NodeType == ExpressionType.Multiply && e.Right.NodeType == ExpressionType.Divide,
         e => {
           var binExpr = (BinaryExpression)e.Right;
@@ -480,7 +480,7 @@ namespace HEAL.Expressions {
         e => e.NodeType == ExpressionType.Divide && IsParameter(e.Left) && !IsParameter(e.Right),
         e => Visit(Expression.Multiply(Expression.Divide(Expression.Constant(1.0), e.Right), e.Left))
         ),
-       // 
+       
        // TODO (a (+/-) p) - x
        new BinaryExpressionRule(
          "p - x -> -x + p",
@@ -629,13 +629,13 @@ namespace HEAL.Expressions {
       binaryRules.AddRange(new[] {
       // 
       new BinaryExpressionRule(
-        "param ° param -> param",
+        "param ° param -> param | ° is associative",
         e => IsParameter(e.Left) && IsParameter(e.Right),
         e => NewParameter(Apply(e.NodeType, GetParameterValue(e.Left), GetParameterValue(e.Right)))
         ),
       // 
       new BinaryExpressionRule(
-        "(a ° param) ° param",
+        "(a ° param) ° param -> a ° param  | ° is associative",
         e => IsAssociative(e) && e.Left.NodeType == e.NodeType && e.Left is BinaryExpression leftExpr
         && IsParameter(leftExpr.Right) && IsParameter(e.Right),
         e => {
@@ -646,13 +646,13 @@ namespace HEAL.Expressions {
         ),
       // 
       new BinaryExpressionRule(
-        "param ° const -> param",
+        "param ° const -> param | ° is associative",
         e => IsParameter(e.Left) && IsConstant(e.Right),
         e => NewParameter(Apply(e.NodeType, GetParameterValue(e.Left), GetConstantValue(e.Right)))
         ),
       // TODO: combine param / const rules
       new BinaryExpressionRule(
-        "(a ° param) ° const",
+        "(a ° param) ° const -> a ° param | ° is associative",
         e => IsAssociative(e) && e.Left.NodeType == e.NodeType && e.Left is BinaryExpression leftExpr
         && IsParameter(leftExpr.Right) && IsConstant(e.Right),
         e => {
@@ -663,13 +663,13 @@ namespace HEAL.Expressions {
         ),
       // 
       new BinaryExpressionRule(
-        "const ° param -> param",
+        "const ° param -> param | ° is associative",
         e => IsConstant(e.Left) && IsParameter(e.Right),
         e => NewParameter(Apply(e.NodeType, GetConstantValue(e.Left), GetParameterValue(e.Right)))
         ),
       // (TODO: combine rules param/const)
       new BinaryExpressionRule(
-        "(a ° const) ° param",
+        "(a ° const) ° param -> a ° param | ° is associative",
         e => IsAssociative(e) && e.Left.NodeType == e.NodeType && e.Left is BinaryExpression leftExpr
         && IsConstant(leftExpr.Right) && IsParameter(e.Right),
         e => {
@@ -697,14 +697,14 @@ namespace HEAL.Expressions {
        // extract scaling parameter out of affine form a 
        // 
        new BinaryExpressionRule(
-         "a / b -> p * a' / b  | (a is affine) or (b is affine)",
+         "a / b -> (a'/ b) * p  | (a is affine) or (b is affine)",
          e => e.NodeType == ExpressionType.Divide && (IsAffine(e.Left) || IsAffine(e.Right)),
          e => {
            (var scaledLeft, var scaleLeft) = ExtractScaleFromAffine(e.Left);
            (var scaledRight, var scaleRight) = ExtractScaleFromAffine(e.Right);
            return Visit(Expression.Multiply(Expression.Divide(scaledLeft, scaledRight), NewParameter(scaleLeft / scaleRight)));
            })
-      });
+      }); ;
 
       unaryRules.AddRange(new[] {
         // 
@@ -819,10 +819,10 @@ namespace HEAL.Expressions {
 
       var v = new RuleBasedSimplificationVisitor(expr.p, expr.pValues, debug);
       var body = v.Visit(expr.expr.Body);
-      if(v.debugRules) {
+      if (v.debugRules) {
         System.Console.WriteLine("Used rules:");
-        foreach(var pair in v.matchedRules) {
-          System.Console.WriteLine($"Rule {pair.Item1} new Expr: {pair.Item2}");
+        foreach (var tup in v.matchedRules) {
+          System.Console.WriteLine($"Rule {tup.Item1} : {tup.Item2} -> {tup.Item3}");
         }
       }
       return new ParameterizedExpression(expr.expr.Update(body, expr.expr.Parameters), expr.p, v.pValues.ToArray());
@@ -862,8 +862,9 @@ namespace HEAL.Expressions {
 
       var r = binaryRules.FirstOrDefault(r => r.Match((BinaryExpression)result));
       while (r != default(BinaryExpressionRule)) {
-        MarkUsage(r.Description, result);
-        result = r.Apply((BinaryExpression)result);
+        var from = result;
+        result = r.Apply((BinaryExpression)from);
+        MarkUsage(r.Description, from, result);
         if (result is BinaryExpression binExpr) {
           r = binaryRules.FirstOrDefault(r => r.Match(binExpr));
         } else break;
@@ -877,8 +878,9 @@ namespace HEAL.Expressions {
       Expression result = node.Update(opd);
       var r = unaryRules.FirstOrDefault(r => r.Match((UnaryExpression)result));
       while (r != default(UnaryExpressionRule)) {
-        MarkUsage(r.Description, result);
-        result = r.Apply((UnaryExpression)result);
+        var from = result;
+        result = r.Apply((UnaryExpression)from);
+        MarkUsage(r.Description, from, result);
         if (result is UnaryExpression unaryExpr) {
           r = unaryRules.FirstOrDefault(r => r.Match(unaryExpr));
         } else break;
@@ -890,8 +892,9 @@ namespace HEAL.Expressions {
       Expression result = node.Update(node.Object, node.Arguments.Select(Visit));
       var r = callRules.FirstOrDefault(r => r.Match((MethodCallExpression)result));
       while (r != default(MethodCallExpressionRule)) {
-        MarkUsage(r.Description, result);
-        result = r.Apply((MethodCallExpression)result);
+        var from = result;
+        result = r.Apply((MethodCallExpression)from);
+        MarkUsage(r.Description, from, result);
         if (result is MethodCallExpression callExpr) {
           r = callRules.FirstOrDefault(r => r.Match(callExpr));
         } else break;
@@ -901,8 +904,8 @@ namespace HEAL.Expressions {
 
 
     // for debugging rules
-    private void MarkUsage(string description, Expression result) {
-      matchedRules.Add(new(description, result));
+    private void MarkUsage(string description, Expression from, Expression to) {
+      matchedRules.Add(new(description, from, to));
     }
 
     private int Compare(Expression left, Expression right) {
@@ -978,6 +981,17 @@ namespace HEAL.Expressions {
     private bool HasScalingParameter(Expression arg) {
       return IsParameter(arg) ||
         arg is BinaryExpression binExpr && binExpr.NodeType == ExpressionType.Multiply && (IsParameter(binExpr.Left) || IsParameter(binExpr.Right)); // constants as well
+    }
+    private Expression ScaleAffine(Expression affine, double scale) {
+      if (!IsAffine(affine)) throw new ArgumentException();
+      var terms = CollectTermsVisitor.CollectTerms(affine);
+      var scaledTerms = new List<Expression>();
+      foreach (var t in terms) {
+        var factors = CollectFactorsVisitor.CollectFactors(t);
+        var scalingFactor = factors.First(IsParameter);
+        scaledTerms.Add(Expression.Multiply(factors.Except(new[] { scalingFactor }).DefaultIfEmpty(Expression.Constant(1.0)).Aggregate(Expression.Multiply), NewParameter(GetParameterValue(scalingFactor) * scale)));
+      }
+      return scaledTerms.Aggregate(Expression.Add);
     }
 
     private (Expression scaledAffine, double scale) ExtractScaleFromAffine(Expression affine) {
