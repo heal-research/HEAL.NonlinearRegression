@@ -370,14 +370,14 @@ namespace HEAL.Expressions {
 
 
     // this calls FoldParameters repeately until the expression does not change anymore
-    public static Expression<ParametricFunction> SimplifyRepeated(Expression<ParametricFunction> parametricExpr, double[] p, out double[] newP) {
-      var simplifiedExpr = Simplify(parametricExpr, p, out newP);
+    public static Expression<ParametricFunction> SimplifyRepeated(Expression<ParametricFunction> parametricExpr, double[] p, out double[] newP, bool debugRules = false) {
+      var simplifiedExpr = Simplify(parametricExpr, p, out newP, debugRules);
       var newSimplifiedStr = simplifiedExpr.ToString();
       var exprSet = new HashSet<string>();
       // simplify until no change (TODO: this shouldn't be necessary if visitors are implemented carefully)
       do {
         exprSet.Add(newSimplifiedStr);
-        simplifiedExpr = Simplify(simplifiedExpr, newP, out newP);
+        simplifiedExpr = Simplify(simplifiedExpr, newP, out newP, debugRules);
         // System.Console.WriteLine(Expr.ToString(simplifiedExpr, varNames, newP));
         newSimplifiedStr = simplifiedExpr.ToString();
       } while (!exprSet.Contains(newSimplifiedStr));
@@ -396,14 +396,14 @@ namespace HEAL.Expressions {
 
 
     public static Expression<ParametricFunction> Simplify(Expression<ParametricFunction> expr,
-      double[] parameterValues, out double[] newParameterValues) {
+      double[] parameterValues, out double[] newParameterValues, bool debugRules = false) {
       var theta = expr.Parameters[0];
 
       // TODO use parameterizedExpression in all visitors
 
       var parameterizedExpr = new ParameterizedExpression(expr, theta, parameterValues);
 
-      parameterizedExpr = RuleBasedSimplificationVisitor.Simplify(parameterizedExpr);
+      parameterizedExpr = RuleBasedSimplificationVisitor.Simplify(parameterizedExpr, debugRules);
 
       parameterizedExpr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr);
       // expr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr.expr, parameterizedExpr.p, parameterizedExpr.pValues, out var newPValues);

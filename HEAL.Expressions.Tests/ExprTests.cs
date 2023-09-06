@@ -381,7 +381,7 @@ namespace HEAL.Expressions.Tests {
       var parser = new Parser.ExprParser(exprStr, new[] { "x", "x1", "x2", "x3" }, xParam, pParam);
       var expr = parser.Parse();
       var p = parser.ParameterValues;
-      var simplifiedExpr = Expr.SimplifyRepeated(expr, p, out var newP);
+      var simplifiedExpr = Expr.SimplifyRepeated(expr, p, out var newP, debugRules: true);
       Assert.AreEqual(expected, simplifiedExpr.Body.ToString());
     }
 
