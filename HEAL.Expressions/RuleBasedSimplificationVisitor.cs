@@ -862,7 +862,6 @@ namespace HEAL.Expressions {
 
     }
 
-
     public static ParameterizedExpression Simplify(ParameterizedExpression expr, bool debug = false) {
       if (!CheckExprVisitor.CheckValid(expr.expr)) throw new NotSupportedException();
 

@@ -349,6 +349,8 @@ namespace HEAL.Expressions.Tests {
 
     [DataTestMethod]
     [DataRow("x - x", "0")]
+    [DataRow("abs(2.0f)", "2")] // absolute value of constant can be simplified
+    [DataRow("abs(2.0)", "abs(p[0])")] // absolute value of parameter should not be simplified away 
     [DataRow("1.0 - 2.0", "p[0]")]
     [DataRow("1.0f - 2.0f", "-1")]
     [DataRow("x / x", "1")]
@@ -374,6 +376,12 @@ namespace HEAL.Expressions.Tests {
     [DataRow("(1f / x) + (x - (1f / x))", "x[0]")]
     [DataRow("1f / (x * 2.0 + x1 * 3.0 + 4.0) * (x2 * 5.0 + 6.0) * 7.0", "((p[0] + (x[2] * p[1])) / (((x[1] * p[2]) + x[0]) + p[3]))")]
     [DataRow("1f / (2 - x)", "(1 / (p[0] - x[0]))")] // this expression is minimal and should not be transformed into something longer
+    [DataRow("1f / ((1f / x) - x)", "(1 / ((1 / x[0]) - x[0]))")] // this is already minimal
+    [DataRow("(2.0 - x) - x", "((x[0] * -2) + p[0])")]
+    [DataRow("x - (2.0 - x)", "((x[0] * 2) + p[0])")]
+    [DataRow("(2.0 + x) * x", "(2.0 + x) * x")] // already minimal
+    [DataRow("x / (pow(abs (x), x))", "x[0] * (pow(abs (x[0]), (- x[0])))")] // the simplified form is longer
+    [DataRow("2.0 / (pow(abs (2.0), x))", "p[0] * pow(abs(p[1]), (- x[0])))")]
 
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");
