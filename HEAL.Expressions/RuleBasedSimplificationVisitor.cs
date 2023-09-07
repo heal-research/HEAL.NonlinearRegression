@@ -506,9 +506,19 @@ namespace HEAL.Expressions {
         e => e.NodeType == ExpressionType.Divide && IsParameter(e.Left) && !IsParameter(e.Right),
         e => Visit(Expression.Multiply(Expression.Divide(Expression.Constant(1.0), e.Right), e.Left))
         ),
-
+       // 1/pow(x,y) == pow(1/x, y) == pow(x, -y)
        new BinaryExpressionRule(
-         "1/pow(x, y) -> pow(x, -y)",
+         "1/pow(x,y) -> pow(1/x, y)",
+         e => e.NodeType == ExpressionType.Divide 
+           && e.Left is ConstantExpression constExpr && GetConstantValue(e.Left) == 1.0
+           && e.Right is MethodCallExpression callExpr && IsPower(callExpr.Method),
+         e => {
+           var callExpr = (MethodCallExpression)e.Right;
+            return Visit(callExpr.Update(callExpr.Object, new [] { Expression.Divide(Expression.Constant(1.0), callExpr.Arguments[0]), callExpr.Arguments[1] }));
+           }
+         ),
+       new BinaryExpressionRule(
+         "z/pow(x, a) -> z * pow(x, -a)) where a is parameter or constant",
         e => e.NodeType == ExpressionType.Divide && e.Right is MethodCallExpression callExpr && IsPower(callExpr.Method) && IsParameterOrConstant(callExpr.Arguments[1]),
         e => {
           var callExpr = (MethodCallExpression)e.Right;
@@ -605,26 +615,6 @@ namespace HEAL.Expressions {
           e => e.Method == abs && e.Arguments[0].NodeType == ExpressionType.Negate,
           e => e.Update(e.Object, new [] {((UnaryExpression) e.Arguments[0]).Operand})
           ),
-        // // pow(x*y, z) -> pow(x,z) * pow(y,z) // BEWARE: duplicates parameters TODO: this makes the expression longer
-        // new MethodCallExpressionRule(
-        //   e => e.Method == pow && e.Arguments[0].NodeType == ExpressionType.Multiply,
-        //   e => {
-        //     var binExpr = (BinaryExpression)e.Arguments[0];
-        //     return Visit(Expression.Multiply(
-        //       Expression.Call(pow, binExpr.Left, e.Arguments[1]),
-        //       Expression.Call(pow, binExpr.Right, e.Arguments[1])));
-        //   }),
-        // // pow(x / y, z) -> pow(x,z) / pow(y,z) // BEWARE: duplicates parameters. TODO: this makes the expression longer
-        // new MethodCallExpressionRule(
-        //   e => e.Method == pow && e.Arguments[0].NodeType == ExpressionType.Divide,
-        //   e => {
-        //     var div = (BinaryExpression)e.Arguments[0];
-        //     return Visit(Expression.Divide(
-        //       Expression.Call(pow, div.Left, e.Arguments[1]),
-        //       Expression.Call(pow, div.Right, e.Arguments[1])));
-        //   }
-        //   ),
-        // 
         new MethodCallExpressionRule(
           "pow(pow(a, x), y) -> pow(a, x * y)",
           e => e.Method == pow && e.Arguments[0] is MethodCallExpression callExpr && callExpr.Method == pow,
@@ -633,6 +623,19 @@ namespace HEAL.Expressions {
             return Visit(e.Update(e.Object, new [] {inner.Arguments[0], Expression.Multiply(e.Arguments[1], inner.Arguments[1]) }));
               }
           ),
+         new MethodCallExpressionRule(
+         "pow(1/x, y) -> pow(x, -y)",
+         e => IsPower(e.Method)
+           && e.Arguments[0].NodeType == ExpressionType.Divide
+           && e.Arguments[0] is BinaryExpression binaryExpression && IsConstant(binaryExpression.Left) && GetConstantValue(binaryExpression.Left) == 1.0,
+         e => {
+           var div = (BinaryExpression)e.Arguments[0];
+           var c = GetConstantValue(div.Left);
+           var exponent = e.Arguments[1];
+           return Visit(e.Update(e.Object, new [] { div.Right, Expression.Negate(exponent)}));
+         }
+        ),
+
         // 
         new MethodCallExpressionRule(
           "exp(x)^y = exp(x*y)",
@@ -861,7 +864,6 @@ namespace HEAL.Expressions {
           var offset = GetParameterValue(binExpr.Right);
           return Visit(Expression.Multiply(Expression.Call(exp, new [] { binExpr.Left}), NewParameter(Math.Exp(offset))));
         }),
-      // 
       new MethodCallExpressionRule(
         "pow(a, p) -> pow(a',p') | a is affine, p is param or const",
         e => e.Method == pow && IsAffine(e.Arguments[0]) && IsParameter(e.Arguments[1]),

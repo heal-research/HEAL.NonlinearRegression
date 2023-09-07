@@ -365,6 +365,7 @@ namespace HEAL.Expressions.Tests {
     [DataRow("x*x/x", "x[0]")]
     [DataRow("x/(x*x)", "Pow(x[0], -1)")] // generally replace division by negative power?
     [DataRow("1/powabs(x1, x2)", "(p[0] / PowAbs(x[1], x[2]))")] // already minimal
+    [DataRow("1f/powabs(x1, x2)", "PowAbs(x[1], -x[2])")]
     [DataRow("x1 / powabs(x1, x2)", "(x[1] / PowAbs(x[1], x[2]))")]
     [DataRow("powabs(x1, x2) / x1", "(PowAbs(x[1], x[2]) / x[1])")]
     [DataRow("1.0 - x - x - x", "((x[0] * -3) + p[0])")]
@@ -379,7 +380,7 @@ namespace HEAL.Expressions.Tests {
     [DataRow("x - (2.0 - x)", "((x[0] * 2) + p[0])")]
     [DataRow("(2.0 + x) * x", "((x[0] + p[0]) * x[0])")] // already minimal
     [DataRow("x / (powabs (x, x))", "(x[0] / PowAbs(x[0], x[0]))")] // already minimal
-    [DataRow("2.0 / (powabs (2.0, x))", "(p[0] / PowAbs(p[1], x[0]))")]
+    [DataRow("2.0 / (powabs (2.0, x))", "(PowAbs(p[0], x[0]) * p[1])")]
     [DataRow("abs(2.0f)", "2")]
     [DataRow("abs(2.0)", "p[0]")]
     [DataRow("log(abs(2.0))", "p[0]")]
@@ -391,6 +392,10 @@ namespace HEAL.Expressions.Tests {
     [DataRow("(2.0 - x) / 3.0", "((x[0] * p[0]) + p[1])")]
     [DataRow("x / Pow(x, 3.0)", "Pow(x[0], p[0])")] // with p[0] = -2
     [DataRow("x / Pow(x1, 3.0)", "(x[0] * Pow(x[1], p[0]))")] // with p[0] = -3
+    [DataRow("powabs(1.0f / x, 3.0)", "PowAbs(x[0], p[0])")] // with p[0] = -3
+    [DataRow("powabs(1.0f / x, 2.5)", "PowAbs(x[0], p[0])")] // with p[0] = -2.5, this is even allowed with real exponents
+    [DataRow("pow(1.0f / x, 3.0f)", "Pow(x[0], -3)")] // this transformation is allowed for integer exponents
+    [DataRow("1f / powabs(x, x)", "PowAbs(x[0], -x[0])")]
 
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");
