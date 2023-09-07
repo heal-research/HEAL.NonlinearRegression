@@ -502,21 +502,14 @@ namespace HEAL.Expressions {
        // 
        // TODO (a * p) / x
        new BinaryExpressionRule(
-         "p / x -> 1/x * p",
+         "p / x -> 1/x * p", // this makes the expression longer but is necessary together with other rules
         e => e.NodeType == ExpressionType.Divide && IsParameter(e.Left) && !IsParameter(e.Right),
         e => Visit(Expression.Multiply(Expression.Divide(Expression.Constant(1.0), e.Right), e.Left))
         ),
-       
-       // TODO (a (+/-) p) - x
-       // new BinaryExpressionRule(
-       //   "p - x -> -x + p",
-       //  e => e.NodeType == ExpressionType.Subtract && IsParameter(e.Left) && !IsParameterOrConstant(e.Right),
-       //  e => Visit(Expression.Add(Expression.Negate(e.Right), e.Left))
-       //  ),
-       // 
+
        new BinaryExpressionRule(
          "1/pow(x, y) -> pow(x, -y)",
-        e => e.NodeType == ExpressionType.Divide && e.Right is MethodCallExpression callExpr && IsPower(callExpr.Method ),
+        e => e.NodeType == ExpressionType.Divide && e.Right is MethodCallExpression callExpr && IsPower(callExpr.Method) && IsParameterOrConstant(callExpr.Arguments[1]),
         e => {
           var callExpr = (MethodCallExpression)e.Right;
           return Visit(Expression.Multiply(e.Left, callExpr.Update(callExpr.Object, new [] {callExpr.Arguments[0], Expression.Negate(callExpr.Arguments[1]) })));
