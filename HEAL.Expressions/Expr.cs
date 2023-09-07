@@ -405,7 +405,7 @@ namespace HEAL.Expressions {
 
       parameterizedExpr = RuleBasedSimplificationVisitor.Simplify(parameterizedExpr, debugRules);
 
-      parameterizedExpr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr);
+      // parameterizedExpr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr);
       // expr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr.expr, parameterizedExpr.p, parameterizedExpr.pValues, out var newPValues);
       // parameterizedExpr = new ParameterizedExpression(expr, parameterizedExpr.p, newPValues);
 

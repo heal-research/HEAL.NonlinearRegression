@@ -144,9 +144,9 @@ namespace HEAL.Expressions.Tests {
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
         var expr = Expr.Simplify((p, x) => p[2] * (p[0] * x[0] + p[1] * x[1]), paramValues, out var newParamValues);
-        Assert.AreEqual("(p, x) => ((x[1] * p[0]) + (x[0] * p[1]))", expr.ToString());
-        Assert.AreEqual(12.0, newParamValues[0]);
-        Assert.AreEqual(8.0, newParamValues[1]);
+        Assert.AreEqual("(p, x) => ((x[0] * p[0]) + (x[1] * p[1]))", expr.ToString());
+        Assert.AreEqual(8.0, newParamValues[0]);
+        Assert.AreEqual(12.0, newParamValues[1]);
       }
       {
         var paramValues = new[] { 2.0, 3.0, 4.0, 5.0 };
@@ -367,12 +367,13 @@ namespace HEAL.Expressions.Tests {
     [DataRow("1/pow(x1, x2)", "(Pow(x[1], -x[2]) * p[0])")]
     [DataRow("x1 / pow(x1, x2)", "Pow(x[1], (1 - x[2]))")]
     [DataRow("pow(x1, x2) / x1", "Pow(x[1], (x[2] - 1))")]
-    [DataRow("1.0 - x - x - x", "((-x[0] * 3) + p[0])")]
+    [DataRow("1.0 - x - x - x", "((x[0] * -3) + p[0])")]
     [DataRow("1.0 * x + 2.0 * x", "(x[0] * p[0])")]
     [DataRow("1.0 * x - 2.0 * x", "(x[0] * p[0])")]
     [DataRow("(1 / x) + (x - (1 / x))", "((p[0] / x[0]) + x[0])")]
     [DataRow("(1f / x) + (x - (1f / x))", "x[0]")]
-    [DataRow("1f / (x * 2.0 + x1 * 3.0 + 4.0) * (x2 * 5.0 + 6.0) * 7.0", "((p[0] + (x[2] * p[1])) / (((x[1] * p[2]) + x[0]) + p[3]))")] 
+    [DataRow("1f / (x * 2.0 + x1 * 3.0 + 4.0) * (x2 * 5.0 + 6.0) * 7.0", "((p[0] + (x[2] * p[1])) / (((x[1] * p[2]) + x[0]) + p[3]))")]
+    [DataRow("1f / (2 - x)", "(1 / (p[0] - x[0]))")] // this expression is minimal and should not be transformed into something longer
 
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");
