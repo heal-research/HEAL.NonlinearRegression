@@ -228,6 +228,7 @@ namespace HEAL.Expressions.Parser {
       { "log10", typeof(Math).GetMethod("Log10", new Type[] { typeof(double) }) },
       { "sign", typeof(Math).GetMethod("Sign", new Type[] { typeof(double) }) },
       { "logistic", typeof(Functions).GetMethod("Logistic", new Type[] { typeof(double) }) },
+      { "powabs", typeof(Functions).GetMethod("PowAbs", new Type[] { typeof(double), typeof(double) }) },
 
       #endregion
     };

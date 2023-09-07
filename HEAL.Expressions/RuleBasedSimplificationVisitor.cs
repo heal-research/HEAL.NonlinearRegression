@@ -135,6 +135,15 @@ namespace HEAL.Expressions {
         e => e.NodeType == ExpressionType.Add && e.Right is ConstantExpression constExpr && (double)constExpr.Value < 0.0,
         e => Visit(Expression.Subtract(e.Left, Expression.Constant(- (double)((ConstantExpression)e.Right).Value)))
         ),
+      new BinaryExpressionRule(
+        "-a * c -> a * -c",
+        e => e.NodeType == ExpressionType.Multiply && e.Left.NodeType == ExpressionType.Negate && IsConstant(e.Right),
+        e => {
+           var unary = (UnaryExpression)e.Left;
+           return Visit(Expression.Multiply(unary.Operand, Expression.Constant(-GetConstantValue(e.Right))));
+          }
+        ),
+
       });
 
       unaryRules.AddRange(new[] {
@@ -162,27 +171,27 @@ namespace HEAL.Expressions {
         // 
         new MethodCallExpressionRule(
           "pow(x, 0) -> 1",
-          e => e.Method == pow && IsConstant(e.Arguments[1]) && GetConstantValue(e.Arguments[1]) == 0.0,
+          e => IsPower(e.Method) && IsConstant(e.Arguments[1]) && GetConstantValue(e.Arguments[1]) == 0.0,
           e => Expression.Constant(1.0)
           ),
         // 
         // (this is not 100% correct because 0^0 is not defined. But for our purposes 0^0 is irrelevant
         new MethodCallExpressionRule(
           "pow(0, x) -> 0",
-          e => e.Method == pow && IsConstant(e.Arguments[0]) && GetConstantValue(e.Arguments[0]) == 0.0,
+          e => IsPower(e.Method) && IsConstant(e.Arguments[0]) && GetConstantValue(e.Arguments[0]) == 0.0,
           e => Expression.Constant(0.0)
           ),
   
         // 
         new MethodCallExpressionRule(
           "pow(x, 1) -> x",
-          e => e.Method == pow && IsConstant(e.Arguments[1]) && GetConstantValue(e.Arguments[1]) == 1.0,
+          e => IsPower(e.Method) && IsConstant(e.Arguments[1]) && GetConstantValue(e.Arguments[1]) == 1.0,
           e => e.Arguments[0]
           ),
         // 
         new MethodCallExpressionRule(
           "pow(1, x) -> 1",
-          e => e.Method == pow && IsConstant(e.Arguments[0]) && GetConstantValue(e.Arguments[0]) == 1.0,
+          e => IsPower(e.Method) && IsConstant(e.Arguments[0]) && GetConstantValue(e.Arguments[0]) == 1.0,
           e => Expression.Constant(1.0)
           ),
         // 
@@ -198,6 +207,8 @@ namespace HEAL.Expressions {
           }),
       });
     }
+
+
     private void AddBasicRules() {
       binaryRules.AddRange(new[] {
       new BinaryExpressionRule(
@@ -280,7 +291,7 @@ namespace HEAL.Expressions {
           return Visit(Expression.Multiply(left.Left, Expression.Subtract(left.Right, Expression.Constant(1.0))));
           }
         ),
-       
+
       new BinaryExpressionRule(
         "x * alpha + x * beta -> x * (alpha + beta)",
         e => e.NodeType == ExpressionType.Add
@@ -505,7 +516,7 @@ namespace HEAL.Expressions {
        // 
        new BinaryExpressionRule(
          "1/pow(x, y) -> pow(x, -y)",
-        e => e.NodeType == ExpressionType.Divide && e.Right is MethodCallExpression callExpr && callExpr.Method == pow,
+        e => e.NodeType == ExpressionType.Divide && e.Right is MethodCallExpression callExpr && IsPower(callExpr.Method ),
         e => {
           var callExpr = (MethodCallExpression)e.Right;
           return Visit(Expression.Multiply(e.Left, callExpr.Update(callExpr.Object, new [] {callExpr.Arguments[0], Expression.Negate(callExpr.Arguments[1]) })));
@@ -632,7 +643,7 @@ namespace HEAL.Expressions {
         // 
         new MethodCallExpressionRule(
           "exp(x)^y = exp(x*y)",
-          e => e.Method == pow && e.Arguments[0] is MethodCallExpression inner && inner.Method == exp,
+          e => IsPower(e.Method) && e.Arguments[0] is MethodCallExpression inner && inner.Method == exp,
           e => {
             var inner = (MethodCallExpression)e.Arguments[0];
             return Visit(inner.Update(inner.Object, new [] {Expression.Multiply(inner.Arguments[0], e.Arguments[1]) }));
@@ -692,6 +703,14 @@ namespace HEAL.Expressions {
           return Visit(e.Update(leftExpr.Left, null,
             NewParameter(Apply(e.NodeType, GetConstantValue(leftExpr.Right), GetParameterValue(e.Right)))));
             }
+        ),
+      new BinaryExpressionRule(
+        "-a * p -> a * p",
+        e => e.NodeType == ExpressionType.Multiply && e.Left.NodeType == ExpressionType.Negate && IsParameter(e.Right),
+        e => {
+           var unary = (UnaryExpression)e.Left;
+           return Visit(Expression.Multiply(unary.Operand, NewParameter(-GetParameterValue(e.Right))));
+          }
         ),
        new BinaryExpressionRule(
         "((a * p) + p) * p -> (a * p) + p",
@@ -753,7 +772,7 @@ namespace HEAL.Expressions {
            (var scaledRight, var scaleRight) = ExtractScaleFromAffine(e.Right);
            return Visit(Expression.Multiply(Expression.Divide(scaledLeft, scaledRight), NewParameter(scaleLeft / scaleRight)));
            })
-      }); ;
+      });
 
       unaryRules.AddRange(new[] {
         // 
@@ -851,7 +870,7 @@ namespace HEAL.Expressions {
         }),
       // 
       new MethodCallExpressionRule(
-        "a ^ p -> a'^p' | a is affine, p is param or const",
+        "pow(a, p) -> pow(a',p') | a is affine, p is param or const",
         e => e.Method == pow && IsAffine(e.Arguments[0]) && IsParameter(e.Arguments[1]),
         e => {
           (var scaledAffine, var scale) = ExtractScaleFromAffine(e.Arguments[0]);
@@ -1027,6 +1046,7 @@ namespace HEAL.Expressions {
       return IsParameter(arg) ||
         arg is BinaryExpression binExpr && binExpr.NodeType == ExpressionType.Multiply && (IsParameter(binExpr.Left) || IsParameter(binExpr.Right)); // constants as well
     }
+    private bool IsPower(MethodInfo method) => method == pow || method == powabs;
 
     private IEnumerable<Expression> FoldTerms(IEnumerable<Expression> terms) {
       Dictionary<string, Expression> exprStr2scale = new();
@@ -1127,6 +1147,7 @@ namespace HEAL.Expressions {
     private readonly MethodInfo invLogistic = typeof(Functions).GetMethod("InvLogistic", new[] { typeof(double) });
     private readonly MethodInfo logisticPrime = typeof(Functions).GetMethod("LogisticPrime", new[] { typeof(double) });
     private readonly MethodInfo invLogisticPrime = typeof(Functions).GetMethod("InvLogisticPrime", new[] { typeof(double) });
+    private readonly MethodInfo powabs = typeof(Functions).GetMethod("PowAbs", new[] { typeof(double), typeof(double) });
     private readonly bool debugRules;
   }
 }

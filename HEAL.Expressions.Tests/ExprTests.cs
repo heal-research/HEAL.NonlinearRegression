@@ -378,14 +378,17 @@ namespace HEAL.Expressions.Tests {
     [DataRow("(2.0 - x) - x", "((x[0] * -2) + p[0])")]
     [DataRow("x - (2.0 - x)", "((x[0] * 2) + p[0])")]
     [DataRow("(2.0 + x) * x", "((x[0] + p[0]) * x[0])")] // already minimal
-    [DataRow("x / (pow(abs (x), x))", "x[0] * (pow(abs (x[0]), (- x[0])))")] // the simplified form is longer
-    [DataRow("2.0 / (pow(abs (2.0), x))", "p[0] * pow(abs(p[1]), (- x[0])))")]
+    [DataRow("x / (powabs (x, x))", "(x[0] * PowAbs(x[0], -x[0]))")] // the simplified form is longer
+    [DataRow("2.0 / (powabs (2.0, x))", "(PowAbs(p[0], -x[0]) * p[1])")]
     [DataRow("abs(2.0f)", "2")]
     [DataRow("abs(2.0)", "p[0]")]
     [DataRow("log(abs(2.0))", "p[0]")]
     [DataRow("sqrt(abs(2.0))", "p[0]")]
-    [DataRow("pow(abs(2.0), 3.0)", "p[0]")]
-    [DataRow("pow(abs(2.0), x)", "pow(abs(p[0]), x[0])")] // here we cannot remove abs() because the base should not be negative for real-valued exponents
+    [DataRow("powabs(2.0, 3.0)", "p[0]")]
+    [DataRow("powabs(2.0, x)", "PowAbs(p[0], x[0])")] // here we cannot remove abs() because the base should not be negative for real-valued exponents
+    [DataRow("2.0 + -x * 3.0", "((x[0] * p[0]) + p[1])")]
+    [DataRow("(2.0 - x) * 3.0", "((x[0] * p[0]) + p[1])")]
+    [DataRow("(2.0 - x) / 3.0", "((x[0] * p[0]) + p[1])")]
 
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");

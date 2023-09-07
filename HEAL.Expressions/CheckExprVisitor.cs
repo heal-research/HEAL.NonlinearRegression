@@ -25,6 +25,7 @@ namespace HEAL.Expressions {
       typeof(Math).GetMethod("Cosh", new[] {typeof(double)}),
       typeof(Math).GetMethod("Tanh", new[] {typeof(double)}),
       typeof(Math).GetMethod("Pow", new[] {typeof(double), typeof(double)}),
+      typeof(Functions).GetMethod("PowAbs", new[] {typeof(double), typeof(double)}),
       typeof(Functions).GetMethod("Cbrt", new[] {typeof(double)}),
       typeof(Functions).GetMethod("Sign", new[] {typeof(double)}),
       typeof(Functions).GetMethod("AQ", new[] {typeof(double), typeof(double) }),

@@ -6,6 +6,7 @@ namespace HEAL.Expressions {
       if (x < 0) return -Math.Pow(-x, 1.0 / 3.0);
       else return Math.Pow(x, 1.0 / 3.0);
     }
+    public static double PowAbs(double b, double e) => Math.Pow(Math.Abs(b), e);
     public static double AQ(double a, double b) {
       return a / Math.Sqrt(1 + b * b);
     }
