@@ -35,7 +35,8 @@ namespace HEAL.Expressions {
         var rightParamCount = CountParametersVisitor.Count(right, theta);
         if (rightParamCount == 0) {
           // -> there are no parameters in right factor. We may multiply right into each left term because we do not duplicate parameters
-          return leftTerms.Select(lt => Expression.Multiply(lt, right)).Aggregate(Expression.Add); // TODO: this potentially increases the length of the expression
+          // return leftTerms.Select(lt => Expression.Multiply(lt, right)).Aggregate(Expression.Add); // TODO: this potentially increases the length of the expression
+          return node.Update(left, null, right);
         } else if (rightParamCount == 1 && HasScalingParameter(right)) {
           // right has a single scaling parameter
           // -> multiply into each left term with a scaling parameter and explicitly multiply to sum of remaining terms without scaling parameters

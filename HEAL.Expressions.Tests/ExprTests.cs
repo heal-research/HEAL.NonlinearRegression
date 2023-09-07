@@ -349,8 +349,6 @@ namespace HEAL.Expressions.Tests {
 
     [DataTestMethod]
     [DataRow("x - x", "0")]
-    [DataRow("abs(2.0f)", "2")] // absolute value of constant can be simplified
-    [DataRow("abs(2.0)", "abs(p[0])")] // absolute value of parameter should not be simplified away 
     [DataRow("1.0 - 2.0", "p[0]")]
     [DataRow("1.0f - 2.0f", "-1")]
     [DataRow("x / x", "1")]
@@ -379,9 +377,15 @@ namespace HEAL.Expressions.Tests {
     [DataRow("1f / ((1f / x) - x)", "(1 / ((1 / x[0]) - x[0]))")] // this is already minimal
     [DataRow("(2.0 - x) - x", "((x[0] * -2) + p[0])")]
     [DataRow("x - (2.0 - x)", "((x[0] * 2) + p[0])")]
-    [DataRow("(2.0 + x) * x", "(2.0 + x) * x")] // already minimal
+    [DataRow("(2.0 + x) * x", "((x[0] + p[0]) * x[0])")] // already minimal
     [DataRow("x / (pow(abs (x), x))", "x[0] * (pow(abs (x[0]), (- x[0])))")] // the simplified form is longer
     [DataRow("2.0 / (pow(abs (2.0), x))", "p[0] * pow(abs(p[1]), (- x[0])))")]
+    [DataRow("abs(2.0f)", "2")]
+    [DataRow("abs(2.0)", "p[0]")]
+    [DataRow("log(abs(2.0))", "p[0]")]
+    [DataRow("sqrt(abs(2.0))", "p[0]")]
+    [DataRow("pow(abs(2.0), 3.0)", "p[0]")]
+    [DataRow("pow(abs(2.0), x)", "pow(abs(p[0]), x[0])")] // here we cannot remove abs() because the base should not be negative for real-valued exponents
 
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");
