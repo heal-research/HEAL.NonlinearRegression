@@ -396,6 +396,15 @@ namespace HEAL.Expressions.Tests {
     [DataRow("powabs(1.0f / x, 2.5)", "PowAbs(x[0], p[0])")] // with p[0] = -2.5, this is even allowed with real exponents
     [DataRow("pow(1.0f / x, 3.0f)", "Pow(x[0], -3)")] // this transformation is allowed for integer exponents
     [DataRow("1f / powabs(x, x)", "PowAbs(x[0], -x[0])")]
+    [DataRow("(x * 2f) / x", "x[0]")]
+    [DataRow("3.0 / (2f*x)", "p[0] / x[0]")]
+    [DataRow("x / (2f*x)", "1f / x[0]")]
+    [DataRow("1f/x", "1f / x[0]")]
+    [DataRow("pow(x, -1)", "1f / x[0]")]
+    [DataRow("powabs (x, - x) * p", "p[0] / PowAbs(x, x)")]
+    [DataRow("powabs(powabs(x, 2.0), 3.0)", "PowAbs(x, p[0])")]  // | |x|^p1 |^p2 == |x|^(p1*p2)
+    [DataRow("powabs(pow(x, 2f), 3.0)", "PowAbs(x[0], p[0])")]
+    [DataRow("1f / powabs(2.0, 1f / x)", "PowAbs(p[0], -1f / x[0])")]
 
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");
