@@ -20,6 +20,8 @@ namespace HEAL.Expressions {
 
     private readonly List<(string rule, Expression expr)> matchedRules = new(); // for debugging which rules are actually used
 
+    private readonly Dictionary<string, Expression> visitCache = new(); // for memoization of Visit() methods
+
     public RuleBasedSimplificationVisitor(ParameterExpression p, double[] pValues, bool debugRules = false) {
       this.p = p;
       this.pValues = pValues.ToList();
@@ -28,19 +30,18 @@ namespace HEAL.Expressions {
       AddConstantFoldingRules();
       AddBasicRules();
       AddReparameterizationRules();
-
-      // NOTE: We must be careful because parameters might occur multiple times.
-      // TODO: Some of the other visitors can be replaced by rules to simplify the code base.
-      // TODO: memoization of Visit methods
     }
 
     private void ClearRules() {
       binaryRules.Clear();
       unaryRules.Clear();
       callRules.Clear();
+      visitCache.Clear();
     }
 
     private void AddConstantFoldingRules() {
+      visitCache.Clear();
+
       binaryRules.AddRange(new[] {
       new BinaryExpressionRule(
         "const ° const -> const",
@@ -210,6 +211,8 @@ namespace HEAL.Expressions {
 
 
     private void AddBasicRules() {
+      visitCache.Clear();
+
       binaryRules.AddRange(new[] {
       new BinaryExpressionRule(
         "x / x -> 1.0",
@@ -648,6 +651,8 @@ namespace HEAL.Expressions {
     }
 
     private void AddReparameterizationRules() {
+      visitCache.Clear();
+
       binaryRules.AddRange(new[] {
       // 
       new BinaryExpressionRule(
@@ -917,10 +922,12 @@ namespace HEAL.Expressions {
     }
 
     protected override Expression VisitBinary(BinaryExpression node) {
+      if (visitCache.TryGetValue(node.ToString(), out var result)) return result;
+
       // simplify left and right first
       var left = Visit(node.Left);
       var right = Visit(node.Right);
-      Expression result = node.Update(left, null, right);
+      result = node.Update(left, null, right);
 
       var r = binaryRules.FirstOrDefault(r => r.Match((BinaryExpression)result));
       while (r != default(BinaryExpressionRule)) {
@@ -930,13 +937,17 @@ namespace HEAL.Expressions {
           r = binaryRules.FirstOrDefault(r => r.Match(binExpr));
         } else break;
       }
+      
+      visitCache.Add(node.ToString(), result);
       return result;
     }
 
 
     protected override Expression VisitUnary(UnaryExpression node) {
+      if (visitCache.TryGetValue(node.ToString(), out var result)) return result;
+
       var opd = Visit(node.Operand);
-      Expression result = node.Update(opd);
+      result = node.Update(opd);
       var r = unaryRules.FirstOrDefault(r => r.Match((UnaryExpression)result));
       while (r != default(UnaryExpressionRule)) {
         MarkUsage(r.Description, result);
@@ -945,11 +956,15 @@ namespace HEAL.Expressions {
           r = unaryRules.FirstOrDefault(r => r.Match(unaryExpr));
         } else break;
       }
+
+      visitCache.Add(node.ToString(), result);
       return result;
     }
 
     protected override Expression VisitMethodCall(MethodCallExpression node) {
-      Expression result = node.Update(node.Object, node.Arguments.Select(Visit));
+      if (visitCache.TryGetValue(node.ToString(), out var result)) return result;
+
+      result = node.Update(node.Object, node.Arguments.Select(Visit));
       var r = callRules.FirstOrDefault(r => r.Match((MethodCallExpression)result));
       while (r != default(MethodCallExpressionRule)) {
         MarkUsage(r.Description, result);
@@ -958,6 +973,8 @@ namespace HEAL.Expressions {
           r = callRules.FirstOrDefault(r => r.Match(callExpr));
         } else break;
       }
+
+      visitCache.Add(node.ToString(), result);
       return result;
     }
 
