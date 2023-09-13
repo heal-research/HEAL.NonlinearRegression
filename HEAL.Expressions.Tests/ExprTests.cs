@@ -380,7 +380,7 @@ namespace HEAL.Expressions.Tests {
     [DataRow("x - (2.0 - x)", "((x[0] * 2) + p[0])")]
     [DataRow("(2.0 + x) * x", "((x[0] + p[0]) * x[0])")] // already minimal
     [DataRow("x / (powabs (x, x))", "(x[0] / PowAbs(x[0], x[0]))")] // already minimal
-    [DataRow("2.0 / (powabs (2.0, x))", "(PowAbs(p[0], x[0]) * p[1])")]
+    [DataRow("2.0 / (powabs (2.0, x))", "(p[0] / PowAbs(p[1], x[0]))")] // already minimal
     [DataRow("abs(2.0f)", "2")]
     [DataRow("abs(2.0)", "p[0]")]
     [DataRow("log(abs(2.0))", "p[0]")]
@@ -398,14 +398,23 @@ namespace HEAL.Expressions.Tests {
     [DataRow("1f / powabs(x, x)", "PowAbs(x[0], -x[0])")]
     [DataRow("(x * 2f) / x", "2")]
     [DataRow("3.0 / (2f*x)", "(p[0] / x[0])")]
-    [DataRow("x / (2f*x)", "(1 / x[0])")]
+    [DataRow("x / (2f*x)", "0.5")]
+    [DataRow("x / (2*x)", "p[0]")]
     [DataRow("1f/x", "(1 / x[0])")]
     [DataRow("pow(x, -1f)", "(1 / x[0])")]
-    [DataRow("powabs (x, - x) * 2.0", "(p[0] / PowAbs(x[0], x[0]))")]
+    [DataRow("powabs (x, -x) * 2.0", "(p[0] / PowAbs(x[0], x[0]))")]
     [DataRow("powabs(powabs(x, 2.0), 3.0)", "PowAbs(x[0], p[0])")]  // | |x|^p1 |^p2 == |x|^(p1*p2)
     [DataRow("powabs(pow(x, 2f), 1.5)", "PowAbs(x[0], p[0])")]
     [DataRow("powabs(pow(x, 3f), 1.5)", "PowAbs(x[0], p[0])")] // x^3 can be negative
     [DataRow("1f / powabs(2.0, 1f / x)", "PowAbs(p[0], (1 / x[0]))")]
+    [DataRow("(2.0 / (x * 3.0 + 4.0))", "(p[0] / (x[0] + p[1]))")]
+    [DataRow("x / (x * 2.0)", "p[0]")]
+    [DataRow("2.0 / (x * 3.0)", "(p[0] / x[0])")]
+    [DataRow("1f / (x * 3.0)", "(p[0] / x[0])")]
+    [DataRow("2.0 - (3.0 / x)", "((p[0] / x[0]) + p[1])")]
+    [DataRow("x - (2.0 / x)", "((p[0] / x[0]) + x[0])")]
+    [DataRow("((x * 2) + (-1f / x))", "((x[0] * p[0]) - (1 / x[0]))")]
+    [DataRow("x / 2f", "(x[0] * 0.5)")]
 
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");

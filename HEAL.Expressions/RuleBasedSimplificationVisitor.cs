@@ -123,7 +123,11 @@ namespace HEAL.Expressions {
         && e.Left is ConstantExpression constExpr && (double)constExpr.Value == 0.0,
         e => e.Left // 0.0
         ),
-
+      new BinaryExpressionRule(
+        "x / c -> x * c",
+        e => e.NodeType == ExpressionType.Divide && IsConstant(e.Right),
+        e => Expression.Multiply(e.Left, Expression.Constant(1.0 / GetConstantValue(e.Right)))
+        ),
       new BinaryExpressionRule(
         "(x * c) + x -> (x * (c+1))",
         e => e.NodeType == ExpressionType.Add
@@ -152,15 +156,13 @@ namespace HEAL.Expressions {
           return binExpr.Right;
         }),
       new BinaryExpressionRule(
-        "x / (x * c) -> 1 / (x * (c-1))",
+        "x / (x * c) -> c",
         e => e.NodeType == ExpressionType.Divide
           && e.Right is BinaryExpression binExpr && binExpr.NodeType  == ExpressionType.Multiply && IsConstant(binExpr.Right)
           && e.Left.ToString() == binExpr.Left.ToString(),
         e => {
           var binExpr = (BinaryExpression)e.Right;
-          return Visit(Expression.Divide(
-            Expression.Constant(1.0),
-            binExpr.Update(binExpr.Left, null, Expression.Constant(GetConstantValue(binExpr.Right) - 1.0))));
+          return Expression.Constant(1.0 / GetConstantValue(binExpr.Right));
         }),
 
       new BinaryExpressionRule(
@@ -172,6 +174,18 @@ namespace HEAL.Expressions {
           var right = (BinaryExpression)e.Right;
           return e.Update(Expression.Constant(GetConstantValue(e.Left) / GetConstantValue(right.Right)), null, right.Left);
         }),
+            new BinaryExpressionRule(
+        "z / (x * c) -> (z*c) / x",
+        e => e.NodeType == ExpressionType.Divide
+          && e.Right.NodeType == ExpressionType.Multiply && e.Right is BinaryExpression right
+          && IsConstant(right.Right),
+        e => {
+          var right = (BinaryExpression)e.Right;
+          return Visit(Expression.Divide(
+            Expression.Multiply(e.Left, Expression.Constant(1.0 / GetConstantValue(right.Right))),
+            right.Left
+            ));
+        }),
 
       new BinaryExpressionRule(
          "x - (y * c) -> x + (y * c)",
@@ -181,6 +195,18 @@ namespace HEAL.Expressions {
            var rightBin = (BinaryExpression)e.Right;
            return Visit(Expression.Add(e.Left, Expression.Multiply(rightBin.Left, Expression.Constant(-GetConstantValue(rightBin.Right)))));
          }),
+
+      // prefer - 1/x over + (-1/x)  (1/x == inv(x) with len==2)
+      new BinaryExpressionRule(
+        "a + (-1 / x) -> a - (1 / x)",
+        e => e.NodeType == ExpressionType.Add
+             && e.Right.NodeType == ExpressionType.Divide && e.Right is BinaryExpression binExpr
+             && IsConstant(binExpr.Left) && GetConstantValue(binExpr.Left) == -1.0,
+        e => {
+          var right = (BinaryExpression)e.Right;
+          return Visit(Expression.Subtract(e.Left, Expression.Divide(Expression.Constant(1.0), right.Right)));
+          }
+        ),
       new BinaryExpressionRule(
         "x + -c -> x - c  (negative constant)",
         e => e.NodeType == ExpressionType.Add && e.Right is ConstantExpression constExpr && (double)constExpr.Value < 0.0,
@@ -581,11 +607,11 @@ namespace HEAL.Expressions {
           }
         ),
        // 
-       new BinaryExpressionRule(
-         "p / x -> 1/x * p", // this makes the expression longer but is necessary together with other rules
-        e => e.NodeType == ExpressionType.Divide && IsParameter(e.Left) && !IsParameter(e.Right),
-        e => Visit(Expression.Multiply(Expression.Divide(Expression.Constant(1.0), e.Right), e.Left))
-        ),
+       //new BinaryExpressionRule(
+       //  "p / x -> 1/x * p", // this makes the expression longer but is necessary together with other rules
+       // e => e.NodeType == ExpressionType.Divide && IsParameter(e.Left) && !IsParameter(e.Right),
+       // e => Visit(Expression.Multiply(Expression.Divide(Expression.Constant(1.0), e.Right), e.Left))
+       // ),
        new BinaryExpressionRule(
          "1/pow(x,y) -> pow(1/x, y)",
          e => e.NodeType == ExpressionType.Divide
@@ -596,6 +622,16 @@ namespace HEAL.Expressions {
            var callExpr = (MethodCallExpression)e.Right;
             return Visit(callExpr.Update(callExpr.Object, new [] { Expression.Divide(Expression.Constant(1.0), callExpr.Arguments[0]), callExpr.Arguments[1] }));
            }
+         ),
+       new BinaryExpressionRule(
+         "pow(x, -y) * z -> z / pow(x, y)",
+         e => e.NodeType == ExpressionType.Multiply && e.Left is MethodCallExpression callExpr && IsPower(callExpr.Method)
+           && callExpr.Arguments[1].NodeType == ExpressionType.Negate,
+         e => {
+           var callExpr = (MethodCallExpression)e.Left;
+           var exponent = (UnaryExpression)callExpr.Arguments[1];
+           return Expression.Divide(e.Right, callExpr.Update(callExpr.Object, new [] { callExpr.Arguments[0], exponent.Operand }));
+             }
          ),
        new BinaryExpressionRule(
          "z/pow(x, a) -> z * pow(x, -a)) where a is parameter or constant",
@@ -718,14 +754,14 @@ namespace HEAL.Expressions {
         ),
         
          // recursive?!
-        //new MethodCallExpressionRule(
-        //  "pow(x, -y) -> 1 / pow(x, y)",
-        //  e => IsPower(e.Method) && e.Arguments[1].NodeType == ExpressionType.Negate,
-        //  e => {
-        //      var exponent = (UnaryExpression)e.Arguments[1];
-        //      return Visit(Expression.Divide(Expression.Constant(1.0), e.Update(e.Object, new [] { e.Arguments[0], exponent.Operand })));
-        //    }
-        //  ),
+        // new MethodCallExpressionRule(
+        //   "pow(x, -y) -> 1 / pow(x, y)",
+        //   e => IsPower(e.Method) && e.Arguments[1].NodeType == ExpressionType.Negate,
+        //   e => {
+        //       var exponent = (UnaryExpression)e.Arguments[1];
+        //       return Visit(Expression.Divide(Expression.Constant(1.0), e.Update(e.Object, new [] { e.Arguments[0], exponent.Operand })));
+        //     }
+        //   ),
 
         // 
         new MethodCallExpressionRule(
@@ -813,14 +849,27 @@ namespace HEAL.Expressions {
             return Visit(Expression.Add(Expression.Multiply(leftLeft.Left, NewParameter(innerScale*scale)), NewParameter(offset * scale)));
           }
         ),
-      new BinaryExpressionRule(
-        "p / (x * p) -> p / x",
-        e => e.NodeType == ExpressionType.Divide && IsParameter(e.Left)
+       new BinaryExpressionRule(
+        "x / (x * p) -> p",
+        e => e.NodeType == ExpressionType.Divide
           && e.Right.NodeType == ExpressionType.Multiply && e.Right is BinaryExpression right
+          && right.Left.ToString() == e.Left.ToString()
           && IsParameterOrConstant(right.Right),
         e => {
           var right = (BinaryExpression)e.Right;
-          return e.Update(NewParameter(GetParameterValue(e.Left) / GetParameterOrConstantValue(right.Right)), null, right.Left);
+          return NewParameter(1.0 / GetParameterValue(right.Right));
+        }),
+      new BinaryExpressionRule(
+        "z / (x * p) -> (z*p) / x",
+        e => e.NodeType == ExpressionType.Divide
+          && e.Right.NodeType == ExpressionType.Multiply && e.Right is BinaryExpression right
+          && IsParameter(right.Right),
+        e => {
+          var right = (BinaryExpression)e.Right;
+          return Visit(Expression.Divide(
+            Expression.Multiply(e.Left, NewParameter(1.0 / GetParameterValue(right.Right))),
+            right.Left
+            ));
         }),
 
       new BinaryExpressionRule(
@@ -855,17 +904,28 @@ namespace HEAL.Expressions {
            var rightBin = (BinaryExpression)e.Right;
            return Visit(Expression.Add(e.Left, Expression.Multiply(rightBin.Left, NewParameter(-GetParameterValue(rightBin.Right)))));
          }),
+       new BinaryExpressionRule(
+         "x - (p / y) -> x + (p / y)",
+         e => e.NodeType == ExpressionType.Subtract
+           && e.Right is BinaryExpression rightBin && rightBin.NodeType == ExpressionType.Divide && IsParameter(rightBin.Left),
+         e => {
+           var rightBin = (BinaryExpression)e.Right;
+           return Visit(Expression.Add(e.Left, Expression.Divide(NewParameter(-GetParameterValue(rightBin.Left)), rightBin.Right)));
+         }),
 
        // extract scaling parameter out of affine form a 
        // 
        new BinaryExpressionRule(
          "a / b -> (a'/ b) * p  | (a is affine) or (b is affine)",
          e => e.NodeType == ExpressionType.Divide 
-           && !(IsConstant(e.Left) && GetConstantValue(e.Left) == 1.0)
-           && (IsAffine(e.Left) || IsAffine(e.Right)),
+           // && !(IsConstant(e.Left) && GetConstantValue(e.Left) == 1.0)
+           && HasParameters(e.Left) && HasParameters(e.Right)
+           && (IsAffine(e.Left) || IsAffine(e.Right))
+           && !(ExtractScaleFromAffine(e.Left).scale == 1.0 && ExtractScaleFromAffine(e.Right).scale == 1.0),
          e => {
            (var scaledLeft, var scaleLeft) = ExtractScaleFromAffine(e.Left);
-           (var scaledRight, var scaleRight) = ExtractScaleFromAffine(e.Right);
+           (var scaledRight, var scaleRight) = ExtractScaleFromAffine(e.Right);          
+           // TODO: if both scales are 1.0 this rule leads to an infinite recursion
            return Visit(Expression.Multiply(Expression.Divide(scaledLeft, scaledRight), NewParameter(scaleLeft / scaleRight)));
            }),
 
@@ -1005,9 +1065,9 @@ namespace HEAL.Expressions {
       var v = new RuleBasedSimplificationVisitor(expr.p, expr.pValues, debug);
       var body = v.Visit(expr.expr.Body);
       if (v.debugRules) {
-        System.Console.WriteLine("Used rules:");
+        Console.WriteLine("Used rules:");
         foreach (var tup in v.matchedRules) {
-          System.Console.WriteLine($"=> {tup.expr} ° {tup.rule}");
+          Console.WriteLine($"=> {tup.expr} ° {tup.rule}");
         }
       }
       return new ParameterizedExpression(expr.expr.Update(body, expr.expr.Parameters), expr.p, v.pValues.ToArray());
