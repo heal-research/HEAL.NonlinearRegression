@@ -453,6 +453,21 @@ namespace HEAL.Expressions {
         e => e.NodeType == ExpressionType.Add && e.Right.NodeType == ExpressionType.Negate,
         e => Visit(Expression.Subtract(e.Left, ((UnaryExpression)e.Right).Operand))
         ),
+      new BinaryExpressionRule(
+          "(-x - y) * p -> (x + y) * p'",
+          e => e.NodeType == ExpressionType.Multiply && IsParameterOrConstant(e.Right)
+            && e.Left is BinaryExpression left && left.NodeType == ExpressionType.Subtract
+            && left.Left.NodeType == ExpressionType.Negate,
+          e => {
+              var left = (BinaryExpression)e.Left;
+              var unary = (UnaryExpression)left.Left;
+              return Visit(Expression.Multiply(
+                    Expression.Add(unary.Operand, left.Right),
+                    Expression.Multiply(e.Right, Expression.Constant(-1.0))
+                  ));
+          }
+        ),
+
       
       // 
       new BinaryExpressionRule(
@@ -1056,13 +1071,128 @@ namespace HEAL.Expressions {
         }),
 
     });
+    }
+    public void AddCleanupRules() {
+      // a ruleset that pushes multiplicative parameters down into affine expressions without introducing new parameters
+      binaryRules.AddRange(new[] {
+        new BinaryExpressionRule(
+          "(z + p) * p -> (z * p) + p",
+          e => e.NodeType == ExpressionType.Multiply && IsParameter(e.Right)
+            && e.Left is BinaryExpression left && left.NodeType == ExpressionType.Add && IsParameter(left.Right),
+          e => {
+            var left =(BinaryExpression)e.Left;
+            return Visit(Expression.Add(
+              Expression.Multiply(left.Left, e.Right),
+              NewParameter(GetParameterValue(left.Right) * GetParameterValue(e.Right))
+              ));
+          }),
+        new BinaryExpressionRule(
+          "(x / y) * z -> (x * z) / y",
+          e => e.NodeType == ExpressionType.Multiply && e.Left.NodeType == ExpressionType.Divide,
+          e => {
+            var left = (BinaryExpression)e.Left;
+            return Visit(Expression.Divide(Expression.Multiply(left.Left, e.Right), left.Right));
+          }),
+        new BinaryExpressionRule(
+          "(p - x) * p -> p*x + p",
+          e => e.NodeType == ExpressionType.Multiply && IsParameter(e.Right) &&
+            e.Left is BinaryExpression left && IsParameter(left.Left) && left.NodeType == ExpressionType.Subtract,
+          e => {
+            var left = (BinaryExpression)e.Left;
+            return Visit(Expression.Add(
+              Expression.Multiply(left.Right, NewParameter(-GetParameterValue(e.Right))),
+              NewParameter(GetParameterValue(left.Left) * GetParameterValue(e.Right))
+              ));
+          }),
+        new BinaryExpressionRule(
+          "(-1/x) + z -> z - 1/x", // prefer (1/x == inv(x))
+          e => e.NodeType == ExpressionType.Add
+            && e.Left is BinaryExpression left && left.NodeType == ExpressionType.Divide
+            && IsConstant(left.Left) && GetConstantValue(left.Left) == -1.0,
+          e => {
+            var left = (BinaryExpression)e.Left;
+            return Expression.Subtract(e.Right, Expression.Divide(Expression.Constant(1.0), left.Right));
+              }
+          ),
+        new BinaryExpressionRule(
+          "z + (-1/x) -> z - 1/x", // prefer (1/x == inv(x))
+          e => e.NodeType == ExpressionType.Add
+            && e.Right is BinaryExpression right && right.NodeType == ExpressionType.Divide
+            && IsConstant(right.Left) && GetConstantValue(right.Left) == -1.0,
+          e => {
+            var right = (BinaryExpression)e.Right;
+            return Expression.Subtract(e.Left, Expression.Divide(Expression.Constant(1.0), right.Right));
+              }
+          ),
+         new BinaryExpressionRule(
+           "((-1/x) - z) * p -> (1/x + z) * p", // prefer (1/x == inv(x))
+           e => e.NodeType == ExpressionType.Multiply && IsParameter(e.Right)
+             && e.Left is BinaryExpression left && left.NodeType == ExpressionType.Subtract
+             && left.Left is BinaryExpression leftLeft && leftLeft.NodeType == ExpressionType.Divide
+             && IsConstant(leftLeft.Left) && GetConstantValue(leftLeft.Left) == -1.0,
+           e => {
+             var left = (BinaryExpression)e.Left;
+             var leftLeft =(BinaryExpression)left.Left;
+             return e.Update(
+                 Expression.Add(Expression.Divide(Expression.Constant(1.0), leftLeft.Right), left.Right),
+                 null,
+                 NewParameter(-GetParameterValue(e.Right)));
+               }
+           ),
+         new BinaryExpressionRule(
+           "-x + y -> y - x",
+           e => e.NodeType == ExpressionType.Add && e.Left.NodeType == ExpressionType.Negate,
+           e => Expression.Subtract(e.Right, ((UnaryExpression)e.Left).Operand)
+           ),
+         new BinaryExpressionRule(
+           "x/-y + z -> z - x/y",
+           e => e.NodeType == ExpressionType.Add
+             && e.Left.NodeType == ExpressionType.Divide && e.Left is BinaryExpression left
+             && left.Right.NodeType == ExpressionType.Negate,
+           e => {
+             var left = (BinaryExpression)e.Left;
+             return Expression.Subtract(e.Right, left.Update(left.Left, null, ((UnaryExpression)left.Right).Operand));
+           }),
+         new BinaryExpressionRule(
+           "x*(-y) + z -> z - x*y",
+           e => e.NodeType == ExpressionType.Add
+             && e.Left.NodeType == ExpressionType.Multiply && e.Left is BinaryExpression left
+             && left.Right.NodeType == ExpressionType.Negate,
+           e => {
+             var left = (BinaryExpression)e.Left;
+             return Expression.Subtract(e.Right, left.Update(left.Left, null, ((UnaryExpression)left.Right).Operand));
+           }),
 
+        new BinaryExpressionRule(
+          "sum * p -> sum'",
+          e => e.NodeType == ExpressionType.Multiply && IsParameter(e.Right)
+            && CollectTermsVisitor.CollectTerms(e.Left).Where(HasScalingParameter).Count() >= 1,
+          e => {
+            var terms = CollectTermsVisitor.CollectTerms(e.Left).ToArray();
+            var termsWithScale = terms.Where(HasScalingParameter).ToArray();
+
+            var termsWithoutScale = terms.Where(t => !HasScalingParameter(t)).DefaultIfEmpty(Expression.Constant(1.0)).ToArray();
+            var scale = GetParameterValue(e.Right);
+            return Visit(Expression.Add(
+                termsWithScale.Select(t => ScaleTerm(t, scale)).Aggregate(Expression.Add),
+                Expression.Multiply(termsWithoutScale.Aggregate(Expression.Add), e.Right)
+              ));
+          }
+          )
+      });
+      // unaryRules.AddRange(new[] {
+      // 
+      // });
+      // methodcallRules.AddRange(new[] {
+      // 
+      // });
     }
 
-    public static ParameterizedExpression Simplify(ParameterizedExpression expr, bool debug = false) {
+
+    public static ParameterizedExpression Simplify(ParameterizedExpression expr, bool debugRules = false) {
       if (!CheckExprVisitor.CheckValid(expr.expr)) throw new NotSupportedException();
 
-      var v = new RuleBasedSimplificationVisitor(expr.p, expr.pValues, debug);
+      var v = new RuleBasedSimplificationVisitor(expr.p, expr.pValues, debugRules);
       var body = v.Visit(expr.expr.Body);
       if (v.debugRules) {
         Console.WriteLine("Used rules:");
@@ -1073,15 +1203,26 @@ namespace HEAL.Expressions {
       return new ParameterizedExpression(expr.expr.Update(body, expr.expr.Parameters), expr.p, v.pValues.ToArray());
     }
 
-    public static ParameterizedExpression SimplifyWithoutReparameterization(ParameterizedExpression expr) {
+    public static ParameterizedExpression SimplifyWithoutReparameterization(ParameterizedExpression expr, bool debugRules = false) {
       // This is necessary for simplification where it is not allowed to re-parameterize the expression.
       // For example, when simplifying the derivative of an expression.
       if (!CheckExprVisitor.CheckValid(expr.expr)) throw new NotSupportedException();
 
-      var v = new RuleBasedSimplificationVisitor(expr.p, expr.pValues);
+      var v = new RuleBasedSimplificationVisitor(expr.p, expr.pValues, debugRules);
       v.ClearRules();
       v.AddConstantFoldingRules();
       v.AddBasicRules();
+      var body = v.Visit(expr.expr.Body);
+      return new ParameterizedExpression(expr.expr.Update(body, expr.expr.Parameters), expr.p, v.pValues.ToArray());
+    }
+
+    // For simplification a canonical representation is used that works best for this.
+    // Afterwards we want to prevent dependencies between parameters as best as possible which requires a different ruleset.
+    public static ParameterizedExpression Cleanup(ParameterizedExpression expr, bool debugRules = false) {
+      var v = new RuleBasedSimplificationVisitor(expr.p, expr.pValues, debugRules);
+      v.ClearRules();
+      v.AddConstantFoldingRules();
+      v.AddCleanupRules();
       var body = v.Visit(expr.expr.Body);
       return new ParameterizedExpression(expr.expr.Update(body, expr.expr.Parameters), expr.p, v.pValues.ToArray());
     }
@@ -1258,6 +1399,20 @@ namespace HEAL.Expressions {
         var termStr = kvp.Key;
         var scale = kvp.Value;
         yield return Expression.Multiply(exprStr2expr[termStr], scale);
+      }
+    }
+
+
+    private Expression ScaleTerm(Expression t, double scale) {
+      var factors = CollectFactorsVisitor.CollectFactors(t);
+      var nonParamFactors = factors.Where(f => !IsParameter(f)).ToArray();
+      var curScale = factors.Where(IsParameter).Select(GetParameterValue).DefaultIfEmpty(1.0).Aggregate((a, b) => a * b);
+      if (!nonParamFactors.Any()) {
+        return NewParameter(scale * curScale);
+      } else {
+        return Expression.Multiply(
+          nonParamFactors.Aggregate(Expression.Multiply),
+          NewParameter(scale * curScale));
       }
     }
 

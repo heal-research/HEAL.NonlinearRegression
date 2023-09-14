@@ -118,21 +118,6 @@ namespace HEAL.Expressions {
       return Expression.Lambda<T>(newExpr, expr.Parameters.Except(new[] { parameter }));
     }
 
-    /// <summary>
-    /// Returns a new expression where all double values are replaced by a reference to a new double[] parameter theta[.]. 
-    /// The values in expr are collected into thetaValues.
-    /// </summary>
-    /// <param name="expr">The expr which contains double constants.</param>
-    /// <param name="thetaValues">Array of parameter values occuring in expr</param>
-    /// <returns></returns>
-    public static LambdaExpression ReplaceNumbersWithParameter(LambdaExpression expr, out double[] thetaValues) {
-      var theta = Expression.Parameter(typeof(double[]), "theta");
-      var v = new ReplaceNumberWithParameterVisitor(theta);
-      var newExpr = v.Visit(expr.Body);
-      thetaValues = v.ParameterValues;
-      return Expression.Lambda(newExpr, new[] { theta }.Concat(expr.Parameters));
-    }
-
     public static Expression<ParametricJacobianFunction> Broadcast(Expression<ParametricGradientFunction> fx) {
       // original parameters
       var thetaParam = fx.Parameters[0];
@@ -404,12 +389,8 @@ namespace HEAL.Expressions {
       var parameterizedExpr = new ParameterizedExpression(expr, theta, parameterValues);
 
       parameterizedExpr = RuleBasedSimplificationVisitor.Simplify(parameterizedExpr, debugRules);
-
-      // parameterizedExpr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr);
-      // expr = LiftLinearParametersVisitor.LiftParameters(parameterizedExpr.expr, parameterizedExpr.p, parameterizedExpr.pValues, out var newPValues);
-      // parameterizedExpr = new ParameterizedExpression(expr, parameterizedExpr.p, newPValues);
-
-      parameterizedExpr = ExpandProductsVisitor.Expand(parameterizedExpr);
+      parameterizedExpr = RuleBasedSimplificationVisitor.Cleanup(parameterizedExpr, debugRules);
+      // parameterizedExpr = ExpandProductsVisitor.Expand(parameterizedExpr);
       // Console.WriteLine($"Folded parameters: {newExpr}");
 
       parameterizedExpr = FoldConstants(parameterizedExpr);

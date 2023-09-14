@@ -2,13 +2,19 @@
 using System.Linq.Expressions;
 
 namespace HEAL.Expressions {
-  internal class ReplaceNumberWithParameterVisitor : ExpressionVisitor {
+  public class ReplaceConstantsWithParametersVisitor : ExpressionVisitor {
     private readonly ParameterExpression theta;
     public List<double> paramValues = new List<double>();
     public double[] ParameterValues => paramValues.ToArray();
 
-    public ReplaceNumberWithParameterVisitor(ParameterExpression theta) {
+    private ReplaceConstantsWithParametersVisitor(ParameterExpression theta) {
       this.theta = theta;
+    }
+
+    public static ParameterizedExpression Replace(ParameterizedExpression expr) {
+      var v = new ReplaceConstantsWithParametersVisitor(expr.p);
+      var newExpr = (Expression<Expr.ParametricFunction>)v.Visit(expr.expr);
+      return new ParameterizedExpression(newExpr, expr.p, v.ParameterValues);
     }
 
     protected override Expression VisitConstant(ConstantExpression node) {
