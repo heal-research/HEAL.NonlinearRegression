@@ -365,7 +365,7 @@ namespace HEAL.Expressions.Tests {
     [DataRow("x*x/x", "x[0]")]
     [DataRow("x/(x*x)", "(1 / x[0])")]
     [DataRow("1/powabs(x1, x2)", "(p[0] / PowAbs(x[1], x[2]))")] // already minimal
-    [DataRow("1f/powabs(x1, x2)", "PowAbs(x[1], -x[2])")]
+    [DataRow("1f/powabs(x1, x2)", "(1 / PowAbs(x[1], x[2]))")]
     [DataRow("x1 / powabs(x1, x2)", "(x[1] / PowAbs(x[1], x[2]))")]
     [DataRow("powabs(x1, x2) / x1", "(PowAbs(x[1], x[2]) / x[1])")]
     [DataRow("1.0 - x - x - x", "((x[0] * -3) + p[0])")]
@@ -395,7 +395,7 @@ namespace HEAL.Expressions.Tests {
     [DataRow("powabs(1.0f / x, 3.0)", "PowAbs(x[0], p[0])")] // with p[0] = -3
     [DataRow("powabs(1.0f / x, 2.5)", "PowAbs(x[0], p[0])")] // with p[0] = -2.5, this is even allowed with real exponents
     [DataRow("pow(1.0f / x, 3.0f)", "Pow(x[0], -3)")] // this transformation is allowed for integer exponents
-    [DataRow("1f / powabs(x, x)", "PowAbs(x[0], -x[0])")]
+    [DataRow("1f / powabs(x, x)", "(1 / PowAbs(x[0], x[0]))")]
     [DataRow("(x * 2f) / x", "2")]
     [DataRow("3.0 / (2f*x)", "(p[0] / x[0])")]
     [DataRow("x / (2f*x)", "0.5")]
@@ -421,12 +421,14 @@ namespace HEAL.Expressions.Tests {
     [DataRow("(1f / x - x) * 2.0", "(((1 / x[0]) - x[0]) * p[0])")] // already minimal
     [DataRow("(x + pow(x,2) + pow(x,3)) * 2.0", "(((x[0] + Pow(x[0], p[0])) + Pow(x[0], p[1])) * p[2])")]
     [DataRow("(2.0 - 1f/x - x) * 2.0", "((((1 / x[0]) + x[0]) * p[0]) + p[1])")]
-    [DataRow("2.0 * (3.0 - 1f / x - x)", "((((1 / x[0]) + x[0]) * p[0]) + p[1])")]       
+    [DataRow("2.0 * (3.0 - 1f / x - x)", "((((1 / x[0]) + x[0]) * p[0]) + p[1])")]
     [DataRow("(2.0 - 1f / x - x) / 3.0", "((((1 / x[0]) + x[0]) * p[0]) + p[1])")]
     [DataRow("(2.0 - 1f / x + x) * 3.0", "(((x[0] - (1 / x[0])) * p[0]) + p[1])")]
     [DataRow("((- x) + (x ** 2))", "(Pow(x[0], p[0]) - x[0])")]
     [DataRow("(x / (- x1)) + x2", "(x[2] - (x[0] / x[1]))")]
     [DataRow("x * (-x1) + x2", "(x[2] - (x[0] * x[1]))")]
+    [DataRow("x - (2.0 / powabs (x, 1f / x) - x)", "((p[0] / PowAbs(x[0], (1 / x[0]))) + (x[0] * 2))")]
+    [DataRow("x - x / (1f / x + x) + x ", "((x[0] * 2) - (x[0] / ((1 / x[0]) + x[0])))")]
     //        
     // 
 
