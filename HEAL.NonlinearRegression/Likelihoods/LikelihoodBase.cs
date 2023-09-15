@@ -15,8 +15,40 @@ namespace HEAL.NonlinearRegression {
     protected readonly double[] y;
     protected readonly int numLikelihoodParams; // additional parameters of the likelihood function (not part of the model) e.g. sErr for Gaussian likelihood
     private int numModelParams;
-    protected ExpressionInterpreter interpreter;
-    protected ExpressionInterpreter[] gradInterpreter;
+
+    private ExpressionInterpreter interpreter;
+    protected ExpressionInterpreter Interpreter {
+
+      get {
+        if (interpreter == null)
+          interpreter = new ExpressionInterpreter(modelExpr, xCol, NumberOfObservations);
+
+        return interpreter;
+      }
+    }
+
+    private ExpressionInterpreter[] gradInterpreter;
+    protected ExpressionInterpreter[] GradInterpreter {
+      get {
+        if (gradInterpreter == null)
+          gradInterpreter = Gradient.Select(g => new ExpressionInterpreter(g, xCol, NumberOfObservations)).ToArray();
+
+        return gradInterpreter;
+      }
+    }
+
+
+
+    private Expression<Expr.ParametricFunction>[] symbolicGradient;
+    protected Expression<Expr.ParametricFunction>[] Gradient {
+      get {
+        if (symbolicGradient == null)
+          // TODO: use forward/reverse autodiff for Hessian
+          symbolicGradient = Enumerable.Range(0, numModelParams).Select(pIdx => Expr.Derive(modelExpr, pIdx)).ToArray();
+
+        return symbolicGradient;
+      }
+    }
 
 
     public double[,] X => x;
@@ -45,19 +77,16 @@ namespace HEAL.NonlinearRegression {
         if (modelExpr != null) {
           numModelParams = Expr.NumberOfParameters(modelExpr);
 
-          interpreter = new ExpressionInterpreter(modelExpr, xCol, NumberOfObservations);
-          // TODO: use forward/reverse autodiff for Hessian
-          ModelGradient = Enumerable.Range(0, numModelParams).Select(pIdx => Expr.Derive(modelExpr, pIdx)).ToArray();
-          gradInterpreter = ModelGradient.Select(g => new ExpressionInterpreter(g, xCol, NumberOfObservations)).ToArray();
         } else {
           numModelParams = 0;
           interpreter = null;
-          ModelGradient = new Expression<Expr.ParametricFunction>[0];
+          symbolicGradient = null;
           gradInterpreter = null;
         }
       }
     }
-    protected Expression<Expr.ParametricFunction>[] ModelGradient { get; private set; }
+
+
 
     public int NumberOfObservations { get; }
     public int NumberOfParameters => numLikelihoodParams + numModelParams;
