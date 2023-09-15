@@ -130,13 +130,14 @@ namespace HEAL.NonlinearRegression {
       high = new double[numRows];
       resStdError = new double[numRows];
 
+      var yPred = new double[numRows];
       double[,] yJac = new double[numRows, n];
 
       CalcParameterStatistics(pOpt, out _, out var invH, out _);
 
       // cannot use the interpreter of the likelihood because we now need to evaluate the model for a new dataset x
       var interpreter = new ExpressionInterpreter(ModelExpr, Util.ToColumns(x), numRows);
-      var yPred = interpreter.EvaluateWithJac(pOpt, null, yJac);
+      interpreter.EvaluateWithJac(pOpt, yPred, null, yJac);
 
       for (int i = 0; i < numRows; i++) {
         resStdError[i] = 0.0;

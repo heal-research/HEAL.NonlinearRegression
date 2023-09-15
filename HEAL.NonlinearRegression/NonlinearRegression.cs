@@ -210,7 +210,9 @@ namespace HEAL.NonlinearRegression {
     public double[] Predict(double[,] x) {
       if (paramEst == null) throw new InvalidOperationException("Call Fit or SetModel first.");
       var interpreter = new ExpressionInterpreter(Likelihood.ModelExpr, Util.ToColumns(x), x.GetLength(0));
-      return interpreter.Evaluate(paramEst);
+      var yPred = new double[x.GetLength(0)];
+      interpreter.Evaluate(paramEst, yPred);
+      return yPred;
     }
 
     public double[,] PredictWithIntervals(double[,] x, IntervalEnum intervalType, double alpha = 0.05) {

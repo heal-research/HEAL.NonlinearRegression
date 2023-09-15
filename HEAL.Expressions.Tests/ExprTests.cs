@@ -603,6 +603,7 @@ namespace HEAL.Expressions.Tests {
         }
       }
       var f1 = new double[N];
+      var f2 = new double[N];
       var t = new double[5] { 1.0, 2.0, 3.0, 4.0, 5.0 };
       var J1 = new double[N, 5];
       var J2 = new double[N, 5];
@@ -613,7 +614,7 @@ namespace HEAL.Expressions.Tests {
 
       // 2nd option: reverse autodiff interpreter
       var interpreter = new ExpressionInterpreter(expr, colX, N);
-      var f2 = interpreter.EvaluateWithJac(t, jacX, J2);
+      interpreter.EvaluateWithJac(t, f2, jacX, J2);
 
       for (int i = 0; i < N; i++) {
         if (!double.IsNaN(f1[i]) && !double.IsNaN(f2[i]))

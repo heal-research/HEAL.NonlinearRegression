@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Numerics;
 using System.Reflection;
 
+
 namespace HEAL.Expressions {
+  // TODO: length of code does not have to match size of expression tree. (allow multiple instructions for a single tree node e.g. for powabs or logabs)
+
   // prepares data structures for repeated efficient evaluation of a single expression
   public class ExpressionInterpreter {
     private readonly int batchSize;
@@ -89,23 +91,23 @@ namespace HEAL.Expressions {
     }
 
     // all rows
-    public double[] Evaluate(double[] theta) {
+    public void Evaluate(double[] theta, double[] f) {
       var remainderStart = (m / batchSize) * batchSize; // integer divison
-      var f = new double[m];
+      // var f = new double[m];
       for (int startRow = 0; startRow < remainderStart; startRow += batchSize) {
-        var fi = Evaluate(theta, startRow, batchSize);
-        Array.Copy(fi, 0, f, startRow, batchSize);
+        Evaluate(theta, f, startRow, batchSize);
+        // Array.Copy(fi, 0, f, startRow, batchSize);
       }
 
       // remainder
       if (m - remainderStart > 0) {
-        var fi = Evaluate(theta, remainderStart, m - remainderStart);
-        Array.Copy(fi, 0, f, remainderStart, m - remainderStart);
+        Evaluate(theta, f, remainderStart, m - remainderStart);
+        // Array.Copy(fi, 0, f, remainderStart, m - remainderStart);
       }
-      return f;
+      // return f;
     }
 
-    private double[] Evaluate(double[] theta, int startRow, int batchSize) {
+    private void Evaluate(double[] theta, double[] f, int startRow, int batchSize) {
       // copy variable values into batch buffer
       for (int i = 0; i < x.Length; i++) {
         Buffer.BlockCopy(x[i], startRow * sizeof(double), xBuf[i], 0, batchSize * sizeof(double));
@@ -137,6 +139,7 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.Cosh: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Cosh(leftVal[i]); } break;
           case Instruction.OpcEnum.Tanh: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Tanh(leftVal[i]); } break;
           case Instruction.OpcEnum.Pow: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Pow(leftVal[i], rightVal[i]); } break;
+          case Instruction.OpcEnum.PowAbs: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Pow(Math.Abs(leftVal[i]), rightVal[i]); } break;
           case Instruction.OpcEnum.Sqrt: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Sqrt(leftVal[i]); } break;
           case Instruction.OpcEnum.Cbrt: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.Cbrt(leftVal[i]); } break;
           case Instruction.OpcEnum.Sign: for (int i = 0; i < batchSize; i++) { curVal[i] = double.IsNaN(leftVal[i]) ? double.NaN : Math.Sign(leftVal[i]); } break;
@@ -148,29 +151,30 @@ namespace HEAL.Expressions {
           default: throw new InvalidOperationException();
         }
       }
-      return instuctions.Last().values;
+
+      Array.Copy(instuctions.Last().values, 0, f, startRow, batchSize);
     }
-    public double[] EvaluateWithJac(double[] theta, double[,] jacX, double[,] jacTheta) {
+    public double[] EvaluateWithJac(double[] theta, double[] f, double[,] jacX, double[,] jacTheta) {
       var remainderStart = (m / batchSize) * batchSize; // integer divison
-      var f = new double[m];
+      // var f = new double[m];
       for (int startRow = 0; startRow < remainderStart; startRow += batchSize) {
-        var fi = EvaluateWithJac(theta, startRow, batchSize, jacX, jacTheta);
-        Array.Copy(fi, 0, f, startRow, batchSize);
+        EvaluateWithJac(theta, f, startRow, batchSize, jacX, jacTheta);
+        // Array.Copy(fi, 0, f, startRow, batchSize);
       }
 
       // remainder
       if (m - remainderStart > 0) {
-        var fi = EvaluateWithJac(theta, remainderStart, m - remainderStart, jacX, jacTheta);
-        Array.Copy(fi, 0, f, remainderStart, m - remainderStart);
+        EvaluateWithJac(theta, f, remainderStart, m - remainderStart, jacX, jacTheta);
+        // Array.Copy(fi, 0, f, remainderStart, m - remainderStart);
       }
       return f;
     }
 
-    private double[] EvaluateWithJac(double[] theta, int startRow, int batchSize, double[,] jacX, double[,] jacTheta) {
+    private void EvaluateWithJac(double[] theta, double[] f, int startRow, int batchSize, double[,] jacX, double[,] jacTheta) {
       // evaluate forward
-      var f = (double[])Evaluate(theta, startRow, batchSize).Clone();
+      Evaluate(theta, f, startRow, batchSize);
 
-      if (jacX == null && jacTheta == null) return f; // backprop not necessary;
+      if (jacX == null && jacTheta == null) return; // backprop not necessary;
 
       // clear arrays
       if (jacX != null) Array.Clear(jacX, startRow * jacX.GetLength(1), batchSize * jacX.GetLength(1));
@@ -245,6 +249,16 @@ namespace HEAL.Expressions {
                 rightDiff[i] += curDiff[i] * curVal[i] * Math.Log(leftVal[i]);
               }
             break;
+          case Instruction.OpcEnum.PowAbs:
+            if (leftDiff != null)
+              for (int i = 0; i < batchSize; i++) {
+                leftDiff[i] += curDiff[i] * rightVal[i] * leftVal[i] * Math.Pow(Math.Abs(leftVal[i]), rightVal[i] - 2);  //f'(x) * f(x) * g(y) * abs(f(x))^(g(y) - 2)
+              }
+            if (rightDiff != null)
+              for (int i = 0; i < batchSize; i++) {
+                rightDiff[i] += curDiff[i] * curVal[i] * Math.Log(Math.Abs(leftVal[i])); // check
+              }
+            break;
           case Instruction.OpcEnum.Sqrt:
             if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * 0.5 / curVal[i]; }
             break;
@@ -265,8 +279,6 @@ namespace HEAL.Expressions {
           default: throw new InvalidOperationException();
         }
       }
-
-      return f;
     }
 
 
@@ -286,6 +298,7 @@ namespace HEAL.Expressions {
     private static readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
     private static readonly MethodInfo cbrt = typeof(Functions).GetMethod("Cbrt", new[] { typeof(double) });
     private static readonly MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
+    private static readonly MethodInfo powabs = typeof(Functions).GetMethod("PowAbs", new[] { typeof(double), typeof(double) });
     // private static readonly MethodInfo aq = typeof(Functions).GetMethod("AQ", new[] { typeof(double), typeof(double) });
     private static readonly MethodInfo sign = typeof(Functions).GetMethod("Sign", new[] { typeof(double) }); // for deriv abs(x)
     private static readonly MethodInfo logistic = typeof(Functions).GetMethod("Logistic", new[] { typeof(double) });
@@ -319,6 +332,7 @@ namespace HEAL.Expressions {
             if (callExpr.Method == cosh) return Instruction.OpcEnum.Cosh;
             if (callExpr.Method == tanh) return Instruction.OpcEnum.Tanh;
             if (callExpr.Method == pow) return Instruction.OpcEnum.Pow;
+            if (callExpr.Method == powabs) return Instruction.OpcEnum.PowAbs;
             if (callExpr.Method == sqrt) return Instruction.OpcEnum.Sqrt;
             if (callExpr.Method == cbrt) return Instruction.OpcEnum.Cbrt;
             if (callExpr.Method == sign) return Instruction.OpcEnum.Sign;
@@ -334,7 +348,7 @@ namespace HEAL.Expressions {
     }
 
     private struct Instruction {
-      public enum OpcEnum { None, Const, Param, Var, Neg, Add, Sub, Mul, Div, Log, Abs, Exp, Sin, Cos, Cosh, Tanh, Pow, Sqrt, Cbrt, Sign, Logistic, InvLogistic, LogisticPrime, InvLogisticPrime };
+      public enum OpcEnum { None, Const, Param, Var, Neg, Add, Sub, Mul, Div, Log, Abs, Exp, Sin, Cos, Cosh, Tanh, Pow, PowAbs, Sqrt, Cbrt, Sign, Logistic, InvLogistic, LogisticPrime, InvLogisticPrime };
 
       public int idx1; // child idx1 for internal nodes, index into p or x for parameters or variables
       public int idx2; // child idx2 for internal nodes (only for binary operations)

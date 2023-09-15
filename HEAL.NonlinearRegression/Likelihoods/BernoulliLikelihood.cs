@@ -12,17 +12,19 @@ namespace HEAL.NonlinearRegression {
     public override double[,] FisherInformation(double[] p) {
       var m = y.Length;
       var n = p.Length;
+      var yPred = new double[m];
+      var tmp = new double[m];
       var yJac = new double[m, n];
       var yHess = new double[n, m, n]; // parameters x observations x parameters (collections of Jacobians)
       var yHessJ = new double[m, n]; // buffer
 
       // var yPred = Expr.EvaluateFuncJac(ModelExpr, p, x, ref yJac);
-      var yPred = interpreter.EvaluateWithJac(p, null, yJac);
+      interpreter.EvaluateWithJac(p, yPred, null, yJac);
 
       // evaluate hessian
       for (int j = 0; j < p.Length; j++) {
         // Expr.EvaluateFuncJac(ModelGradient[j], p, x, ref yHessJ);
-        gradInterpreter[j].EvaluateWithJac(p, null, yHessJ);
+        gradInterpreter[j].EvaluateWithJac(p, tmp, null, yHessJ);
         Buffer.BlockCopy(yHessJ, 0, yHess, j * m * n * sizeof(double), m * n * sizeof(double));
         Array.Clear(yHessJ, 0, yHessJ.Length);
       }
@@ -54,12 +56,12 @@ namespace HEAL.NonlinearRegression {
       double[,] yJac = null;
 
       nll = BestNegLogLikelihood(p);
-      double[] yPred;
+      double[] yPred = new double[m];
       if (nll_grad == null) {
-        yPred = interpreter.Evaluate(p);
+        interpreter.Evaluate(p, yPred);
       } else {
         yJac = new double[m, nll_grad.Length];
-        yPred = interpreter.EvaluateWithJac(p, null, yJac);
+        interpreter.EvaluateWithJac(p, yPred, null, yJac);
         Array.Clear(nll_grad, 0, n);
       }
 

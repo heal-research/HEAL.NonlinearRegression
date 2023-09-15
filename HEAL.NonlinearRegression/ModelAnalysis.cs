@@ -76,13 +76,13 @@ namespace HEAL.NonlinearRegression {
       var fullBIC = nlr.BIC;
 
       var impacts = new Dictionary<Expression, double>();
-
+      var eval = new double[likelihood.NumberOfObservations];
       foreach (var subExpr in subexpressions) {
         // skip parameters
         if (subExpr is BinaryExpression binExpr && binExpr.NodeType == ExpressionType.ArrayIndex && binExpr.Left == pParam)
           continue;
         var subExprInterpreter = new ExpressionInterpreter(Expression.Lambda<Expr.ParametricFunction>(subExpr, pParam, xParam), likelihood.XCol, likelihood.Y.Length);
-        var eval = subExprInterpreter.Evaluate(p);
+        subExprInterpreter.Evaluate(p, eval);
 
         var replValue = eval.Average();
         var reducedExpression = ReplaceSubexpressionWithParameterVisitor.Execute(expr, subExpr, p, replValue, out var newTheta);

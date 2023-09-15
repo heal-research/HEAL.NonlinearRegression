@@ -65,10 +65,10 @@ namespace HEAL.Expressions.Benchmark {
     [Benchmark]
     public double[] EvalInterpreted() {
       var theta = new double[] { 1.0, 2.0};
-      double[] f = null;
+      double[] f = new double[N];
       var interpreter = new ExpressionInterpreter(expr, dataCols, N, batchSize );
       for (int i = 0; i < numEvals; i++) {
-        f = interpreter.Evaluate(theta);
+        interpreter.Evaluate(theta, f);
       }
       return f;
     }
@@ -87,12 +87,12 @@ namespace HEAL.Expressions.Benchmark {
     [Benchmark]
     public double[,] EvalInterpretedJacobian() {
       var theta = new double[] { 1.0, 2.0 };
-      double[] f;
+      double[] f = new double[N];
       double[,] jacP = new double[N, theta.Length];
       double[,] jacX = new double[N, Dim];
       var interpreter = new ExpressionInterpreter(expr, dataCols, N, batchSize);
       for (int i = 0; i < numEvals; i++) {
-        f = interpreter.EvaluateWithJac(theta, jacX, jacP);
+        interpreter.EvaluateWithJac(theta, f, jacX, jacP);
       }
       return jacP;
     }
