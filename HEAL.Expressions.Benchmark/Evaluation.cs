@@ -10,7 +10,7 @@ namespace HEAL.Expressions.Benchmark {
     public int N;
 
     // number of evaluations (after compilation) (as e.g. in CG optimizer)
-    [Params(1, 10 /* , 50*/, 100, 1000)]
+    [Params(/*1, 10 /* , 50, 100, */ 1000)]
     public int numEvals;
 
     [Params(/*4, 8, 16, 32, 64, 128, 256, 512,*/ 1024)]

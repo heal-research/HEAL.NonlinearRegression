@@ -355,7 +355,7 @@ namespace HEAL.Expressions {
       public double[] values; // for internal nodes and variables
       public double[] diffValues; // for reverse autodiff
 
-      public double GetValue(int idx) => values[idx % values.Length];
+      public double GetValue(int idx) => values.Length == 1 ? values[0] : values[idx];
     }
   }
 }
