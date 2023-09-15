@@ -429,6 +429,9 @@ namespace HEAL.Expressions.Tests {
     [DataRow("x * (-x1) + x2", "(x[2] - (x[0] * x[1]))")]
     [DataRow("x - (2.0 / powabs (x, 1f / x) - x)", "((p[0] / PowAbs(x[0], (1 / x[0]))) + (x[0] * 2))")]
     [DataRow("x - x / (1f / x + x) + x ", "((x[0] * 2) - (x[0] / ((1 / x[0]) + x[0])))")]
+    [DataRow("abs(2.0 - x)", "Abs(x[0] + p[0])")]
+    [DataRow("powabs(2.0 - x, 3.0)", "PowAbs(x[0] + p[0], p[1])")]
+    [DataRow("powabs(2.0 + x1 - x, 3.0)", "PowAbs((x[0] + x[1]) + p[0], p[1])")]
     //        
     // 
 
