@@ -72,6 +72,8 @@ namespace HEAL.Expressions {
     private readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
     private readonly MethodInfo cbrt = typeof(Functions).GetMethod("Cbrt", new[] { typeof(double) });
     private readonly MethodInfo pow = typeof(Math).GetMethod("Pow", new[] { typeof(double), typeof(double) });
+    private readonly MethodInfo powabs = typeof(Functions).GetMethod("PowAbs", new[] { typeof(double), typeof(double) });
+    
     private readonly MethodInfo sign = typeof(Functions).GetMethod("Sign", new[] { typeof(double) }); // for deriv abs(x)
     private readonly MethodInfo logistic = typeof(Functions).GetMethod("Logistic", new[] { typeof(double) });
     private readonly MethodInfo invlogistic = typeof(Functions).GetMethod("InvLogistic", new[] { typeof(double) });
@@ -127,7 +129,24 @@ namespace HEAL.Expressions {
                                 Expression.Call(log, x), 
                                 dgx))));
         }
-
+      } else if (node.Method == powabs) {
+        var exponent = node.Arguments[1];
+        if (exponent.NodeType == ExpressionType.Constant) {
+          // for efficiency
+          var expVal = (double)((ConstantExpression)exponent).Value;
+          dfx = Expression.Multiply(exponent, 
+            Expression.Multiply(x,
+              Expression.Call(powabs, x, Expression.Constant(expVal - 2))));
+        } else {
+          // d/dx (pow[abs(f(x))^g(x)]) = abs(f(x))^g(x) (g'(x) log(abs(f(x))) + (g(x) f'(x))/f(x))          
+          var dgx = Visit(exponent);
+          return Expression.Multiply(
+            Expression.Call(powabs, x, exponent),
+            Expression.Add(Expression.Divide(Expression.Multiply(exponent, dx), x),
+                           Expression.Multiply(
+                             Expression.Call(log, Expression.Call(abs, x)),
+                             dgx)));
+        }
       } else if (node.Method == abs) {
         dfx = Expression.Call(sign, x);
       } else if (node.Method == sign) {
