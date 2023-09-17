@@ -465,7 +465,11 @@ namespace HEAL.Expressions {
           }
         ),
 
-      
+      new BinaryExpressionRule(
+        "x - (-y) -> x + y",
+        e => e.NodeType == ExpressionType.Subtract && e.Right.NodeType == ExpressionType.Negate,
+        e => Expression.Add(e.Left, ((UnaryExpression)e.Right).Operand)
+      ),      
       // 
       new BinaryExpressionRule(
         "(a + x) + (-(x))",
