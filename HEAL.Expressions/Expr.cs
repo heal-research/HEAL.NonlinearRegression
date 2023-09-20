@@ -115,7 +115,7 @@ namespace HEAL.Expressions {
       double[] parameterValues) {
       var v = new ReplaceParameterWithNumberVisitor(parameter, parameterValues);
       var newExpr = v.Visit(expr.Body);
-      return Expression.Lambda<T>(newExpr, expr.Parameters.Except(new[] { parameter }));
+      return Expression.Lambda<T>(newExpr, expr.Parameters);
     }
 
     public static Expression<ParametricJacobianFunction> Broadcast(Expression<ParametricGradientFunction> fx) {
