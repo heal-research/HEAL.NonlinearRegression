@@ -434,15 +434,19 @@ namespace HEAL.Expressions.Tests {
     [DataRow("powabs(2.0 + x1 - x, 3.0)", "PowAbs((x[0] + x[1]) + p[0], p[1])")]
     [DataRow("x - (1f / (2.0 - (- x)))", "(x[0] - (1 / (x[0] + p[0])))")]
     [DataRow("(x ** -2f) * (x ** -3)", "Pow(x[0], -5)")]
+    [DataRow("(x ** 2f) / (x ** 3f)", "(1 / x[0])")]
     [DataRow("((- x) / x)", "-1")]
     [DataRow("x*(-x)", "(-Pow(x[0], 2)))")] // -> - x**2,  inconclusive
-    [DataRow("((1f / x) + x) * x", "(1 + Pow(x[0], 2))")] //  -> 1 + x**2
-    [DataRow("((1f / x) + x) / x", "(Pow(x[0], -2) + 1)")]//   -> x**-2
     [DataRow("((x ** -2f) * 3.0) / x", "(Pow(x[0], -3) * p[0]")] // -> x**-3 * p
     [DataRow("(1f - x) / x", "((1 / x[0]) - 1)")] // -> 1/x - 1
     [DataRow("(2.0 - (1f / x)) * x", "((x[0] * p[0]) - 1)")]
     [DataRow("(2.0 - x**2) / x","((p[0] / x[0]) - x[0])")]// (p - (x ** 2)) / x  --> p/x - x
     [DataRow("x * (1f / (pow(abs (x), x)))", "(x[0] / (PowAbs(x[0], x[0])))")] //  --> x / pow(abs(x),x))
+    [DataRow("x - 2f", "(x[0] + -2)")] // inconclusive, prefer addition over subtraction?
+    [DataRow("((1f / x) + x) * x", "(1 + Pow(x[0], 2))")] //  -> 1 + x**2
+    [DataRow("((1f / x) + x) / x", "(Pow(x[0], -2) + 1)")]//   -> x**-2
+    [DataRow("abs(2 * x + x + 1.0 ) ** 1.5", "Pow(Abs(((x[0] * p[0]) + x[0]) + p[1]), p[2])")]
+    [DataRow("((abs( ((x * 2.0) + (3.0 + x)) )) ** (4.0 + x))", "Pow((Abs(((x[0] * p[0]) + p[1]))), (x[0] + p[2]))")] 
 
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");
