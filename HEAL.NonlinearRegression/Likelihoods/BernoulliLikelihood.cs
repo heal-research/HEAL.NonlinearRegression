@@ -6,7 +6,7 @@ namespace HEAL.NonlinearRegression {
 
   public class BernoulliLikelihood : LikelihoodBase {
 
-    internal BernoulliLikelihood(BernoulliLikelihood original) : base(original) { }
+    protected BernoulliLikelihood(BernoulliLikelihood original) : base(original) { }
     public BernoulliLikelihood(double[,] x, double[] y, Expression<Expr.ParametricFunction> modelExpr) : base(modelExpr, x, y, 0) { }
 
     public override double[,] FisherInformation(double[] p) {
@@ -35,7 +35,8 @@ namespace HEAL.NonlinearRegression {
           for (int k = 0; k < n; k++) {
             var hessianTerm = (yPred[i] - 1) * yPred[i] * yHess[j, i, k] * (y[i] - yPred[i]);
             var gradientTerm = (-2 * y[i] * yPred[i] + yPred[i] * yPred[i] + y[i]) * yJac[i, j] * yJac[i, k];
-            hess[j, k] += s * (hessianTerm + gradientTerm);
+            if ((hessianTerm + gradientTerm) > 0)
+              hess[j, k] += s * (hessianTerm + gradientTerm);
           }
         }
       }
@@ -66,18 +67,20 @@ namespace HEAL.NonlinearRegression {
       for (int i = 0; i < m; i++) {
         if (y[i] != 0.0 && y[i] != 1.0) throw new ArgumentException("target variable must be binary (0/1) for Bernoulli likelihood");
         if (y[i] == 1) {
-          nll -= Math.Log(yPred[i]);
+          nll -= Math.Log(yPred[i]); // potential log(0)
           if (nll_grad != null) {
             for (int j = 0; j < n; j++) {
-              nll_grad[j] -= yJac[i, j] / yPred[i];
+              if (yJac[i, j] > 0)
+                nll_grad[j] -= yJac[i, j] / yPred[i]; // potential division by zero 
             }
           }
         } else {
           // y[i]==0
-          nll -= Math.Log(1 - yPred[i]);
+          nll -= Math.Log(1 - yPred[i]); // potential log(0)
           if (nll_grad != null) {
             for (int j = 0; j < n; j++) {
-              nll_grad[j] += yJac[i, j] / (1 - yPred[i]);
+              if (yJac[i, j] > 0)
+                nll_grad[j] += yJac[i, j] / (1 - yPred[i]); // potential division by zero 
             }
           }
         }
