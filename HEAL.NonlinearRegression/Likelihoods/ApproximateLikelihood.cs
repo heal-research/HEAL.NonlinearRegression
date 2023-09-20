@@ -5,7 +5,7 @@ using System.Linq.Expressions;
 namespace HEAL.NonlinearRegression {
 
   // Laplace approximation of a likelihood function around its MLE
-  public class ApproximateLikelihood : LikelihoodBase {
+  public sealed class ApproximateLikelihood : LikelihoodBase {
     private readonly double minNegLogLik;
     private readonly double[] pOpt;
     private readonly double[,] hessian;

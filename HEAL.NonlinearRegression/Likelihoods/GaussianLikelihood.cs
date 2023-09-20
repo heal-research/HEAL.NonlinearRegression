@@ -9,7 +9,7 @@ namespace HEAL.NonlinearRegression {
   public class GaussianLikelihood : LikelihoodBase {
     private readonly double[] sigma2; // σ² 
 
-    internal GaussianLikelihood(GaussianLikelihood original) : base(original) {
+    protected GaussianLikelihood(GaussianLikelihood original) : base(original) {
       this.sigma2 = original.sigma2;
     }
 
