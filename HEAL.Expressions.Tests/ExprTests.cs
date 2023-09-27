@@ -433,7 +433,7 @@ namespace HEAL.Expressions.Tests {
     [DataRow("powabs(2.0 - x, 3.0)", "PowAbs(x[0] + p[0], p[1])")]
     [DataRow("powabs(2.0 + x1 - x, 3.0)", "PowAbs((x[0] + x[1]) + p[0], p[1])")]
     [DataRow("x - (1f / (2.0 - (- x)))", "(x[0] - (1 / (x[0] + p[0])))")]
-    [DataRow("(x ** -2f) * (x ** -3)", "Pow(x[0], -5)")]
+    [DataRow("(x ** -2f) * (x ** -3f)", "Pow(x[0], -5)")]
     [DataRow("(x ** 2f) / (x ** 3f)", "(1 / x[0])")]
     [DataRow("((- x) / x)", "-1")]
     [DataRow("x*(-x)", "(-Pow(x[0], 2)))")] // -> - x**2,  inconclusive
