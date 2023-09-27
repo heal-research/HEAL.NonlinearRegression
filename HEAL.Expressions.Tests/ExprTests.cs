@@ -61,6 +61,10 @@ namespace HEAL.Expressions.Tests {
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(x[0], 2.0));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(x[0], 3.0));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(p[0] * x[0], p[1]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(Math.Abs(p[0] + x[0]), p[1]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.PowAbs(p[0] + x[0], p[1]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.PowAbs(p[0], x[0]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => p[0] * (Math.Pow(Math.Abs(p[1] + x[0]), p[2]) + x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.Sign(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.Cbrt(p[0] * x[0]));
       CompareSymbolicAndAutoDiffJacobian((p, x) => Functions.Logistic(p[0] * x[0]));
@@ -440,13 +444,13 @@ namespace HEAL.Expressions.Tests {
     [DataRow("((x ** -2f) * 3.0) / x", "(Pow(x[0], -3) * p[0]")] // -> x**-3 * p
     [DataRow("(1f - x) / x", "((1 / x[0]) - 1)")] // -> 1/x - 1
     [DataRow("(2.0 - (1f / x)) * x", "((x[0] * p[0]) - 1)")]
-    [DataRow("(2.0 - x**2) / x","((p[0] / x[0]) - x[0])")]// (p - (x ** 2)) / x  --> p/x - x
+    [DataRow("(2.0 - x**2) / x", "((p[0] / x[0]) - x[0])")]// (p - (x ** 2)) / x  --> p/x - x
     [DataRow("x * (1f / (pow(abs (x), x)))", "(x[0] / (PowAbs(x[0], x[0])))")] //  --> x / pow(abs(x),x))
     [DataRow("x - 2f", "(x[0] + -2)")] // inconclusive, prefer addition over subtraction?
     [DataRow("((1f / x) + x) * x", "(1 + Pow(x[0], 2))")] //  -> 1 + x**2
     [DataRow("((1f / x) + x) / x", "(Pow(x[0], -2) + 1)")]//   -> x**-2
     [DataRow("abs(2 * x + x + 1.0 ) ** 1.5", "Pow(Abs(((x[0] * p[0]) + x[0]) + p[1]), p[2])")]
-    [DataRow("((abs( ((x * 2.0) + (3.0 + x)) )) ** (4.0 + x))", "Pow((Abs(((x[0] * p[0]) + p[1]))), (x[0] + p[2]))")] 
+    [DataRow("((abs( ((x * 2.0) + (3.0 + x)) )) ** (4.0 + x))", "Pow((Abs(((x[0] * p[0]) + p[1]))), (x[0] + p[2]))")]
 
     public void SimplifyExpr(string exprStr, string expected) {
       var xParam = Expression.Parameter(typeof(double[]), "x");
@@ -620,7 +624,7 @@ namespace HEAL.Expressions.Tests {
       }
       var f1 = new double[N];
       var f2 = new double[N];
-      var t = new double[5] { 1.0, 2.0, 3.0, 4.0, 5.0 };
+      var t = new double[5] { 1.0, -2.0, 3.0, -4.0, 5.0 };
       var J1 = new double[N, 5];
       var J2 = new double[N, 5];
       var jacX = new double[N, 3];
@@ -632,12 +636,31 @@ namespace HEAL.Expressions.Tests {
       var interpreter = new ExpressionInterpreter(expr, colX, N);
       interpreter.EvaluateWithJac(t, f2, jacX, J2);
 
+      // 3rd option: numeric check
+      var J3 = new double[N, 5];
+      var eps = 1e-4;
+      for (int j = 0; j < t.Length; j++) {
+        t[j] -= eps;
+        var fLow = new double[N];
+        interpreter.Evaluate(t, fLow);
+        t[j] += 2 * eps;
+        var fHigh = new double[N];
+        interpreter.Evaluate(t, fHigh);
+
+        for (int i = 0; i < N; i++) {
+          J3[i, j] = (fHigh[i] - fLow[i]) / (2 * eps);
+        }
+        t[j] -= eps;
+      }
+
       for (int i = 0; i < N; i++) {
         if (!double.IsNaN(f1[i]) && !double.IsNaN(f2[i]))
           Assert.AreEqual(f1[i], f2[i], 1e-6);
         for (int j = 0; j < 5; j++) {
-          if (!double.IsNaN(J1[i, j]) && !double.IsNaN(J2[i, j]))
+          if (!double.IsNaN(J1[i, j]) && !double.IsNaN(J2[i, j]) && !double.IsNaN(J3[i, j])) {
             Assert.AreEqual(J1[i, j], J2[i, j], 1e-6);
+            Assert.AreEqual(J2[i, j], J3[i, j], Math.Max(1e-3, Math.Abs(J2[i, j] * 1e-3)));
+          }
         }
       }
     }
