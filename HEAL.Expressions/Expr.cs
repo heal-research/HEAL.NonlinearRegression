@@ -209,7 +209,7 @@ namespace HEAL.Expressions {
       var df = (Expression<ParametricFunction>)deriveVisitor.Visit(expr);
       // here we do not care about parameter values
       var zero = new double[CountParametersVisitor.Count(df, df.Parameters[0])];
-      return SimplifyWithoutReparameterization(new ParameterizedExpression(df, df.Parameters[0], zero)).expr;
+      return RuleBasedSimplificationVisitor.FoldConstants(new ParameterizedExpression(df, df.Parameters[0], zero)).expr;
     }
 
     // Symbolic gradient
