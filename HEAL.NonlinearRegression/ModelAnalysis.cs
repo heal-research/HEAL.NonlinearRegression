@@ -85,6 +85,10 @@ namespace HEAL.NonlinearRegression {
 
       var impacts = new Dictionary<Expression, double>();
       var eval = new double[likelihood.NumberOfObservations];
+
+      Console.WriteLine($"{"SSR_factor",-11} {"deltaDoF",-6} {"deltaSSR",-11} {"s2Extra",-11} {"fRatio",-11} {"p value",10} {"deltaAICc",-11} {"deltaBIC",-11} {"MSE",-11} sub-expression");
+
+
       foreach (var subExpr in subexpressions) {
         Expression<Expr.ParametricFunction> reducedExpression = null;
         double[] newTheta = null;
@@ -129,10 +133,10 @@ namespace HEAL.NonlinearRegression {
         var f = double.IsInfinity(fRatio) ? 1.0 : alglib.fdistribution(deltaDoF, fullDoF, fRatio);
         // var f = 0.0;
 
-        Console.WriteLine($"{ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1 - f,-10:e3}, " +
+        Console.WriteLine($"{ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4} {1 - f,-10:e3} " +
           $"{localNlr.AICc - fullAICc,-11:f1} " +
           $"{localNlr.BIC - fullBIC,-11:f1}" +
-          $"{mse} {subExpr} ");
+          $"{mse,-11:e2} {subExpr} ");
 
         var impact = ssrFactor;
 

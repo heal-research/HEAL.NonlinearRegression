@@ -460,7 +460,7 @@ namespace HEAL.NonlinearRegression.Console {
         foreach (var tup in subExprImportance.OrderByDescending(tup => Math.Round(tup.Item2, 3)).ThenByDescending(tup => tup.Item1.ToString().Length)) { // TODO better interface
           System.Console.WriteLine($"{tup.Item2,-11:e4} {tup.Item3,-11:f1} {tup.Item4,-11:f1} {tup.Item1}");
           if (saturation != null) {
-            saturation[tup.Item1] = Math.Max(0, Math.Log(tup.Item2)); // use log scale for coloring
+            saturation[tup.Item1] = tup.Item2; // use log scale for coloring
           }
         }
 
