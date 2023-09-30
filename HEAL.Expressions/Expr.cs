@@ -450,7 +450,7 @@ namespace HEAL.Expressions {
 
 
       for (int i = 0; i < p.Length; i++) {
-        exprBody = exprBody.Replace($"{expr.Parameters[0].Name}[{i}]", p[i].ToString("g4", CultureInfo.InvariantCulture));
+        exprBody = exprBody.Replace($"{expr.Parameters[0].Name}[{i}]", p[i].ToString("g8", CultureInfo.InvariantCulture));
       }
 
       return exprBody.ToString();
