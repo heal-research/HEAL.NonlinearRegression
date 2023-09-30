@@ -33,6 +33,7 @@ namespace HEAL.Expressions {
     public static string Execute(Expression<Expr.ParametricFunction> expression, double[] paramValues = null, string[] varNames = null, Dictionary<Expression, double> saturation = null) {
       var sb = new StringBuilder();
       sb.AppendLine("strict graph {");
+      sb.AppendLine("ranksep=\"0.1\";");
       var v = new GraphvizVisitor(sb, expression.Parameters[0], paramValues,
         expression.Parameters[1], varNames, saturation);
       v.Visit(expression.Body);
@@ -43,13 +44,14 @@ namespace HEAL.Expressions {
     public override Expression Visit(Expression node) {
       if (node != null) {
         // called for all visited nodes
+        // h=0 is red
+        // h=142/360 is green
+        var hue = 124.0 / 360;
         if (saturation != null && saturation.TryGetValue(node, out var sat)) {
-          // h=0 is red
-          // h=0.5 is green
           sat = (sat - minSat) / (maxSat - minSat);
-          sb.AppendLine($"n{node.GetHashCode()} [label=\"{Label(node)}\", style=\"filled\", color=\"0,{sat:f2},1\"];"); // color=h,s,v hue,saturation,brightness
+          sb.AppendLine($"n{node.GetHashCode()} [label=\"{Label(node)}\", style=\"filled\", color=\"{hue:f3},{sat:f3},1\", height=\"0.3\", fixedsize=\"true\"];"); // color=h,s,v hue,saturation,brightness
         } else {
-          sb.AppendLine($"n{node.GetHashCode()} [label=\"{Label(node)}\", style=\"filled\", color=\"0,0,1\"];"); // this draws completely white nodes. remove fill and color if necessary.
+          sb.AppendLine($"n{node.GetHashCode()} [label=\"{Label(node)}\", style=\"filled\", color=\"{hue:f3},0,1\"], height=\"0.3\", fixedsize=\"true\";"); // this draws completely white nodes. remove fill and color if necessary.
         }
       }
       return base.Visit(node);
