@@ -614,14 +614,15 @@ namespace HEAL.Expressions {
         }
         ),
       // nest associative left 
-      new BinaryExpressionRule(
-        "a ° (b ° c) -> (a ° b) ° c",
-        e => IsAssociative(e) && e.Right is BinaryExpression rightBinExpr && rightBinExpr.NodeType == e.NodeType,
-        e => {
-          var rightBin = (BinaryExpression)e.Right;
-          return Visit(rightBin.Update(e.Update(e.Left, null, rightBin.Left), null, rightBin.Right));
-          }
-        ),
+      // DUPLICATE
+      // new BinaryExpressionRule(
+      //   "a ° (b ° c) -> (a ° b) ° c",
+      //   e => IsAssociative(e) && e.Right is BinaryExpression rightBinExpr && rightBinExpr.NodeType == e.NodeType,
+      //   e => {
+      //     var rightBin = (BinaryExpression)e.Right;
+      //     return Visit(rightBin.Update(e.Update(e.Left, null, rightBin.Left), null, rightBin.Right));
+      //     }
+      //   ),
        // 
        //new BinaryExpressionRule(
        //  "p / x -> 1/x * p", // this makes the expression longer but is necessary together with other rules
@@ -660,7 +661,7 @@ namespace HEAL.Expressions {
        // 
        new BinaryExpressionRule(
          "exp(x) * exp(y) -> exp(x + y)",
-        e => e.NodeType == ExpressionType.Add
+        e => e.NodeType == ExpressionType.Multiply
            && e.Left is MethodCallExpression leftCall && leftCall.Method == exp
            && e.Right is MethodCallExpression rightCall && rightCall.Method == exp,
         e => {
@@ -1199,7 +1200,7 @@ namespace HEAL.Expressions {
             var terms = CollectTermsVisitor.CollectTerms(e.Left).ToArray();
             var termsWithScale = terms.Where(HasScalingParameter).ToArray();
 
-            var termsWithoutScale = terms.Where(t => !HasScalingParameter(t)).DefaultIfEmpty(Expression.Constant(1.0)).ToArray();
+            var termsWithoutScale = terms.Where(t => !HasScalingParameter(t)).DefaultIfEmpty(Expression.Constant(0.0)).ToArray();
             var scale = GetParameterValue(e.Right);
             return Visit(Expression.Add(
                 termsWithScale.Select(t => ScaleTerm(t, scale)).Aggregate(Expression.Add),
