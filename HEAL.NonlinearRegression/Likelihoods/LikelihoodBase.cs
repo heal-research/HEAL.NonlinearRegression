@@ -76,13 +76,12 @@ namespace HEAL.NonlinearRegression {
         modelExpr = value;
         if (modelExpr != null) {
           numModelParams = Expr.NumberOfParameters(modelExpr);
-
         } else {
           numModelParams = 0;
-          interpreter = null;
-          symbolicGradient = null;
-          gradInterpreter = null;
         }
+        interpreter = null;
+        symbolicGradient = null;
+        gradInterpreter = null;
       }
     }
 
