@@ -546,13 +546,16 @@ namespace HEAL.NonlinearRegression.Console {
         for (int i = 0; i < parameters.Length - 1; i++) {
           for (int j = i + 1; j < parameters.Length; j++) {
             System.Console.WriteLine($"{numPairs--}");
-            var outfilename = Path.Combine(folder, filename + $"_{i}_{j}.csv");
-            tProfile.ApproximateProfilePairContour(i, j, alpha: 0.20, out var taup95, out var tauq95, out var p95, out var q95);
+            var outfilename = Path.Combine(filename + $"_{i}_{j}.csv");
+            tProfile.ApproximateProfilePairContour(i, j, alpha: 0.20, out var taup80, out var tauq80, out var p80, out var q80);
             tProfile.ApproximateProfilePairContour(i, j, alpha: 0.50, out var taup50, out var tauq50, out var p50, out var q50);
+            tProfile.ApproximateProfilePairContour(i, j, alpha: 0.99, out var taup01, out var tauq01, out var p01, out var q01);
             using var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create));
-            writer.WriteLine("taup80,tauq80,p80,q80,taup50,tauq50,p50,q50");
-            for (int l = 0; l < taup95.Length; l++) {
-              writer.WriteLine($"{taup95[l]},{tauq95[l]},{p95[l]},{q95[l]},{taup50[l]},{tauq50[l]},{p50[l]},{q50[l]}");
+            writer.WriteLine("taup80,tauq80,p80,q80,taup50,tauq50,p50,q50,taup01,tauq01,p01,q01");
+            for (int l = 0; l < taup80.Length; l++) {
+              writer.WriteLine($"{taup80[l]},{tauq80[l]},{p80[l]},{q80[l]}" +
+                $",{taup50[l]},{tauq50[l]},{p50[l]},{q50[l]}" +
+                $",{taup01[l]},{tauq01[l]},{p01[l]},{q01[l]}");
             }
           }
         }
@@ -600,7 +603,7 @@ namespace HEAL.NonlinearRegression.Console {
           else high = alglib.spline1dcalc(tau2p, t);
           System.Console.WriteLine($"p{pIdx} {parameters[pIdx],14:e4} {low,14:e4} {high,14:e4}");
           // write to file
-          var outfilename = Path.Combine(folder, filename + $"_profile_{pIdx}.csv");
+          var outfilename = filename + $"_profile_{pIdx}.csv";
           using var writer = new StreamWriter(new FileStream(outfilename, FileMode.Create));
           writer.WriteLine("tau,p,p_stud");
           for (int i = 0; i < p.Length; i++) {

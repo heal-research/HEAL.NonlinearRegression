@@ -109,6 +109,7 @@ namespace HEAL.NonlinearRegression {
           void negLogLikeFixed(double[] p, ref double f, double[] grad, object obj) {
             p[pIdx] = curP;
             likelihood.NegLogLikelihoodGradient(p, out f, grad);
+            if (double.IsNaN(f)) f = 1e300;
             grad[pIdx] = 0.0;
           }
 
@@ -117,13 +118,14 @@ namespace HEAL.NonlinearRegression {
           alglib.mincgoptimize(state, negLogLikeFixed, rep: null, obj: null);
           alglib.mincgresults(state, out p_cond, out var report);
           // alglib.mincgoptguardresults(state, out var optGuardRep);
-          if (report.terminationtype < 0) break;
+          if (report.terminationtype < 0 || report.terminationtype == 4) break;
 
           var nll_grad = new double[n];
           likelihood.NegLogLikelihoodGradient(p_cond, out var nll, nll_grad);
           var zv = nll_grad[pIdx];
 
           if (nll < nllOpt) {
+            Array.Copy(p_cond, paramEst, paramEst.Length);
             Console.Error.WriteLine($"Found a new optimum in t-profile calculation theta=({string.Join(", ", p_cond.Select(pi => pi.ToString()))}).");
             goto restart;
           }
@@ -264,7 +266,7 @@ namespace HEAL.NonlinearRegression {
 
 
       // prediction intervals for each point in x
-      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
+      Parallel.For(0, predRows, new ParallelOptions() { MaxDegreeOfParallelism = 1 },
         (i, loopState) => {
           // buffer
           double[] paramEstExt = new double[n];
@@ -286,11 +288,31 @@ namespace HEAL.NonlinearRegression {
           for (int k = 0; k < theta.Length; k++) {
             theta[k] = profile.Item2[outputParamIdx][k]; // profile of function output parameter
           }
-          alglib.spline1dbuildcubic(tau, theta, out var tau2theta);
-          if (tau.Min() > -t) _low[i] = double.NaN;
-          else _low[i] = alglib.spline1dcalc(tau2theta, -t);
-          if (tau.Max() < t) _high[i] = double.NaN;
-          else _high[i] = alglib.spline1dcalc(tau2theta, t);
+
+          // aggregate values for the same tau
+          var theta_tau = tau.Zip(theta, (taui, thetai) => (taui, thetai))
+          .GroupBy(tup => tup.taui)
+          .Select(g => (taui: g.Key, thetai: g.Average(tup => tup.thetai)))
+          .OrderBy(tup => tup.taui).ToArray();
+
+          if (theta_tau.Length > 3) {
+            alglib.spline1dbuildcubic(
+              theta_tau.Select(tup => tup.taui).ToArray(),
+              theta_tau.Select(tup => tup.thetai).ToArray(), out var tau2theta);
+
+            // extrapolate the minimum value when the cut-off for the t statistic is not reached
+            //  if (tau.Min() > -t) _low[i] = alglib.spline1dcalc(tau2theta, tau.Min());
+            if (tau.Min() > -t) _low[i] = double.NaN;
+            else _low[i] = alglib.spline1dcalc(tau2theta, -t);
+
+            // extrapolate the maximum value
+            // if (tau.Max() < t) _high[i] = alglib.spline1dcalc(tau2theta, tau.Max());
+            if (tau.Max() < t) _high[i] = double.NaN;
+            else _high[i] = alglib.spline1dcalc(tau2theta, t);
+          } else {
+            _low[i] = double.NaN;
+            _high[i] = double.NaN;
+          }
         });
 
       // cannot manipulate low and high output parameters directly in parallel.for
@@ -303,10 +325,23 @@ namespace HEAL.NonlinearRegression {
       for (int pIdx = 0; pIdx < n; pIdx++) {
         // interpolating spline for p-th column of M as a function of tau
         var tau = t_profiles[pIdx].Item1; // tau
-
         var p = t_profiles[pIdx].Item2[pIdx]; // p-th column of M_p
-        alglib.spline1dbuildcubic(tau, p, out spline_tau2p[pIdx]);   // s tau->theta
-        alglib.spline1dbuildcubic(p, tau, out spline_p2tau[pIdx]);   // s theta->tau
+
+        var tau_p = tau.Zip(p, (taui, pi) => (taui, pi))
+          .GroupBy(tup => tup.taui)
+          .Select(g => (taui: g.Key, pi: g.Average(tup => tup.pi)))
+          .OrderBy(g => g.taui)
+          .ToArray();
+
+
+        alglib.spline1dbuildcubic(
+          tau_p.Select(tup => tup.taui).ToArray(), 
+          tau_p.Select(tup => tup.pi).ToArray(), 
+          out spline_tau2p[pIdx]);   // s tau->theta
+        alglib.spline1dbuildcubic(
+          tau_p.Select(tup => tup.pi).ToArray(),
+          tau_p.Select(tup => tup.taui).ToArray(), 
+          out spline_p2tau[pIdx]);   // s theta->tau
 
         // from Bates and Watts
         // couldn't get the alg. from the book to work

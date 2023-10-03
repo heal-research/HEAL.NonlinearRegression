@@ -38,28 +38,45 @@ namespace HEAL.Expressions {
     protected override Expression VisitBinary(BinaryExpression node) {
       if (node.NodeType == ExpressionType.Add) {
         if (IsParameter(node.Left)) {
-          this.outParamIdx = ParameterIndex(node.Left);
+          // g(p + f(x))  => g(f(x) + g^(p) - f(x0))
+          // reparameterize so that at x=x0 and for invertible g we have:
+          // g(f(x0) + g^(p) - f(x0)) == g(g^(p)) == p )
           var g0 = ReplaceParameterWithNumberVisitor.Replace(node.Right, x, x0); // bind x to x0 values
-          return Expression.Subtract(Expression.Add(node.Right, CreateInverseFunction(node.Left)), g0);
+          var newExpr = Expression.Subtract(Expression.Add(node.Right, CreateInverseFunction(node.Left)), g0);
+          outParamIdx = ParameterIndex(node.Left);
+          return newExpr;
         } else if (IsParameter(node.Right)) {
-          this.outParamIdx = ParameterIndex(node.Right);
+          // g(f(x) + p)  => g(f(x) + g^(p) - f(x0))    
           var g0 = ReplaceParameterWithNumberVisitor.Replace(node.Left, x, x0); // bind x to x0 values
-          return Expression.Subtract(Expression.Add(node.Left, CreateInverseFunction(node.Right)), g0);
+          var newExpr = Expression.Subtract(Expression.Add(node.Left, CreateInverseFunction(node.Right)), g0);
+          outParamIdx = ParameterIndex(node.Right);
+          return newExpr;
         } else {
           return node.Update(Visit(node.Left), null, Visit(node.Right));
         }
       } else if (node.NodeType == ExpressionType.Subtract) {
-        // TODO: similar to case for addition
-        throw new NotSupportedException($"node type {node.Type} is not supported for reparameterization.");
+        if (IsParameter(node.Left)) {
+          throw new NotImplementedException(); // TODO          
+        } else if (IsParameter(node.Right)) {
+          // g(f(x) - p)  => g(f(x) + g^(p) -f(x0)) == g(g^(p)) == p
+          var g0 = ReplaceParameterWithNumberVisitor.Replace(node.Left, x, x0); // bind x to x0 values
+          var newExpr = Expression.Subtract(Expression.Add(node.Left, CreateInverseFunction(node.Right)), g0);
+          outParamIdx = ParameterIndex(node.Right);
+          return newExpr;
+        } else {
+          return node.Update(Visit(node.Left), null, Visit(node.Right));
+        }
       } else if (node.NodeType == ExpressionType.Multiply) {
         if (IsParameter(node.Left)) {
-          this.outParamIdx = ParameterIndex(node.Left);
           var g0 = ReplaceParameterWithNumberVisitor.Replace(node.Right, x, x0); // bind x to x0 values
-          return Expression.Multiply(node.Right, Expression.Divide(node.Left, g0));
+          var newExpr = Expression.Multiply(node.Right, Expression.Divide(node.Left, g0));
+          outParamIdx = ParameterIndex(node.Left);
+          return newExpr;
         } else if (IsParameter(node.Right)) {
-          this.outParamIdx = ParameterIndex(node.Right);
           var g0 = ReplaceParameterWithNumberVisitor.Replace(node.Left, x, x0); // bind x to x0 values
-          return Expression.Multiply(node.Left, Expression.Divide(node.Right, g0));
+          var newExpr = Expression.Multiply(node.Left, Expression.Divide(node.Right, g0));
+          outParamIdx = ParameterIndex(node.Right);
+          return newExpr;
         } else {
           return node.Update(Visit(node.Left), null, Visit(node.Right));
         }

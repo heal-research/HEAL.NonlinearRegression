@@ -72,7 +72,7 @@ namespace HEAL.NonlinearRegression {
           nll -= Math.Log(yPred[i]); // potential log(0)
           if (nll_grad != null) {
             for (int j = 0; j < n; j++) {
-              if (yJac[i, j] > 0)
+              if (yJac[i, j] != 0)
                 nll_grad[j] -= yJac[i, j] / yPred[i]; // potential division by zero 
             }
           }
@@ -81,7 +81,7 @@ namespace HEAL.NonlinearRegression {
           nll -= Math.Log(1 - yPred[i]); // potential log(0)
           if (nll_grad != null) {
             for (int j = 0; j < n; j++) {
-              if (yJac[i, j] > 0)
+              if (yJac[i, j] != 0)
                 nll_grad[j] += yJac[i, j] / (1 - yPred[i]); // potential division by zero 
             }
           }
