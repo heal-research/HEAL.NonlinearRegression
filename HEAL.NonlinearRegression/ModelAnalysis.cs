@@ -90,6 +90,7 @@ namespace HEAL.NonlinearRegression {
 
 
       foreach (var subExpr in subexpressions) {
+        if (subExpr is ConstantExpression) continue;
         Expression<Expr.ParametricFunction> reducedExpression = null;
         double[] newTheta = null;
         if (subExpr is BinaryExpression binExpr && binExpr.NodeType == ExpressionType.ArrayIndex && binExpr.Left == pParam) {
@@ -129,7 +130,6 @@ namespace HEAL.NonlinearRegression {
         var mse = reducedSSR / m;
 
         // "accept the partial value if the calculated ratio is lower than the table value"
-        
         var f = double.IsInfinity(fRatio) ? 1.0 : alglib.fdistribution(deltaDoF, fullDoF, fRatio);
         // var f = 0.0;
 
