@@ -51,7 +51,7 @@ namespace HEAL.Expressions {
           sat = (sat - minSat) / (maxSat - minSat);
           sb.AppendLine($"n{node.GetHashCode()} [label=\"{Label(node)}\", style=\"filled\", color=\"{hue:f3},{sat:f3},1\", height=\"0.3\", fixedsize=\"true\"];"); // color=h,s,v hue,saturation,brightness
         } else {
-          sb.AppendLine($"n{node.GetHashCode()} [label=\"{Label(node)}\", style=\"filled\", color=\"{hue:f3},0,1\"], height=\"0.3\", fixedsize=\"true\";"); // this draws completely white nodes. remove fill and color if necessary.
+          sb.AppendLine($"n{node.GetHashCode()} [label=\"{Label(node)}\", style=\"filled\", color=\"{hue:f3},0,1\", height=\"0.3\", fixedsize=\"true\"];"); // this draws completely white nodes. remove fill and color if necessary.
         }
       }
       return base.Visit(node);
