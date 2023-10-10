@@ -112,9 +112,9 @@ namespace HEAL.NonlinearRegression.Console {
             var yPred = nlr.Predict(x);
             var ssr = Util.SSR(y, yPred);
             var nmse = ssr / y.Length / Util.Variance(y);
-            System.Console.WriteLine($"SSR: {ssr:g6} MSE: {ssr / y.Length:g6} RMSE: {Math.Sqrt(ssr / y.Length):g6} NMSE: {nmse:g6} R2: {1 - nmse:g4} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DoF: {p.Length}");
+            System.Console.WriteLine($"SSR: {ssr:g6} MSE: {ssr / y.Length:g6} RMSE: {Math.Sqrt(ssr / y.Length):g6} NMSE: {nmse:g6} R2: {1 - nmse:g4} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DoF: {p.Length} m: {m}");
           } else if (options.Likelihood == LikelihoodEnum.Bernoulli) {
-            System.Console.WriteLine($"Deviance: {nlr.Deviance:g6} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DoF: {p.Length}");
+            System.Console.WriteLine($"Deviance: {nlr.Deviance:g6} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DoF: {p.Length} m: {m}");
           }
         } catch (Exception e) {
           System.Console.WriteLine($"Could not evaluate model {model}");
