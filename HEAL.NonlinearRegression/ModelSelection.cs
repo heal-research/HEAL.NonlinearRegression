@@ -219,37 +219,41 @@ namespace HEAL.NonlinearRegression {
         }
       }
 
+      if (!double.IsNaN(bestConstValue)) {
 
-      // replace parameter with best constant value, simplify and re-fit
-      paramEst[paramIdx] = bestConstValue;
+        // replace parameter with best constant value, simplify and re-fit
+        paramEst[paramIdx] = bestConstValue;
 
-      var v = new ReplaceParameterWithConstantVisitor(origExpr.Parameters[0], paramIdx, bestConstValue);
-      var reducedExpr = (Expression<Expr.ParametricFunction>)v.Visit(origExpr);
-      var simplifiedExpr = Expr.SimplifyAndRemoveParameters(reducedExpr, paramEst, out var simplifiedParamEst);
-      if (simplifiedParamEst.Length > 0) {
-        likelihood.ModelExpr = simplifiedExpr;
-        var nlr = new NonlinearRegression();
-        nlr.Fit(simplifiedParamEst, likelihood); // TODO: here we could use FisherDiag for the scale for improved perf
-        if (nlr.ParamEst == null) {
-          System.Console.Error.WriteLine("Problem while re-fitting pruned expression in DL calculation.");
-          likelihood.ModelExpr = origExpr;
-          paramEst[paramIdx] = origParamValue;
-        } else {
-          var newDL = DL(nlr.ParamEst, likelihood);
-          // if the new DL is shorter then continue with next parameter
-          if (newDL < origDL) {
-            System.Console.WriteLine("######################################");
-            System.Console.WriteLine($"In DL: replaced parameter[{paramIdx}]={origParamValue} by constant {bestConstValue}:");
-            System.Console.WriteLine($"Pruned model: {likelihood.ModelExpr}");
-
-            likelihood.LaplaceApproximation(nlr.ParamEst).WriteStatistics(System.Console.Out);
-
-            paramEst = nlr.ParamEst;
-            IntegerSnapPruning(ref paramEst, likelihood, DL);
-          } else {
-            // no improvement by replacing the parameter with a constant -> restore original expression and return
+        var v = new ReplaceParameterWithConstantVisitor(origExpr.Parameters[0], paramIdx, bestConstValue);
+        var reducedExpr = (Expression<Expr.ParametricFunction>)v.Visit(origExpr);
+        var simplifiedExpr = Expr.SimplifyAndRemoveParameters(reducedExpr, paramEst, out var simplifiedParamEst);
+        if (simplifiedParamEst.Length > 0) {
+          likelihood.ModelExpr = simplifiedExpr;
+          var nlr = new NonlinearRegression();
+          nlr.Fit(simplifiedParamEst, likelihood); // TODO: here we could use FisherDiag for the scale for improved perf
+          if (nlr.ParamEst == null) {
+            System.Console.Error.WriteLine("Problem while re-fitting pruned expression in DL calculation.");
             likelihood.ModelExpr = origExpr;
             paramEst[paramIdx] = origParamValue;
+          }
+          else {
+            var newDL = DL(nlr.ParamEst, likelihood);
+            // if the new DL is shorter then continue with next parameter
+            if (newDL < origDL) {
+              System.Console.WriteLine("######################################");
+              System.Console.WriteLine($"In DL: replaced parameter[{paramIdx}]={origParamValue} by constant {bestConstValue}:");
+              System.Console.WriteLine($"Pruned model: {likelihood.ModelExpr}");
+
+              likelihood.LaplaceApproximation(nlr.ParamEst).WriteStatistics(System.Console.Out);
+
+              paramEst = nlr.ParamEst;
+              IntegerSnapPruning(ref paramEst, likelihood, DL);
+            }
+            else {
+              // no improvement by replacing the parameter with a constant -> restore original expression and return
+              likelihood.ModelExpr = origExpr;
+              paramEst[paramIdx] = origParamValue;
+            }
           }
         }
       }
