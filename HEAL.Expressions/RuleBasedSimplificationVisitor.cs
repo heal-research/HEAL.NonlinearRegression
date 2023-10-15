@@ -128,7 +128,7 @@ namespace HEAL.Expressions {
       new BinaryExpressionRule(
         "(x * c) + x -> (x * (c+1))",
         e => e.NodeType == ExpressionType.Add
-          && e.Left is BinaryExpression binExpr && IsConstant(binExpr.Right)
+          && e.Left is BinaryExpression binExpr && e.Left.NodeType == ExpressionType.Multiply && IsConstant(binExpr.Right)
           && binExpr.Left.ToString() == e.Right.ToString(),
         e => {
           var binExpr = (BinaryExpression)e.Left;
