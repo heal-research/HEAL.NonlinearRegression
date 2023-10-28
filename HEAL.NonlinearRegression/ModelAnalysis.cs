@@ -20,7 +20,7 @@ namespace HEAL.NonlinearRegression {
       nlr.Fit(p, likelihood);
       var pOpt = p;
       var origExpr = likelihood.ModelExpr;
-      var referenceDeviance = nlr.Deviance;
+      var refSSR = Util.SSR(likelihood.Y, nlr.Predict(likelihood.X));
       var m = likelihood.X.GetLength(0);
       var d = likelihood.X.GetLength(1);
 
@@ -29,23 +29,27 @@ namespace HEAL.NonlinearRegression {
         mean[i] = Enumerable.Range(0, m).Select(r => likelihood.X[r, i]).Average(); // mean of each variable (as initial value for the parameters)
       }
 
-      var varExpl = new Dictionary<int, double>();
+      var ssrRatio = new Dictionary<int, double>();
       for (int varIdx = 0; varIdx < d; varIdx++) {
         var newExpr = Expr.ReplaceVariableWithParameter(origExpr, (double[])pOpt.Clone(), varIdx, mean[varIdx], out var newThetaValues);
-        newExpr = Expr.Simplify(newExpr, newThetaValues, out newThetaValues);
-        likelihood.ModelExpr = newExpr;
+        newExpr = Expr.SimplifyRepeated(newExpr, newThetaValues, out newThetaValues);
+        var localLikelihood = likelihood.Clone();
+        localLikelihood.ModelExpr = newExpr;
         nlr = new NonlinearRegression();
-        nlr.Fit(newThetaValues, likelihood);
+        nlr.Fit(newThetaValues, localLikelihood);
         if (nlr.LaplaceApproximation == null) {
           Console.WriteLine("Problem while fitting");
-          varExpl[varIdx] = 0.0;
-        } else {
-          // increase in variance for the reduced feature = variance explained by the feature
-          varExpl[varIdx] = (nlr.Deviance - referenceDeviance) / likelihood.Y.Length;
+          ssrRatio[varIdx] = 1.0;
+        }
+        else {
+          // only for Gaussian (TODO: support other likelihoods)
+          var reducedSSR = Util.SSR(localLikelihood.Y, nlr.Predict(localLikelihood.X));
+
+          ssrRatio[varIdx] = reducedSSR / refSSR;
         }
       }
 
-      return varExpl;
+      return ssrRatio;
     }
 
 
@@ -98,7 +102,8 @@ namespace HEAL.NonlinearRegression {
           var arrIdx = (int)((ConstantExpression)binExpr.Right).Value;
           reducedExpression = ReplaceParameterWithConstantVisitor.Execute(expr, expr.Parameters[0], arrIdx, 0);
           reducedExpression = CollectParametersVisitor.Execute(reducedExpression, p, out newTheta);
-        } else {
+        }
+        else {
           // replace expressions with average value
           var subExprInterpreter = new ExpressionInterpreter(Expression.Lambda<Expr.ParametricFunction>(subExpr, pParam, xParam), likelihood.XCol, likelihood.Y.Length);
           subExprInterpreter.Evaluate(p, eval);
@@ -112,7 +117,13 @@ namespace HEAL.NonlinearRegression {
         var localNlr = new NonlinearRegression();
         var localLikelihood = likelihood.Clone();
         localLikelihood.ModelExpr = reducedExpression;
-        localNlr.Fit(newTheta, localLikelihood);
+        try {
+          localNlr.Fit(newTheta, localLikelihood);
+        }
+        catch (Exception) {
+          Console.WriteLine($"exception when fitting {subExpr} ");
+          continue;
+        }
         // System.Console.WriteLine($"SSR after fitting: {Util.SSR(localLikelihood.Y, localNlr.Predict(localLikelihood.X))}");
         // 
         // System.Console.WriteLine(localLikelihood.ModelExpr);
@@ -130,7 +141,7 @@ namespace HEAL.NonlinearRegression {
         var mse = reducedSSR / m;
 
         // "accept the partial value if the calculated ratio is lower than the table value"
-        var f = double.IsInfinity(fRatio) ? 1.0 : alglib.fdistribution(deltaDoF, fullDoF, fRatio);
+        var f = double.IsInfinity(fRatio) || double.IsNaN(fRatio) ? 1.0 : alglib.fdistribution(deltaDoF, fullDoF, fRatio);
         // var f = 0.0;
 
         Console.WriteLine($"{ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4} {1 - f,-10:e3} " +
@@ -293,7 +304,8 @@ namespace HEAL.NonlinearRegression {
           lock (impacts) {
             impacts.Add(Tuple.Create(paramIdx, ssrFactor, localNlr.AICc - fullAICc, reducedExpression, newP));
           }
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
           // Console.WriteLine($"Exception {e.Message} for {reducedExpression}");
         }
       }

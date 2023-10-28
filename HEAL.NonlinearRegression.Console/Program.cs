@@ -508,10 +508,10 @@ namespace HEAL.NonlinearRegression.Console {
         var varImportance = ModelAnalysis.VariableImportance(CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY), p);
 
 
-        System.Console.WriteLine($"{"variable",-11} {"VarExpl",-11}");
+        System.Console.WriteLine($"{"variable",-11} {"SSR_ratio",-11}");
         foreach (var tup in varImportance.OrderByDescending(tup => tup.Value)) { // TODO better interface
           var varName = varNames[tup.Key];
-          System.Console.WriteLine($"{varName,-11} {tup.Value * 100,-11:f2}%");
+          System.Console.WriteLine($"{varName,-11} {tup.Value,-11:f2}");
         }
       }
     }
