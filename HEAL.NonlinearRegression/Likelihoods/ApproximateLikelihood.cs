@@ -97,7 +97,7 @@ namespace HEAL.NonlinearRegression {
         if (!alglib.rmatrixsvd(hClone, n, n, 1, 1, 0, out var s, out var u, out var vt)) {
           throw new InvalidOperationException("Cannot SVD decompose Hessian (not SDP?)");
         }
-        for (int i = 0; i < s.Length; i++) if (s[i] > 1e-15) s[i] = 1.0 / s[i];
+        for (int i = 0; i < s.Length; i++) if (Math.Abs(s[i]) > 1e-15) s[i] = 1.0 / s[i];
 
         // diag(s) * U'
         for (int i = 0; i < s.Length; i++) {
