@@ -15,7 +15,7 @@ namespace HEAL.NonlinearRegression {
       this.pOpt = original.pOpt;
       this.hessian = original.hessian;
     }
-    
+
     // TODO: x and y are not necessary. -> remove
     public ApproximateLikelihood(double[,] x, double[] y, Expression<Expr.ParametricFunction> modelExpr, double minNegLogLik, double[] pOpt, double[,] hessian)
       : base(modelExpr, x, y, numLikelihoodParams: 0) {
@@ -59,33 +59,63 @@ namespace HEAL.NonlinearRegression {
     public void CalcParameterStatistics(double[] pOpt, out double[] paramStdError, out double[,] invH, out double[,] correlation) {
       var n = pOpt.Length;
 
-      var U = (double[,])hessian.Clone();
+      var hClone = (double[,])hessian.Clone();
 
       // copy diagonal of Fisher information (for preconditioning in CG)
       var diagH = new double[n];
-      for (int i = 0; i < n; i++) diagH[i] = U[i, i];
+      for (int i = 0; i < n; i++) diagH[i] = hClone[i, i];
+
+      /*
+     try {
+       var U = hClone;
+       for (int i = 1; i < n; i++)
+         for (int j = 0; j < i; j++)
+           U[i, j] = 0.0;
+       if (alglib.spdmatrixcholesky(ref U, n, isupper: true) == false) {
+         throw new InvalidOperationException("Cannot Cholesky decompose Hessian (not SDP?)");
+       }
+       alglib.spdmatrixcholeskyinverse(ref U, n, isupper: true, out var info, out var rep, null); // calculates (U^T U) ^-1 = H^-1
+       if (info < 0) {
+         throw new InvalidOperationException("Cannot invert Hessian");
+       }
+       invH = hClone; hClone = null; // rename 
+       // fill up rest of invH because alglib only works on the upper triangle (prevents problems below)
+       for (int i = 0; i < n - 1; i++) {
+         for (int j = i + 1; j < n; j++) {
+           invH[j, i] = invH[i, j];
+         }
+       }
+
+     } catch (alglib.alglibexception) {
+       Console.Error.WriteLine("LaplaceApproximation: Cannot decompose or invert Hessian");
+       throw;
+     }
+      */
 
       try {
-        if (alglib.spdmatrixcholesky(ref U, n, isupper: true) == false) {
-          throw new InvalidOperationException("Cannot decompose Hessian (not SDP?)");
+        // U = u s VT
+        if (!alglib.rmatrixsvd(hClone, n, n, 1, 1, 0, out var s, out var u, out var vt)) {
+          throw new InvalidOperationException("Cannot SVD decompose Hessian (not SDP?)");
         }
-        alglib.spdmatrixcholeskyinverse(ref U, n, isupper: true, out var info, out var rep, null); // calculates (U^T U) ^-1 = H^-1
-        if (info < 0) {
-          throw new InvalidOperationException("Cannot invert Hessian");
+        for (int i = 0; i < s.Length; i++) if (s[i] > 1e-15) s[i] = 1.0 / s[i];
+
+        // diag(s) * U'
+        for (int i = 0; i < s.Length; i++) {
+          for (int j = 0; j < n; j++) {
+            u[j, i] *= s[i];
+          }
         }
-      } catch (alglib.alglibexception) {
+
+        invH = new double[n, n];
+        alglib.rmatrixgemm(n, n, n, 1.0, vt, 0, 0, 1, u, 0, 0, 1, 0.0, ref invH, 0, 0);
+        hClone = null;
+      }
+      catch (alglib.alglibexception) {
         Console.Error.WriteLine("LaplaceApproximation: Cannot decompose or invert Hessian");
         throw;
       }
 
-      invH = U; U = null; // rename 
 
-      // fill up rest of invH because alglib only works on the upper triangle (prevents problems below)
-      for (int i = 0; i < n - 1; i++) {
-        for (int j = i + 1; j < n; j++) {
-          invH[j, i] = invH[i, j];
-        }
-      }
 
       // invH is the covariance matrix
       // se is diagonal of covariance matrix
