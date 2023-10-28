@@ -141,8 +141,7 @@ namespace HEAL.NonlinearRegression {
         var mse = reducedSSR / m;
 
         // "accept the partial value if the calculated ratio is lower than the table value"
-        var f = double.IsInfinity(fRatio) || double.IsNaN(fRatio) ? 1.0 : alglib.fdistribution(deltaDoF, fullDoF, fRatio);
-        // var f = 0.0;
+        var f = double.IsInfinity(fRatio) || deltaDoF < 0 || fRatio < 1 ? 1.0 : alglib.fdistribution(deltaDoF, fullDoF, fRatio);
 
         Console.WriteLine($"{ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4} {1 - f,-10:e3} " +
           $"{localNlr.AICc - fullAICc,-11:f1} " +
