@@ -86,11 +86,12 @@ namespace HEAL.NonlinearRegression {
 
       var fullAICc = nlr.AICc;
       var fullBIC = nlr.BIC;
+      var fullDL = ModelSelection.DL(nlr.ParamEst, nlr.Likelihood);
 
       var impacts = new Dictionary<Expression, double>();
       var eval = new double[likelihood.NumberOfObservations];
 
-      Console.WriteLine($"{"SSR_factor",-11} {"deltaDoF",-6} {"deltaSSR",-11} {"s2Extra",-11} {"fRatio",-11} {"p value",10} {"deltaAICc",-11} {"deltaBIC",-11} {"MSE",-11} sub-expression");
+      Console.WriteLine($"{"SSR_factor",-11} {"ΔDoF",-6} {"ΔSSR",-11} {"s2Extra",-11} {"fRatio",-11} {"p value",10} {"ΔAICc",-11} {"ΔBIC",-11} {"ΔDL",-11} {"MSE",-11} sub-expression");
 
 
       foreach (var subExpr in subexpressions) {
@@ -139,6 +140,7 @@ namespace HEAL.NonlinearRegression {
         var s2Extra = deltaSSR / deltaDoF; // increase in deviance per parameter
         var fRatio = s2Extra / s2Full;
         var mse = reducedSSR / m;
+        var localDL = ModelSelection.DL(localNlr.ParamEst, localNlr.Likelihood);
 
         // "accept the partial value if the calculated ratio is lower than the table value"
         var f = double.IsInfinity(fRatio) || deltaDoF < 0 || fRatio < 1 ? 1.0 : alglib.fdistribution(deltaDoF, fullDoF, fRatio);
@@ -146,6 +148,7 @@ namespace HEAL.NonlinearRegression {
         Console.WriteLine($"{ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4} {1 - f,-10:e3} " +
           $"{localNlr.AICc - fullAICc,-11:f1} " +
           $"{localNlr.BIC - fullBIC,-11:f1}" +
+          $"{localDL - fullDL,-11:f1}" +
           $"{mse,-11:e2} {subExpr} ");
 
         var impact = ssrFactor;
@@ -234,7 +237,7 @@ namespace HEAL.NonlinearRegression {
         Console.WriteLine(expr.Body);
         Console.WriteLine($"theta: {string.Join(", ", p.Select(pi => pi.ToString("e2")))}");
         Console.WriteLine($"Full model deviance: {refDeviance,-11:e4}, mean deviance: {refDeviance / m,-11:e4} SSR: {refSSR} MSE: {refSSR / m} AICc: {fullAICc,-11:f1} BIC: {fullBIC,-11:f1} DL: {fullDL,-11:f1}");
-        Console.WriteLine($"p{"idx",-5} {"val",-11} {"SSR_factor",-11} {"deltaDoF",-6} {"deltaSSR",-11} {"s2Extra":e3} {"fRatio",-11} {"p value",-15} {"ΔAICc",-11} {"ΔBIC",-11} {"ΔDL",-11} {"MSE"}");
+        Console.WriteLine($"p{"idx",-5} {"val",-11} {"SSR_factor",-11} {"ΔDoF",-6} {"ΔSSR",-11} {"s2Extra":e3} {"fRatio",-11} {"p value",-15} {"ΔAICc",-11} {"ΔBIC",-11} {"ΔDL",-11} {"MSE"}");
       }
 
 
