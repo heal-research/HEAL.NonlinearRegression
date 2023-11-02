@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -12,7 +12,7 @@ namespace HEAL.NonlinearRegression {
   // - Pruning should search over all possible simplifying manipulations of trees (removal of sub-trees, removal of parameters, removal of non-linear functions...)
   public static class ModelAnalysis {
     /// <summary>
-    /// Replaces all references to a variable in the model by a parameter. Re-fits the model and returns the increase in R�
+    /// Replaces all references to a variable in the model by a parameter. Re-fits the model and returns the increase in R²
     /// </summary>
     /// <returns></returns>
     public static Dictionary<int, double> VariableImportance(LikelihoodBase likelihood, double[] p) {
@@ -229,11 +229,12 @@ namespace HEAL.NonlinearRegression {
 
       var fullAICc = nlr.AICc;
       var fullBIC = nlr.BIC;
+      var fullDL = ModelSelection.DL(nlr.ParamEst, nlr.Likelihood);
       if (verbose) {
         Console.WriteLine(expr.Body);
         Console.WriteLine($"theta: {string.Join(", ", p.Select(pi => pi.ToString("e2")))}");
-        Console.WriteLine($"Full model deviance: {refDeviance,-11:e4}, mean deviance: {refDeviance / m,-11:e4} SSR: {refSSR} MSE: {refSSR / m} AICc: {fullAICc,-11:f1} BIC: {fullBIC,-11:f1}");
-        Console.WriteLine($"p{"idx",-5} {"val",-11} {"SSR_factor",-11} {"deltaDoF",-6} {"deltaSSR",-11} {"s2Extra":e3} {"fRatio",-11} {"p value",10} {"deltaAICc"} {"deltaBIC"} {"MSE"}");
+        Console.WriteLine($"Full model deviance: {refDeviance,-11:e4}, mean deviance: {refDeviance / m,-11:e4} SSR: {refSSR} MSE: {refSSR / m} AICc: {fullAICc,-11:f1} BIC: {fullBIC,-11:f1} DL: {fullDL,-11:f1}");
+        Console.WriteLine($"p{"idx",-5} {"val",-11} {"SSR_factor",-11} {"deltaDoF",-6} {"deltaSSR",-11} {"s2Extra":e3} {"fRatio",-11} {"p value",-15} {"ΔAICc",-11} {"ΔBIC",-11} {"ΔDL",-11} {"MSE"}");
       }
 
 
@@ -294,9 +295,10 @@ namespace HEAL.NonlinearRegression {
             // "accept the partial value if the calculated ratio is lower than the table value"
             var f = alglib.fdistribution(deltaDoF, fullDoF, fRatio);
 
-            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1 - f,-10:e3}, " +
+            Console.WriteLine($"p{paramIdx,-5} {p[paramIdx],-11:e2} {ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4}, {1 - f,-15:e3}, " +
               $"{localNlr.AICc - fullAICc,-11:f1} " +
               $"{localNlr.BIC - fullBIC,-11:f1}" +
+              $"{ModelSelection.DL(localNlr.ParamEst, localNlr.Likelihood) - fullDL,-11:f1}" +
               $"{mse}");
           }
 
