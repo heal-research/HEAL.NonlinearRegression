@@ -973,7 +973,7 @@ namespace HEAL.NonlinearRegression.Console {
     #region helper
 
 
-    private static void PrepareData(OptionsBase options, out string[] varNames, out double[,] x, out double[] y, out int trainStart, out int trainEnd, out int testStart, out int testEnd, out double[,] trainX, out double[] trainY) {
+    public static void PrepareData(OptionsBase options, out string[] varNames, out double[,] x, out double[] y, out int trainStart, out int trainEnd, out int testStart, out int testEnd, out double[,] trainX, out double[] trainY) {
       ReadData(options.Dataset, options.Target, out varNames, out x, out y);
 
       // default split is 66/34%
