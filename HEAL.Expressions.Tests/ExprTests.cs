@@ -76,6 +76,7 @@ namespace HEAL.Expressions.Tests {
 
       // example with duplicate sub-expressions
       CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Pow(p[0] * x[0], p[1]) + Math.Pow(p[0] * x[0], p[1]) / (p[0] * x[0]));
+      CompareSymbolicAndAutoDiffJacobian((p, x) => Math.Cos(Functions.Cbrt(x[0])* p[0]) * p[1]);
     }
 
     [TestMethod]
@@ -99,7 +100,13 @@ namespace HEAL.Expressions.Tests {
       {
         var dfx_dx = Expr.Derive((p, x) => Math.Pow(p[0] * x[0], 2), 0);
         CompileAndRun(dfx_dx);
-        Assert.AreEqual("(p, x) => ((Pow(x[0], 2) * p[0]) * 2)", dfx_dx.ToString());
+        Assert.AreEqual("(p, x) => (((p[0] * x[0]) * 2) * x[0])", dfx_dx.ToString());
+        // (p, x) => 
+      }
+      {
+        var dfx_dx = Expr.Derive((p, x) => Functions.Cbrt(p[0] * x[0]), 0);
+        CompileAndRun(dfx_dx);
+        Assert.AreEqual("(p, x) => ((0.3333333333333333 / Pow(Cbrt((p[0] * x[0])), 2)) * x[0])", dfx_dx.ToString());
         // (p, x) => (((2 * x[0]) * p[0]) * x[0])
       }
     }
