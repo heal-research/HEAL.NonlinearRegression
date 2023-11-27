@@ -672,7 +672,7 @@ namespace HEAL.Expressions {
        // 
        new BinaryExpressionRule(
          "exp(x) / exp(y) -> exp(x - y)",
-        e => e.NodeType == ExpressionType.Subtract
+        e => e.NodeType == ExpressionType.Divide
            && e.Left is MethodCallExpression leftCall && leftCall.Method == exp
            && e.Right is MethodCallExpression rightCall && rightCall.Method == exp,
         e => {
