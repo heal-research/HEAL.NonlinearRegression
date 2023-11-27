@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
@@ -56,7 +57,8 @@ namespace HEAL.NonlinearRegression.Console {
         var nls = new NonlinearRegression();
         try {
           nls.Fit(p, CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY), maxIterations: options.MaxIterations);
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
           System.Console.WriteLine("There was a problem while fitting.");
           continue;
         }
@@ -65,7 +67,8 @@ namespace HEAL.NonlinearRegression.Console {
           System.Console.WriteLine($"{nls.OptReport}");
           nls.WriteStatistics();
           System.Console.WriteLine($"Optimized: {Expr.ToString(parametricExpr, varNames, p)}");
-        } else {
+        }
+        else {
           System.Console.WriteLine("There was a problem while fitting.");
         }
       }
@@ -74,7 +77,8 @@ namespace HEAL.NonlinearRegression.Console {
     private static IEnumerable<string> GetModels(string optionsModel) {
       if (File.Exists(optionsModel)) {
         return File.ReadLines(optionsModel);
-      } else {
+      }
+      else {
         return optionsModel.Split("\n");
       }
     }
@@ -113,10 +117,12 @@ namespace HEAL.NonlinearRegression.Console {
             var ssr = Util.SSR(y, yPred);
             var nmse = ssr / y.Length / Util.Variance(y);
             System.Console.WriteLine($"SSR: {ssr:g6} MSE: {ssr / y.Length:g6} RMSE: {Math.Sqrt(ssr / y.Length):g6} NMSE: {nmse:g6} R2: {1 - nmse:g4} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DoF: {p.Length} m: {m}");
-          } else if (options.Likelihood == LikelihoodEnum.Bernoulli) {
+          }
+          else if (options.Likelihood == LikelihoodEnum.Bernoulli) {
             System.Console.WriteLine($"Deviance: {nlr.Deviance:g6} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DoF: {p.Length} m: {m}");
           }
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
           System.Console.WriteLine($"Could not evaluate model {model}");
         }
       }
@@ -125,9 +131,11 @@ namespace HEAL.NonlinearRegression.Console {
     private static LikelihoodBase CreateLikelihood(Expression<Expr.ParametricFunction> parametricExpr, double[] p, LikelihoodEnum likelihood, double? noiseSigma, double[,] x, double[] y) {
       if (likelihood == LikelihoodEnum.Gaussian) {
         return new SimpleGaussianLikelihood(x, y, parametricExpr, noiseSigma ?? EstimateGaussianNoiseSigma(parametricExpr, p, x, y));
-      } else if (likelihood == LikelihoodEnum.Bernoulli) {
+      }
+      else if (likelihood == LikelihoodEnum.Bernoulli) {
         return new BernoulliLikelihood(x, y, parametricExpr);
-      } else throw new NotSupportedException();
+      }
+      else throw new NotSupportedException();
     }
 
     private static double EstimateGaussianNoiseSigma(Expression<Expr.ParametricFunction> parametricExpr, double[] p, double[,] x, double[] y) {
@@ -161,7 +169,8 @@ namespace HEAL.NonlinearRegression.Console {
         var nlr = new NonlinearRegression();
         if (options.NoOptimization) {
           nlr.SetModel(p, likelihood);
-        } else {
+        }
+        else {
           nlr.Fit(p, likelihood);
         }
 
@@ -170,7 +179,8 @@ namespace HEAL.NonlinearRegression.Console {
         // generate output for full dataset
         if (options.Interval == IntervalEnum.None) {
           System.Console.WriteLine($"{string.Join(",", varNames)},y,residual,yPred,isTrain,isTest"); // header without interval
-        } else {
+        }
+        else {
           System.Console.WriteLine($"{string.Join(",", varNames)},y,residual,yPred,yPredLow,yPredHigh,isTrain,isTest"); // header
         }
         for (int i = 0; i < x.GetLength(0); i++) {
@@ -215,7 +225,8 @@ namespace HEAL.NonlinearRegression.Console {
           var cvMeanDeviance = CrossValidate(parametricExpr, p, options.Likelihood, noiseSigma: 1.0, trainX, trainY, shuffle: options.Shuffle, seed: options.Seed, maxIterations: options.MaxIterations);
           var stddev = Math.Sqrt(Util.Variance(cvMeanDeviance.ToArray()));
           System.Console.WriteLine($"CV_score: {cvMeanDeviance.Average():e4} CV_stdev: {stddev:e4} CV_se: {stddev / Math.Sqrt(cvMeanDeviance.Count):e4}"); // Elements of Statistical Learning
-        } catch (Exception) {
+        }
+        catch (Exception) {
           System.Console.WriteLine($"Error in fitting model {model}");
         }
       }
@@ -225,7 +236,8 @@ namespace HEAL.NonlinearRegression.Console {
       Random rand;
       if (seed.HasValue) {
         rand = new Random(seed.Value);
-      } else {
+      }
+      else {
         rand = new Random();
       }
 
@@ -492,7 +504,8 @@ namespace HEAL.NonlinearRegression.Console {
       Random rand;
       if (options.Seed.HasValue) {
         rand = new Random(options.Seed.Value);
-      } else {
+      }
+      else {
         rand = new Random();
       }
 
@@ -649,7 +662,8 @@ namespace HEAL.NonlinearRegression.Console {
 
         if (w.Any(wi => double.IsNaN(wi))) {
           System.Console.WriteLine("Jacobian undefined");
-        } else {
+        }
+        else {
 
           var eps = 2.2204460492503131E-16; // the difference between 1.0 and the next larger double value
                                             // var eps = 1.192092896e-7f; for floats
@@ -1070,13 +1084,25 @@ namespace HEAL.NonlinearRegression.Console {
       p = parser.ParameterValues;
     }
 
+
     public static void ReadData(string filename, string targetVariable, out string[] variableNames, out double[,] x, out double[] y) {
-      using var reader = new StreamReader(filename);
+      if (filename.EndsWith(".gz")) {
+        using var reader = new StreamReader(new GZipStream(new FileStream(filename, FileMode.Open, FileAccess.Read), CompressionMode.Decompress));
+        ReadData(reader, targetVariable, out variableNames, out x, out y);
+      }
+      else {
+        using var reader = new StreamReader(filename);
+        ReadData(reader, targetVariable, out variableNames, out x, out y);
+      }
+
+    }
+
+    public static void ReadData(StreamReader reader, string targetVariable, out string[] variableNames, out double[,] x, out double[] y) {
       var allVarNames = reader.ReadLine().Split(',');
       var yIdx = Array.IndexOf(allVarNames, targetVariable);
-      if (yIdx < 0) throw new FormatException($"Variable {targetVariable} not found in {filename}");
+      if (yIdx < 0) throw new FormatException($"Variable {targetVariable} not found.");
 
-      // keep only variablesNames \ { targetVariable } in x and variableNames
+      // keep only variablesNames without { targetVariable } in x and variableNames
 
       variableNames = new string[allVarNames.Length - 1];
       Array.Copy(allVarNames, variableNames, yIdx);
@@ -1095,7 +1121,8 @@ namespace HEAL.NonlinearRegression.Console {
         while (colIdx < strValues.Length) {
           if (colIdx == yIdx) {
             yRows.Add(double.Parse(strValues[colIdx++]));
-          } else {
+          }
+          else {
             row[varIdx++] = double.Parse(strValues[colIdx++]);
           }
         }
