@@ -877,7 +877,7 @@ namespace HEAL.Expressions {
           return NewParameter(1.0 / GetParameterValue(right.Right));
         }),
       new BinaryExpressionRule(
-        "z / (x * p) -> (z*p) / x",
+        "z / (x * p) -> (z*p') / x",
         e => e.NodeType == ExpressionType.Divide
           && e.Right.NodeType == ExpressionType.Multiply && e.Right is BinaryExpression right
           && IsParameter(right.Right),
@@ -1373,6 +1373,10 @@ namespace HEAL.Expressions {
       // order of parameters and constants is irrelevant
       var typeCmp = CompareType(left, right);
       if (typeCmp != 0) return typeCmp;
+      else if(IsParameter(left) && IsParameter(right) || IsVariable(left) && IsVariable(right)) {
+        // order parameters and variables by index
+        return ArrayIndex(left) - ArrayIndex(right);
+      }
       else {
         // same type: compare by size (larger expressions first)
         return CountNodesVisitor.Count(right) - CountNodesVisitor.Count(left);
@@ -1387,8 +1391,9 @@ namespace HEAL.Expressions {
     }
 
     private int OrdinalNumber(Expression e) {
-      return IsConstant(e) ? 5
-        : IsParameter(e) ? 4
+      return IsConstant(e) ? 6
+        : IsParameter(e) ? 5
+        : IsVariable(e) ? 4
         : e is MethodCallExpression ? 3
         : e is UnaryExpression ? 2
         : e is BinaryExpression ? 1
@@ -1426,7 +1431,8 @@ namespace HEAL.Expressions {
     }
 
     private double GetConstantValue(Expression constExpr) => (double)((ConstantExpression)constExpr).Value;
-    private double GetParameterValue(Expression expr) => pValues[(int)((ConstantExpression)((BinaryExpression)expr).Right).Value];
+    private int ArrayIndex(Expression expr) => (int)((ConstantExpression)((BinaryExpression)expr).Right).Value;
+    private double GetParameterValue(Expression expr) => pValues[ArrayIndex(expr)];
     private double GetParameterOrConstantValue(Expression expr) {
       if (expr is ConstantExpression) return GetConstantValue(expr);
       else if (IsParameter(expr)) return GetParameterValue(expr);
@@ -1435,6 +1441,7 @@ namespace HEAL.Expressions {
 
     private bool IsConstant(Expression expr) => expr is ConstantExpression;
     private bool IsParameter(Expression expr) => expr is BinaryExpression binExpr && binExpr.Left == p;
+    private bool IsVariable(Expression expr) => expr is BinaryExpression binExpr && expr.NodeType == ExpressionType.ArrayIndex && binExpr.Left != p;
     private bool IsParameterOrConstant(Expression expr) => IsConstant(expr) || IsParameter(expr);
 
     private bool HasParameters(Expression left) => CountParametersVisitor.Count(left, p) > 0;
@@ -1527,10 +1534,10 @@ namespace HEAL.Expressions {
         return (scaledTerm, -scale);
       } else {
         // t = f1 * .. * fk, we can assume that one of the factors is a parameter
-        var factors = CollectFactorsVisitor.CollectFactors(term);
-        var scale = factors.FirstOrDefault(IsParameter); // constants as well
-        if (scale == null || factors.Count() == 1) return (term, 1.0);
-        else return (factors.Except(new[] { scale }).Aggregate(Expression.Multiply), GetParameterValue(scale));
+        var factors = CollectFactorsVisitor.CollectFactors(term).ToArray();
+        var scaleIdx = Array.FindIndex(factors, IsParameter); // constants as well?
+        if (scaleIdx < 0 || factors.Length == 1) return (term, 1.0);
+        else return (factors.Take(scaleIdx).Concat(factors.Skip(scaleIdx+1)).Aggregate(Expression.Multiply), GetParameterValue(factors[scaleIdx]));
       }
     }
 
@@ -1539,11 +1546,11 @@ namespace HEAL.Expressions {
         (var scaledTerm, var scale) = ExtractScaleExprFromTerm(((UnaryExpression)term).Operand);
         return (scaledTerm, Expression.Negate(scale));
       } else {
-        var factors = CollectFactorsVisitor.CollectFactors(term);
-        var scale = factors.FirstOrDefault(IsParameterOrConstant); // constants as well
-        if (scale == null) return (term, Expression.Constant(1.0));
-        else if (factors.Count() == 1) return (Expression.Constant(1.0), scale);
-        else return (factors.Except(new[] { scale }).Aggregate(Expression.Multiply), scale);
+        var factors = CollectFactorsVisitor.CollectFactors(term).ToArray();
+        var scaleIdx = Array.FindIndex(factors, IsParameterOrConstant); // constants as well
+        if (scaleIdx < 0) return (term, Expression.Constant(1.0));
+        else if (factors.Length == 1) return (Expression.Constant(1.0), factors[scaleIdx]);
+        else return (factors.Take(scaleIdx).Concat(factors.Skip(scaleIdx + 1)).Aggregate(Expression.Multiply), factors[scaleIdx]);
       }
     }
 
