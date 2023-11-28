@@ -788,6 +788,39 @@ namespace HEAL.Expressions {
             var inner = (MethodCallExpression)e.Arguments[0];
             return Visit(inner.Update(inner.Object, new [] {Expression.Multiply(inner.Arguments[0], e.Arguments[1]) }));
           }),
+        new MethodCallExpressionRule(
+          "sqrt(x²) = abs(x)",
+          e => e.Method == sqrt && e.Arguments[0] is MethodCallExpression inner && IsPower(inner.Method)
+               && IsConstant(inner.Arguments[1]) && GetConstantValue(inner.Arguments[1])==2,
+          e => {
+            var inner = (MethodCallExpression)e.Arguments[0];
+            return Visit(Expression.Call(abs, inner));
+          }),
+        new MethodCallExpressionRule(
+          "sqrt(x)² = x",
+          e => IsPower(e.Method) && IsConstant(e.Arguments[1]) && GetConstantValue(e.Arguments[1])==2
+              && e.Arguments[0] is MethodCallExpression inner && inner.Method == sqrt,
+          e => {
+            var inner = (MethodCallExpression)e.Arguments[0];
+            return Visit(inner.Arguments[0]);
+          }),
+
+        new MethodCallExpressionRule(
+          "cbrt(x³) = x",
+          e => e.Method == cbrt && e.Arguments[0] is MethodCallExpression inner && IsPower(inner.Method)
+               && IsConstant(inner.Arguments[1]) && GetConstantValue(inner.Arguments[1])==3,
+          e => {
+            var inner = (MethodCallExpression)e.Arguments[0];
+            return Visit(inner);
+          }),
+        new MethodCallExpressionRule(
+          "cbrt(x)³ = x",
+          e => IsPower(e.Method) && IsConstant(e.Arguments[1]) && GetConstantValue(e.Arguments[1])==3
+              && e.Arguments[0] is MethodCallExpression inner && inner.Method == cbrt,
+          e => {
+            var inner = (MethodCallExpression)e.Arguments[0];
+            return Visit(inner.Arguments[0]);
+          }),
       });
     }
 
@@ -1373,11 +1406,10 @@ namespace HEAL.Expressions {
       // order of parameters and constants is irrelevant
       var typeCmp = CompareType(left, right);
       if (typeCmp != 0) return typeCmp;
-      else if(IsParameter(left) && IsParameter(right) || IsVariable(left) && IsVariable(right)) {
+      else if (IsParameter(left) && IsParameter(right) || IsVariable(left) && IsVariable(right)) {
         // order parameters and variables by index
         return ArrayIndex(left) - ArrayIndex(right);
-      }
-      else {
+      } else {
         // same type: compare by size (larger expressions first)
         return CountNodesVisitor.Count(right) - CountNodesVisitor.Count(left);
       }
@@ -1498,11 +1530,20 @@ namespace HEAL.Expressions {
       // It would be possible to allow constants as well, as long as there is one parameter that can be extracted.
       // However, in this case we would need to make sure that constants are replaced by constants and parameters by parameters
 
-      var terms = CollectTermsVisitor.CollectTerms(affine);
-      var firstTerm = terms.First();
-      (var scaledAffine, var scale) = ExtractScaleFromTerm(firstTerm);
-      foreach (var t in terms.Skip(1)) {
-        (var scaledT, var s) = ExtractScaleFromTerm(t);
+      var terms = CollectTermsVisitor.CollectTerms(affine).ToArray();
+      // try to find first term with non-zero scale (because we divide by scale below)
+      Expression scaledAffine = null;
+      double scale = 1.0;
+      int scaleTermIndex;
+      for (scaleTermIndex = 0; scaleTermIndex < terms.Length; scaleTermIndex++) {
+        (scaledAffine, scale) = ExtractScaleFromTerm(terms[scaleTermIndex]);
+        if (scale != 0.0) {
+          break;
+        }
+      }
+      for (int i = 0; i < terms.Length; i++) {
+        if (i == scaleTermIndex) continue;
+        (var scaledT, var s) = ExtractScaleFromTerm(terms[i]);
         scaledAffine = Expression.Add(scaledAffine, Expression.Multiply(scaledT, NewParameter(s / scale)));
       }
       return (scaledAffine, scale);
@@ -1537,7 +1578,7 @@ namespace HEAL.Expressions {
         var factors = CollectFactorsVisitor.CollectFactors(term).ToArray();
         var scaleIdx = Array.FindIndex(factors, IsParameter); // constants as well?
         if (scaleIdx < 0 || factors.Length == 1) return (term, 1.0);
-        else return (factors.Take(scaleIdx).Concat(factors.Skip(scaleIdx+1)).Aggregate(Expression.Multiply), GetParameterValue(factors[scaleIdx]));
+        else return (factors.Take(scaleIdx).Concat(factors.Skip(scaleIdx + 1)).Aggregate(Expression.Multiply), GetParameterValue(factors[scaleIdx]));
       }
     }
 
