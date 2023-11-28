@@ -422,39 +422,7 @@ namespace HEAL.Expressions {
     }
 
     public static string ToString(Expression<ParametricFunction> expr, string[] varNames, double[] p) {
-      // for the output
-      // var parameterizedExpression = Expr.ReplaceParameterWithValues<Func<double[], double>>(expr, expr.Parameters[0], p);
-
-      var exprBody = expr.Body.ToString();
-
-      // replace all numbers with number"f" to mark them as "fixed"
-      // but ignore array indexes
-      var expPart = $"(('e'|'E')[-+]?[0-9][0-9]*)";
-      var floatLit = $"(?<num>[0-9][0-9]*\\.[0-9]*{expPart}?)" + // float with digits before and after comma
-        $"|(?<num>\\.[0-9][0-9]*{expPart}?)" + // float with digits only after comma
-        $"|(?<num>[0-9][0-9]*{expPart})" + // float without digits after comma but with exponent
-        $"|[^[](?<num>[0-9][0-9]*)[^].eE0-9]" // integer (but not as array index)
-        ;
-      var floatLitRegex = new Regex(floatLit, RegexOptions.ExplicitCapture);
-
-      var match = floatLitRegex.Match(exprBody);
-      while (match.Groups["num"].Success) {
-        var numGroup = match.Groups["num"];
-        exprBody = exprBody.Insert(numGroup.Index + numGroup.Length, "f"); // insert "f" after number
-        match = floatLitRegex.Match(exprBody, numGroup.Index + numGroup.Length); // find next match
-      }
-
-      for (int i = 0; i < varNames.Length; i++) {
-        exprBody = exprBody.Replace($"x[{i}]", varNames[i]);
-      }
-
-
-      for (int i = 0; i < p.Length; i++) {
-        exprBody = exprBody.Replace($"{expr.Parameters[0].Name}[{i}]", p[i].ToString("g8", CultureInfo.InvariantCulture));
-      }
-
-      return exprBody.ToString();
-
+      return ExprFormatter.ToString(expr, varNames, p);     
     }
 
     public static int NumberOfNodes(Expression<ParametricFunction> parametricExpr) {
