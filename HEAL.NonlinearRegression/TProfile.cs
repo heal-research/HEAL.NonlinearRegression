@@ -118,7 +118,7 @@ namespace HEAL.NonlinearRegression {
           alglib.mincgoptimize(state, negLogLikeFixed, rep: null, obj: null);
           alglib.mincgresults(state, out p_cond, out var report);
           // alglib.mincgoptguardresults(state, out var optGuardRep);
-          if (report.terminationtype < 0 || report.terminationtype == 4) break;
+          if (report.terminationtype < 0) break;
 
           var nll_grad = new double[n];
           likelihood.NegLogLikelihoodGradient(p_cond, out var nll, nll_grad);
