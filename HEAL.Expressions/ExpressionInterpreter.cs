@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 
 
 namespace HEAL.Expressions {
+
   // TODO: length of code does not have to match size of expression tree. (allow multiple instructions for a single tree node e.g. for powabs or logabs)
 
   // prepares data structures for repeated efficient evaluation of a single expression
@@ -16,7 +18,7 @@ namespace HEAL.Expressions {
     private readonly double[][] xBuf;
     private readonly ParameterExpression thetaParam;
     private readonly ParameterExpression xParam;
-    private readonly List<Instruction> instuctions;
+    private readonly ImmutableList<Instruction> instructions;
     private readonly Dictionary<string, int> expr2tapeIdx = new Dictionary<string, int>();
 
     // x is column oriented
@@ -30,63 +32,72 @@ namespace HEAL.Expressions {
       this.thetaParam = expression.Parameters[0];
       this.xParam = expression.Parameters[1];
       // prepare a postfix representation of the expression
-      instuctions = new List<Instruction>();
+      var _instructions = new List<Instruction>();
       foreach (var curExpr in FlattenExpressionVisitor.Execute(expression.Body)) {
         var exprStr = curExpr.ToString();
         if (expr2tapeIdx.ContainsKey(exprStr)) continue;
 
-        var curInstr = new Instruction() {
-          opc = OpCode(curExpr)
-        };
+
+        var idx1 = 0;
+        var idx2 = 0;
+        double[] values = null;
+        double[] diffValues = null;
 
         switch (curExpr) {
           case BinaryExpression binary:
             // operators +, -, *, /,
             if (binary.NodeType != ExpressionType.ArrayIndex) {
-              curInstr.values = new double[batchSize];
-              curInstr.diffValues = new double[batchSize];
+              values = new double[batchSize];
+              diffValues = new double[batchSize];
 
-              curInstr.idx1 = expr2tapeIdx[binary.Left.ToString()];
-              curInstr.idx2 = expr2tapeIdx[binary.Right.ToString()];
+              idx1 = expr2tapeIdx[binary.Left.ToString()];
+              idx2 = expr2tapeIdx[binary.Right.ToString()];
             } else {
               // array access x[] or p[]
               if (binary.Left == thetaParam) {
-                curInstr.idx1 = ExtractArrIndex(curExpr);
-                curInstr.values = new double[1]; // the value is constant
-                curInstr.diffValues = new double[batchSize];
+                idx1 = ExtractArrIndex(curExpr);
+                values = new double[1]; // the value is constant
+                diffValues = new double[batchSize];
               } else if (binary.Left == xParam) {
-                curInstr.idx1 = ExtractArrIndex(curExpr);
-                curInstr.values = xBuf[curInstr.idx1];
-                curInstr.diffValues = new double[batchSize];
+                idx1 = ExtractArrIndex(curExpr);
+                values = xBuf[idx1];
+                diffValues = new double[batchSize];
               } else throw new NotSupportedException("unknown array variable.");
             }
             break;
           case UnaryExpression unary:
             if (unary.NodeType == ExpressionType.UnaryPlus) continue; // this can be ignored completely (and should never occur anyway)
 
-            curInstr.values = new double[batchSize];
-            curInstr.diffValues = new double[batchSize];
-            curInstr.idx1 = expr2tapeIdx[unary.Operand.ToString()];
+            values = new double[batchSize];
+            diffValues = new double[batchSize];
+            idx1 = expr2tapeIdx[unary.Operand.ToString()];
             break;
           case MethodCallExpression call:
-            curInstr.values = new double[batchSize];
-            curInstr.diffValues = new double[batchSize];
+            values = new double[batchSize];
+            diffValues = new double[batchSize];
 
             // only unary or binary
-            curInstr.idx1 = expr2tapeIdx[call.Arguments[0].ToString()];
+            idx1 = expr2tapeIdx[call.Arguments[0].ToString()];
             if (call.Arguments.Count == 2) {
-              curInstr.idx2 = expr2tapeIdx[call.Arguments[1].ToString()];
+              idx2 = expr2tapeIdx[call.Arguments[1].ToString()];
             } else if (call.Arguments.Count > 2)
               throw new NotSupportedException("Method call with more than two arguments");
             break;
           case ConstantExpression constExpr:
-            curInstr.values = new[] { (double)((ConstantExpression)curExpr).Value };
+            values = new[] { (double)((ConstantExpression)curExpr).Value };
             break;
         }
 
-        expr2tapeIdx.Add(exprStr, instuctions.Count);
-        instuctions.Add(curInstr);
+        expr2tapeIdx.Add(exprStr, _instructions.Count);
+        _instructions.Add(new Instruction() {
+          opc = OpCode(curExpr),
+          values = values,
+          diffValues = diffValues,
+          idx1 = idx1,
+          idx2 = idx2
+        });
       }
+      instructions = _instructions.ToImmutableList();
     }
 
     // all rows
@@ -108,13 +119,13 @@ namespace HEAL.Expressions {
         Buffer.BlockCopy(x[i], startRow * sizeof(double), xBuf[i], 0, batchSize * sizeof(double));
       }
 
-      for (int instrIdx = 0; instrIdx < instuctions.Count; instrIdx++) {
-        var curInstr = instuctions[instrIdx];
+      for (int instrIdx = 0; instrIdx < instructions.Count; instrIdx++) {
+        var curInstr = instructions[instrIdx];
         var curVal = curInstr.values;
         Instruction left = default, right = default;
         if (curInstr.opc != Instruction.OpcEnum.Var && curInstr.opc != Instruction.OpcEnum.Param) {
-          left = instuctions[curInstr.idx1];
-          right = instuctions[curInstr.idx2];
+          left = instructions[curInstr.idx1];
+          right = instructions[curInstr.idx2];
         }
         switch (curInstr.opc) {
           case Instruction.OpcEnum.Var: /* nothing to do */ break;
@@ -147,7 +158,7 @@ namespace HEAL.Expressions {
         }
       }
 
-      var result = instuctions.Last();
+      var result = instructions.Last();
 
       if (result.values.Length == 1) {
         // parameters or constants
@@ -178,27 +189,27 @@ namespace HEAL.Expressions {
       // clear arrays
       if (jacX != null) Array.Clear(jacX, startRow * jacX.GetLength(1), batchSize * jacX.GetLength(1));
       if (jacTheta != null) Array.Clear(jacTheta, startRow * jacTheta.GetLength(1), batchSize * jacTheta.GetLength(1));
-      for (int i = 0; i < instuctions.Count; i++) if (instuctions[i].diffValues != null) Array.Clear(instuctions[i].diffValues);
+      for (int i = 0; i < instructions.Count; i++) if (instructions[i].diffValues != null) Array.Clear(instructions[i].diffValues);
 
 
       // backpropagate
-      var lastInstr = instuctions.Last();
+      var lastInstr = instructions.Last();
       if (lastInstr.diffValues != null) Array.Fill(lastInstr.diffValues, 1.0);
 
-      for (int instrIdx = instuctions.Count - 1; instrIdx >= 0; instrIdx--) {
-        var curInstr = instuctions[instrIdx];
+      for (int instrIdx = instructions.Count - 1; instrIdx >= 0; instrIdx--) {
+        var curInstr = instructions[instrIdx];
         var curDiff = curInstr.diffValues;
 
         double[] leftDiff = null, rightDiff = null;
         Instruction left = default, right = default;
         if (curInstr.opc != Instruction.OpcEnum.Var && curInstr.opc != Instruction.OpcEnum.Param) {
           var ch0Idx = curInstr.idx1;
-          leftDiff = ch0Idx >= 0 ? instuctions[ch0Idx].diffValues : null;
-          left = ch0Idx >= 0 ? instuctions[ch0Idx] : default;
+          leftDiff = ch0Idx >= 0 ? instructions[ch0Idx].diffValues : null;
+          left = ch0Idx >= 0 ? instructions[ch0Idx] : default;
 
           var ch1Idx = curInstr.idx2;
-          rightDiff = ch1Idx >= 0 ? instuctions[ch1Idx].diffValues : null;
-          right = ch1Idx >= 0 ? instuctions[ch1Idx] : default;
+          rightDiff = ch1Idx >= 0 ? instructions[ch1Idx].diffValues : null;
+          right = ch1Idx >= 0 ? instructions[ch1Idx] : default;
         }
         switch (curInstr.opc) {
           case Instruction.OpcEnum.Var: if (jacX != null) for (int i = 0; i < batchSize; i++) { jacX[startRow + i, curInstr.idx1] += curDiff[i]; } break;
@@ -275,7 +286,12 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.InvLogistic: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * Functions.InvLogisticPrime(left.GetValue(i)); } break;
           case Instruction.OpcEnum.LogisticPrime: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * Functions.LogisticPrimePrime(left.GetValue(i)); } break;
           case Instruction.OpcEnum.InvLogisticPrime: if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * Functions.InvLogisticPrimePrime(left.GetValue(i)); } break;
-          default: throw new InvalidOperationException();
+          default: {
+              for (int idx = 0; idx < instructions.Count; idx++) {
+                System.Console.WriteLine($"{idx} {curInstr.opc}");
+              }
+              throw new InvalidOperationException($"Unknown opcode {curInstr.opc} {instrIdx} {curInstr.idx1} {curInstr.idx2}");
+            }
         }
       }
     }
@@ -346,14 +362,14 @@ namespace HEAL.Expressions {
       }
     }
 
-    private struct Instruction {
+    private readonly struct Instruction {
       public enum OpcEnum { None, Const, Param, Var, Neg, Add, Sub, Mul, Div, Log, Abs, Exp, Sin, Cos, Cosh, Tanh, Pow, PowAbs, Sqrt, Cbrt, Sign, Logistic, InvLogistic, LogisticPrime, InvLogisticPrime };
 
-      public int idx1; // child idx1 for internal nodes, index into p or x for parameters or variables
-      public int idx2; // child idx2 for internal nodes (only for binary operations)
-      public OpcEnum opc;
-      public double[] values; // for internal nodes and variables
-      public double[] diffValues; // for reverse autodiff
+      public readonly int idx1 { get; init; } // child idx1 for internal nodes, index into p or x for parameters or variables
+      public readonly int idx2 { get; init; } // child idx2 for internal nodes (only for binary operations)
+      public readonly OpcEnum opc { get; init; }
+      public readonly double[] values { get; init; }// for internal nodes and variables
+      public readonly double[] diffValues { get; init; } // for reverse autodiff
 
       public double GetValue(int idx) => values.Length == 1 ? values[0] : values[idx];
     }
