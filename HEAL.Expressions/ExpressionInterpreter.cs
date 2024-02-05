@@ -18,7 +18,7 @@ namespace HEAL.Expressions {
     private readonly double[][] xBuf;
     private readonly ParameterExpression thetaParam;
     private readonly ParameterExpression xParam;
-    private readonly ImmutableList<Instruction> instructions;
+    private readonly List<Instruction> instructions;
     private readonly Dictionary<string, int> expr2tapeIdx = new Dictionary<string, int>();
 
     // x is column oriented
@@ -32,7 +32,7 @@ namespace HEAL.Expressions {
       this.thetaParam = expression.Parameters[0];
       this.xParam = expression.Parameters[1];
       // prepare a postfix representation of the expression
-      var _instructions = new List<Instruction>();
+      instructions = new List<Instruction>();
       foreach (var curExpr in FlattenExpressionVisitor.Execute(expression.Body)) {
         var exprStr = curExpr.ToString();
         if (expr2tapeIdx.ContainsKey(exprStr)) continue;
@@ -88,8 +88,8 @@ namespace HEAL.Expressions {
             break;
         }
 
-        expr2tapeIdx.Add(exprStr, _instructions.Count);
-        _instructions.Add(new Instruction() {
+        expr2tapeIdx.Add(exprStr, instructions.Count);
+        instructions.Add(new Instruction() {
           opc = OpCode(curExpr),
           values = values,
           diffValues = diffValues,
@@ -97,7 +97,6 @@ namespace HEAL.Expressions {
           idx2 = idx2
         });
       }
-      instructions = _instructions.ToImmutableList();
     }
 
     // all rows
@@ -154,7 +153,12 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.InvLogistic: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.InvLogistic(left.GetValue(i)); } break;
           case Instruction.OpcEnum.LogisticPrime: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.LogisticPrime(left.GetValue(i)); } break;
           case Instruction.OpcEnum.InvLogisticPrime: for (int i = 0; i < batchSize; i++) { curVal[i] = Functions.InvLogisticPrime(left.GetValue(i)); } break;
-          default: throw new InvalidOperationException();
+          default: {
+              for (int idx = 0; idx < instructions.Count; idx++) {
+                System.Console.WriteLine($"{idx} {curInstr.opc}");
+              }
+              throw new InvalidOperationException($"Unknown opcode {curInstr.opc} {instrIdx} {curInstr.idx1} {curInstr.idx2}");
+            }
         }
       }
 
@@ -362,14 +366,14 @@ namespace HEAL.Expressions {
       }
     }
 
-    private readonly struct Instruction {
+    private struct Instruction {
       public enum OpcEnum { None, Const, Param, Var, Neg, Add, Sub, Mul, Div, Log, Abs, Exp, Sin, Cos, Cosh, Tanh, Pow, PowAbs, Sqrt, Cbrt, Sign, Logistic, InvLogistic, LogisticPrime, InvLogisticPrime };
 
-      public readonly int idx1 { get; init; } // child idx1 for internal nodes, index into p or x for parameters or variables
-      public readonly int idx2 { get; init; } // child idx2 for internal nodes (only for binary operations)
-      public readonly OpcEnum opc { get; init; }
-      public readonly double[] values { get; init; }// for internal nodes and variables
-      public readonly double[] diffValues { get; init; } // for reverse autodiff
+      public int idx1 { get; init; } // child idx1 for internal nodes, index into p or x for parameters or variables
+      public int idx2 { get; init; } // child idx2 for internal nodes (only for binary operations)
+      public OpcEnum opc { get; init; }
+      public double[] values { get; init; }// for internal nodes and variables
+      public double[] diffValues { get; init; } // for reverse autodiff
 
       public double GetValue(int idx) => values.Length == 1 ? values[0] : values[idx];
     }
