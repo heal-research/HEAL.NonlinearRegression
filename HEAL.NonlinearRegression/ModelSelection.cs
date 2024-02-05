@@ -119,9 +119,14 @@ namespace HEAL.NonlinearRegression {
       var allSymbols = Expr.CollectSymbols(expr).ToList();
       // fisherInfo = likelihood.FisherInformation(paramEst);
 
-      var detFI = alglib.rmatrixdet(fisherInfo);
-      if (detFI <= 0) {
-        System.Console.Error.WriteLine("FI not positive in MDLLattice. ");
+      var detFI = double.MaxValue;
+      try {
+        detFI = alglib.rmatrixdet(fisherInfo);
+        if (detFI <= 0) {
+          System.Console.Error.WriteLine("FI not positive in MDLLattice. ");
+          return double.MaxValue;
+        }
+      } catch(Exception e) {
         return double.MaxValue;
       }
 
