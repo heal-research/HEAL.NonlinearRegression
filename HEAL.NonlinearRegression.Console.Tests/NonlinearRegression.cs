@@ -11,6 +11,7 @@ namespace HEAL.NonlinearRegression.Console.Tests {
       Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
     }
 
+    // Test case for the README.md
     [Test]
     public void FitPuromycin() {
       #region data
@@ -49,6 +50,7 @@ namespace HEAL.NonlinearRegression.Console.Tests {
         System.Linq.Expressions.Expression.Parameter(typeof(double[]), "p"));
       var likelihood = new SimpleGaussianLikelihood(x, y, parser.Parse());
       nlr.Fit(parser.ParameterValues, likelihood);
+      nlr.WriteStatistics();
 
       System.Console.WriteLine($"Deviance: {nlr.Deviance:e4}, BIC: {nlr.BIC:f2}");
       Assert.AreEqual(96.91354730673082, nlr.BIC, 1e-5);
