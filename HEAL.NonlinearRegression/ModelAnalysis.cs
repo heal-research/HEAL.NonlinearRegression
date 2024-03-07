@@ -72,7 +72,7 @@ namespace HEAL.NonlinearRegression {
       // fit the full model once for the baseline
       var nlr = new NonlinearRegression();
       nlr.Fit(p, likelihood);
-      nlr.WriteStatistics();
+      // nlr.WriteStatistics();
       var refSSR = Util.SSR(likelihood.Y, nlr.Predict(likelihood.X));
       var m = likelihood.NumberOfObservations;
       var n = p.Length;
@@ -91,7 +91,7 @@ namespace HEAL.NonlinearRegression {
       var impacts = new Dictionary<Expression, double>();
       var eval = new double[likelihood.NumberOfObservations];
 
-      Console.WriteLine($"{"SSR_factor",-11} {"ΔDoF",-6} {"ΔSSR",-11} {"s2Extra",-11} {"fRatio",-11} {"p value",10} {"ΔAICc",-11} {"ΔBIC",-11} {"ΔDL",-11} {"MSE",-11} sub-expression");
+      Console.WriteLine($"{"SSR_factor",-11} {"ΔDoF",-6} {"ΔSSR",-11} {"s2Extra",-11} {"fRatio",-11} {"p value",-10} {"ΔAICc",-11} {"ΔBIC",-11} {"ΔDL",-11} {"MSE",-11} sub-expression");
 
 
       foreach (var subExpr in subexpressions) {
@@ -147,8 +147,8 @@ namespace HEAL.NonlinearRegression {
 
         Console.WriteLine($"{ssrFactor,-11:e3} {deltaDoF,-6} {deltaSSR,-11:e3} {s2Extra,-11:e3} {fRatio,-11:e4} {1 - f,-10:e3} " +
           $"{localNlr.AICc - fullAICc,-11:f1} " +
-          $"{localNlr.BIC - fullBIC,-11:f1}" +
-          $"{localDL - fullDL,-11:f1}" +
+          $"{localNlr.BIC - fullBIC,-11:f1} " +
+          $"{localDL - fullDL,-11:f1} " +
           $"{mse,-11:e2} {subExpr} ");
 
         var impact = ssrFactor;

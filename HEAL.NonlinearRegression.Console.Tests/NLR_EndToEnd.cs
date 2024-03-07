@@ -40,12 +40,12 @@ namespace HEAL.NonlinearRegression.Console.Tests {
 
       var expected = @"p_opt: 6.41213e-002 2.12684e+002
 Successful: True, NumIters: 1, NumFuncEvals: 21, NumJacEvals: 21
-SSR: 1.1954e+003  s: 1.0934e+001 RMSE: 1.0934e+001 AICc: 98.5 BIC: 96.9 DL: 61.2  DL (lattice): 59.1
+SSR: 1.1954e+003  s: 1.0934e+001 RMSE: 1.0934e+001 AICc: 98.5 BIC: 96.9 DL: 61.23  DL (lattice): 59.14 neg. Evidence: 33.06
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
     0    6.4121e-002    8.7112e-003   7.36e+000    4.4711e-002    8.3531e-002 1.00
     1    2.1268e+002    7.1607e+000   2.97e+001    1.9673e+002    2.2864e+002 0.78 1.00
 
-Optimized: ((x0 / (0.06412 + x0)) * 212.7)
+Optimized: x0 / (0.064121282 + x0) * 212.68374
 ";
       NlrFit("Puromycin.csv", "x0 / (0.06412128165180965 + x0) * 212.68374312341493", "0:11", "y", "Gaussian", expected);
     }
@@ -66,7 +66,7 @@ p1    2.1268e+002    1.9730e+002    2.2929e+002
 
     [Test]
     public void EvaluatePuromycin() {
-      var expected = @"SSR: 1195.45 MSE: 99.6207 RMSE: 9.98102 NMSE: 0.0387392 R2: 0.9613 LogLik: -44.7294 AIC: 95.46 AICc: 98.46 BIC: 96.91 DL: 61.23 DoF: 2
+      var expected = @"SSR: 1195.45 MSE: 99.6207 RMSE: 9.98102 NMSE: 0.0387392 R2: 0.9613 MAE: 7.559  LogLik: -44.7294 AIC: 95.46 AICc: 98.46 BIC: 96.91 DL: 61.23 DL_lattice: 59.14 neg. Evidence: 33.06 DoF: 2 m: 12
 ";
       NlrEvaluate("Puromycin.csv", "x0 / (0.06412128165180965 + x0) * 212.68374312341493", "0:11", "y", "Gaussian", expected);
     }
@@ -115,12 +115,12 @@ p1    2.1268e+002    1.9730e+002    2.2929e+002
     public void FitLinearPuromycin() {
       var expected = @"p_opt: 1.10421e+002 1.03488e+002
 Successful: True, NumIters: 1, NumFuncEvals: 11, NumJacEvals: 11
-SSR: 9.5471e+003  s: 3.0898e+001 RMSE: 3.0898e+001 AICc: 123.4 BIC: 121.8 DL: 67.3  DL (lattice): 58.7
+SSR: 9.5471e+003  s: 3.0898e+001 RMSE: 3.0898e+001 AICc: 123.4 BIC: 121.8 DL: 67.33  DL (lattice): 58.69 neg. Evidence: 41.93
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
     0    1.1042e+002    2.3371e+001   4.72e+000    5.8347e+001    1.6249e+002 1.00
     1    1.0349e+002    1.2024e+001   8.61e+000    7.6697e+001    1.3028e+002 -0.67 1.00
 
-Optimized: ((110.4 * x0) + 103.5)
+Optimized: 110.42108 * x0 + 103.48806
 ";
 
       /*
@@ -216,8 +216,8 @@ Optimized: ((110.4 * x0) + 103.5)
 
       // exactly the same result as in R (using full Hessian for FisherInformationMatrix)
       var expected = @"p_opt: 1.38378e+000 4.84833e-002 5.24299e-001 3.52511e-001 -6.84851e-002 -1.11809e+001
-Successful: True, NumIters: 1, NumFuncEvals: 3, NumJacEvals: 3
-Deviance: 7.8438e+002  AICc: 796.5 BIC: 825.6 DL: 458.2  DL (lattice): 455.8
+Successful: True, NumIters: 3, NumFuncEvals: 43, NumJacEvals: 43
+Deviance: 7.8438e+002  AICc: 796.5 BIC: 825.6 DL: 458  DL (lattice): 456 neg. Evidence: 389.84
 Para       Estimate      Std. error     z Score          Lower          Upper Correlation matrix
     0    1.3838e+000    1.7042e-001   8.12e+000    1.0493e+000    1.7182e+000 1.00
     1    4.8483e-002    7.5999e-003   6.38e+000    3.3569e-002    6.3398e-002 -0.04 1.00
@@ -226,7 +226,7 @@ Para       Estimate      Std. error     z Score          Lower          Upper Co
     4   -6.8485e-002    2.4032e-001  -2.85e-001   -5.4009e-001    4.0312e-001 -0.04 0.00 0.02 -0.10 1.00
     5   -1.1181e+001    1.0533e+000  -1.06e+001   -1.3248e+001   -9.1140e+000 -0.60 -0.38 -0.11 0.12 -0.62 1.00
 
-Optimized: Logistic(((((((1.384 * BI_RADS) + (0.04848 * Age)) + (0.5243 * Shape)) + (0.3525 * Margin)) + (-0.06849 * Density)) + -11.18))
+Optimized: logistic(1.3837835 * BI_RADS + 0.048483267 * Age + 0.5242994 * Shape + 0.35251072 * Margin + -0.068485134 * Density + -11.180916)
 ";
 
       NlrFit("mammography.csv",
@@ -240,7 +240,7 @@ Optimized: Logistic(((((((1.384 * BI_RADS) + (0.04848 * Age)) + (0.5243 * Shape)
     [Test]
     public void EvaluateMammography() {
 
-      var expected = @"Deviance: 784.375 LogLik: -392.188 AIC: 796.38 AICc: 796.46 BIC: 825.58 DL: 458.24 DoF: 6
+      var expected = @"Deviance: 784.375 LogLik: -392.188 AIC: 796.38 AICc: 796.46 BIC: 825.58 DL: 458.24  DL_lattice: 455.78 neg. Evidence: 389.84 DoF: 6 m: 961
 ";
 
       NlrEvaluate("mammography.csv",
@@ -384,12 +384,12 @@ p5   -1.1181e+001   -1.3314e+001   -9.1744e+000
     [Test]
     public void VariableImporanceMammography() {
 
-      var expected = @"variable    VarExpl    
-BI_RADS     9.39       %
-Age         4.64       %
-Shape       2.99       %
-Margin      1.99       %
-Density     0.01       %
+      var expected = @"Variable    SSR_ratio
+BI_RADS     1.18
+Age         1.04
+Shape       1.04
+Margin      1.03
+Density     1.00
 ";
       NlrVariableImpact("mammography.csv",
         "Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))",
@@ -400,8 +400,8 @@ Density     0.01       %
 
       var expected = @"
 Deviance_Factor,numPar,AICc,dAICc,BIC,dBIC,Model
-1.0000e+000,6,7.9646e+002,0.0000e+000,8.2558e+002,0.0000e+000,Logistic(((((((1.384 * BI_RADS) + (0.04848 * Age)) + (0.5243 * Shape)) + (0.3525 * Margin)) + (-0.06849 * Density)) + -11.18))
-1.0001e+000,5,7.9452e+002,-1.9442e+000,8.1880e+002,-6.7870e+000,Logistic((((((Age * 0.04849) + (Shape * 0.5248)) + (Margin * 0.3503)) + (BI_RADS * 1.382)) + -11.37))
+1.0000e+000,6,7.9646e+002,0.0000e+000,8.2558e+002,0.0000e+000,logistic(1.3837835 * BI_RADS + 0.048483267 * Age + 0.5242994 * Shape + 0.35251072 * Margin + -0.068485134 * Density + -11.180916)
+1.0001e+000,5,7.9452e+002,-1.9442e+000,8.1880e+002,-6.7870e+000,logistic(BI_RADS * 1.3822883 + Age * 0.048492866 + Shape * 0.5248007 + Margin * 0.35034412 + -11.369226)
 ";
       NlrNested("mammography.csv",
         "Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))",
@@ -410,23 +410,29 @@ Deviance_Factor,numPar,AICc,dAICc,BIC,dBIC,Model
     [Test]
     public void SubtreesMammography() {
 
-      var expected = @"SSR_factor  deltaAIC    deltaBIC    Subtree
-1.6918e+000 532.5       508.3       Logistic(((((((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2])) + (p[3] * x[3])) + (p[4] * x[4])) + p[5]))
-1.6918e+000 532.5       508.3       ((((((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2])) + (p[3] * x[3])) + (p[4] * x[4])) + p[5])
-1.6918e+000 532.5       508.3       (((((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2])) + (p[3] * x[3])) + (p[4] * x[4]))
-1.6880e+000 531.6       512.2       ((((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2])) + (p[3] * x[3]))
-1.2735e+000 208.5       194.0       (((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2]))
-1.1984e+000 151.6       141.9       ((p[0] * x[0]) + (p[1] * x[1]))
-1.1150e+000 88.2        83.4        (p[0] * x[0])
-1.1150e+000 88.2        83.4        x[0]
-1.0569e+000 42.6        37.7        (p[1] * x[1])
-1.0569e+000 42.6        37.7        x[1]
-1.0367e+000 26.7        21.9        (p[2] * x[2])
-1.0367e+000 26.7        21.9        x[2]
-1.0244e+000 17.1        12.2        (p[3] * x[3])
-1.0244e+000 17.1        12.2        x[3]
-1.0001e+000 -1.9        -6.8        (p[4] * x[4])
-1.0001e+000 -1.9        -6.8        x[4]
+      var expected = @"SSR_factor  ΔDoF   ΔSSR        s2Extra     fRatio      p value    ΔAICc       ΔBIC        ΔDL         MSE         sub-expression
+1.176e+000  1      2.106e+001  2.106e+001  1.6829e+002 5.551e-016 88.2        83.4        28.4        1.46e-001   p[0] 
+1.176e+000  1      2.106e+001  2.106e+001  1.6829e+002 5.551e-016 88.2        83.4        28.4        1.46e-001   x[0] 
+1.176e+000  1      2.106e+001  2.106e+001  1.6829e+002 5.551e-016 88.2        83.4        28.4        1.46e-001   (p[0] * x[0]) 
+1.042e+000  1      5.017e+000  5.017e+000  4.0098e+001 3.712e-010 42.6        37.7        8.6         1.30e-001   p[1] 
+1.042e+000  1      5.017e+000  5.017e+000  4.0098e+001 3.712e-010 42.6        37.7        8.6         1.30e-001   x[1] 
+1.042e+000  1      5.017e+000  5.017e+000  4.0098e+001 3.712e-010 42.6        37.7        8.6         1.30e-001   (p[1] * x[1]) 
+1.265e+000  2      3.162e+001  1.581e+001  1.2635e+002 5.551e-016 151.6       141.9       47.9        1.57e-001   ((p[0] * x[0]) + (p[1] * x[1])) 
+1.039e+000  1      4.706e+000  4.706e+000  3.7615e+001 1.260e-009 26.7        21.9        3.1         1.29e-001   p[2] 
+1.039e+000  1      4.706e+000  4.706e+000  3.7615e+001 1.260e-009 26.7        21.9        3.1         1.29e-001   x[2] 
+1.039e+000  1      4.706e+000  4.706e+000  3.7615e+001 1.260e-009 26.7        21.9        3.1         1.29e-001   (p[2] * x[2]) 
+1.383e+000  3      4.581e+001  1.527e+001  1.2204e+002 5.551e-016 208.5       194.0       65.6        1.72e-001   (((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2])) 
+1.026e+000  1      3.071e+000  3.071e+000  2.4548e+001 8.569e-007 17.1        12.2        -4.6        1.28e-001   p[3] 
+1.026e+000  1      3.071e+000  3.071e+000  2.4548e+001 8.569e-007 17.1        12.2        -4.6        1.28e-001   x[3] 
+1.026e+000  1      3.071e+000  3.071e+000  2.4548e+001 8.569e-007 17.1        12.2        -4.6        1.28e-001   (p[3] * x[3]) 
+1.994e+000  4      1.187e+002  2.968e+001  2.3724e+002 5.551e-016 531.6       512.2       217.8       2.48e-001   ((((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2])) + (p[3] * x[3])) 
+1.000e+000  1      7.986e-003  7.986e-003  6.3829e-002 0.000e+000 -1.9        -6.8        -13.4       1.24e-001   p[4] 
+1.000e+000  1      7.986e-003  7.986e-003  6.3826e-002 0.000e+000 -1.9        -6.8        -13.4       1.24e-001   x[4] 
+1.000e+000  1      7.986e-003  7.986e-003  6.3826e-002 0.000e+000 -1.9        -6.8        -13.4       1.24e-001   (p[4] * x[4]) 
+2.000e+000  5      1.195e+002  2.389e+001  1.9096e+002 5.551e-016 532.5       508.3       208.1       2.49e-001   (((((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2])) + (p[3] * x[3])) + (p[4] * x[4])) 
+1.241e+000  1      2.874e+001  2.874e+001  2.2973e+002 5.551e-016 145.9       141.1       65.2        1.54e-001   p[5] 
+2.000e+000  5      1.195e+002  2.389e+001  1.9096e+002 5.551e-016 532.5       508.3       208.1       2.49e-001   ((((((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2])) + (p[3] * x[3])) + (p[4] * x[4])) + p[5]) 
+2.000e+000  5      1.195e+002  2.389e+001  1.9096e+002 5.551e-016 532.5       508.3       208.1       2.49e-001   Logistic(((((((p[0] * x[0]) + (p[1] * x[1])) + (p[2] * x[2])) + (p[3] * x[3])) + (p[4] * x[4])) + p[5])) 
 ";
       NlrSubtrees("mammography.csv",
         "Logistic(((((((1.383783475779263 * BI_RADS) + (0.04848326870704811 * Age)) + (0.5242993934294974 * Shape)) + (0.35251072256819216 * Margin)) + (-0.06848513367625006 * Density)) + -11.180915607397608))",

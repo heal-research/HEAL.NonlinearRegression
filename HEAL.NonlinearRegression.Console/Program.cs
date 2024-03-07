@@ -119,10 +119,10 @@ namespace HEAL.NonlinearRegression.Console {
             var ssr = Util.SSR(y, yPred);
             var nmse = ssr / y.Length / Util.Variance(y);
             var mae = Util.MAE(y, yPred);
-            System.Console.WriteLine($"SSR {ssr:g6} MSE {ssr / y.Length:g6} RMSE {Math.Sqrt(ssr / y.Length):g6} NMSE {nmse:g6} R2 {1 - nmse:g4} MAE {mae:g4}  LogLik {logLik:g6} AIC {nlr.AIC:f2} AICc {aicc:f2} BIC {bic:f2} DL {dl:f2} DL_lattice {dlLattice:f2} neg. Evidence {evidence:f2} DoF {p.Length} m {m}");
+            System.Console.WriteLine($"SSR: {ssr:g6} MSE: {ssr / y.Length:g6} RMSE: {Math.Sqrt(ssr / y.Length):g6} NMSE: {nmse:g6} R2: {1 - nmse:g4} MAE: {mae:g4}  LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DL_lattice: {dlLattice:f2} neg. Evidence: {evidence:f2} DoF: {p.Length} m: {m}");
           }
           else if (options.Likelihood == LikelihoodEnum.Bernoulli) {
-            System.Console.WriteLine($"Deviance {nlr.Deviance:g6} LogLik {logLik:g6} AIC {nlr.AIC:f2} AICc {aicc:f2} BIC {bic:f2} DL {dl:f2}  DL_lattice {dlLattice:f2} neg. Evidence {evidence:f2} DoF {p.Length} m {m}");
+            System.Console.WriteLine($"Deviance: {nlr.Deviance:g6} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2}  DL_lattice: {dlLattice:f2} neg. Evidence: {evidence:f2} DoF: {p.Length} m: {m}");
           }
         }
         catch (Exception e) {
@@ -471,9 +471,7 @@ namespace HEAL.NonlinearRegression.Console {
           };
         }
 
-        System.Console.WriteLine($"{"SSR_factor",-11} {"deltaAIC",-11} {"deltaBIC",-11} {"Subtree"}");
         foreach (var tup in subExprImportance.OrderByDescending(tup => Math.Round(tup.Item2, 3)).ThenByDescending(tup => tup.Item1.ToString().Length)) { // TODO better interface
-          System.Console.WriteLine($"{tup.Item2,-11:e4} {tup.Item3,-11:f1} {tup.Item4,-11:f1} {tup.Item1}");
           if (saturation != null) {
             saturation[tup.Item1] = tup.Item2; // use log scale for coloring
           }
@@ -524,10 +522,10 @@ namespace HEAL.NonlinearRegression.Console {
         var varImportance = ModelAnalysis.VariableImportance(CreateLikelihood(parametricExpr, p, options.Likelihood, options.NoiseSigma, trainX, trainY), p);
 
 
-        System.Console.WriteLine($"{"variable",-11} {"SSR_ratio",-11}");
+        System.Console.WriteLine($"{"Variable",-11} {"SSR_ratio"}");
         foreach (var tup in varImportance.OrderByDescending(tup => tup.Value)) { // TODO better interface
           var varName = varNames[tup.Key];
-          System.Console.WriteLine($"{varName,-11} {tup.Value,-11:f2}");
+          System.Console.WriteLine($"{varName,-11} {tup.Value:f2}");
         }
       }
     }
