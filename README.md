@@ -23,8 +23,6 @@ dotnet test --filter "FullyQualifiedName~Fit"
 
 ```
 Starting test execution, please wait...
-Deviance: 1.0000e+001, BIC: 96.91
-pred: 50.56597777048287, low: 41.54374721579334, high: 59.588208325172396
 
 p_opt: 1.10421e+002 1.03488e+002
 Successful: True, NumIters: 1, NumFuncEvals: 11, NumJacEvals: 11
