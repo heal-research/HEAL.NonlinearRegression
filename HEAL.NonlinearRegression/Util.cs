@@ -12,6 +12,15 @@ namespace HEAL.NonlinearRegression {
       return ssr;
     }
 
+    public static double MAE(double[] y, double[] yPred) {
+      if (y.Length != yPred.Length) throw new ArgumentException("arrays must have the same length");
+      var sae = 0.0;
+      for (int i = 0; i < y.Length; i++) {
+        sae += Math.Abs(yPred[i] - y[i]);
+      }
+      return sae / y.Length;
+    }
+
     public static double Variance(double[] x) {
       return alglib.samplevariance(x) * (x.Length - 1) / x.Length; // population variance
     }
