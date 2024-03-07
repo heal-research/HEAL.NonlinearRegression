@@ -39,8 +39,8 @@ namespace HEAL.Expressions.Parser {
 
     // LL(1) grammar:
     // G(Expr):
-    // Expr      = Term { ('+' | '-') Term
-    // Term      = Fact { ('*' | '/') Fact) }
+    // Expr      = Term { ('+' | '-') Term }
+    // Term      = Fact { ('*' | '/') Fact }
     // Fact      = { '+' | '-' }
     //             (ident | constant | parameter
     //              | '(' Expr ')'

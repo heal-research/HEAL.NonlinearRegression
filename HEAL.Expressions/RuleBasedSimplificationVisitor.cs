@@ -1044,7 +1044,6 @@ namespace HEAL.Expressions {
         e => Visit(Expression.Multiply(e.Update(e.Object, new [] { Expression.Constant(1), e.Arguments[1] }), e.Arguments[0]))
         ),
 
-
       // 
       new MethodCallExpressionRule(
         "sqrt(a) -> sqrt(a') * p | a is affine, p is positive",
@@ -1071,7 +1070,7 @@ namespace HEAL.Expressions {
         }),
       // 
       new MethodCallExpressionRule(
-        "log(a) -> log(a') * p | a is affine, p is positive",
+        "log(a) -> log(a') + p | a is affine, p is positive",
         e => e.Method == log && IsAffine(e.Arguments[0]),
         e => {
           (var scaledAffine, var scale) = ExtractPositiveScaleFromAffine(e.Arguments[0]);

@@ -55,7 +55,7 @@ namespace HEAL.NonlinearRegression {
         // If the parameter estimate is not significantly different from zero
         // then set it to zero and update the likelihood.
         if (Math.Abs(paramEst[i] / Math.Sqrt(12.0 / fisherInfo[i, i])) < 1.0) {
-          System.Console.Error.WriteLine($"Warning assuming param[{i}] = 0 in DL calculation for {expr}"); // for debugging
+          // System.Console.Error.WriteLine($"Warning assuming param[{i}] = 0 in DL calculation for {expr}"); // for debugging
           paramEst = (double[])paramEst.Clone();
           paramEst[i] = 0.0;
         }
