@@ -258,13 +258,14 @@ namespace HEAL.NonlinearRegression {
     private void WriteStatistics(TextWriter writer) {
       var dl = ModelSelection.DL(paramEst, Likelihood);
       var dl2 = ModelSelection.DLLattice(paramEst, Likelihood);
+      var negEvidence = ModelSelection.NegativeEvidence(paramEst, Likelihood);
       if (Likelihood is SimpleGaussianLikelihood gaussLik) {
         var ssr = Util.SSR(Predict(Likelihood.X), Likelihood.Y);
         var rmse = Math.Sqrt(ssr / (Likelihood.NumberOfObservations - paramEst.Length));
         var s = gaussLik.SigmaError;
-        writer.WriteLine($"SSR: {ssr:e4}  s: {s:e4} RMSE: {rmse:e4} AICc: {AICc:f1} BIC: {BIC:f1} DL: {dl:g3}  DL (lattice): {dl2:g3}");
+        writer.WriteLine($"SSR: {ssr:e4}  s: {s:e4} RMSE: {rmse:e4} AICc: {AICc:f1} BIC: {BIC:f1} DL: {dl:f2}  DL (lattice): {dl2:f2} neg. Evidence: {negEvidence:f2}");
       } else {
-        writer.WriteLine($"Deviance: {Deviance:e4}  AICc: {AICc:f1} BIC: {BIC:f1} DL: {dl:g3}  DL (lattice): {dl2:g3}");
+        writer.WriteLine($"Deviance: {Deviance:e4}  AICc: {AICc:f1} BIC: {BIC:f1} DL: {dl:g3}  DL (lattice): {dl2:g3} neg. Evidence: {negEvidence:f2}");
       }
       LaplaceApproximation?.WriteStatistics(writer);
     }

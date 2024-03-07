@@ -106,20 +106,23 @@ namespace HEAL.NonlinearRegression.Console {
           var m = y.Length;
 
           var stats = nlr.LaplaceApproximation;
-          var dl = ModelSelection.DL(p, nlr.Likelihood);
+          var dl = ModelSelection.DL(p, nlr.Likelihood, out var log_func, out var log_param, out var fisherDiag);
 
           var logLik = -nlr.NegLogLikelihood;
           var aicc = nlr.AICc;
           var bic = nlr.BIC;
+          var dlLattice = ModelSelection.DLLattice(p, nlr.Likelihood);
+          var evidence = ModelSelection.NegativeEvidence(p, nlr.Likelihood);
 
           if (options.Likelihood == LikelihoodEnum.Gaussian) {
             var yPred = nlr.Predict(x);
             var ssr = Util.SSR(y, yPred);
             var nmse = ssr / y.Length / Util.Variance(y);
-            System.Console.WriteLine($"SSR: {ssr:g6} MSE: {ssr / y.Length:g6} RMSE: {Math.Sqrt(ssr / y.Length):g6} NMSE: {nmse:g6} R2: {1 - nmse:g4} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DoF: {p.Length} m: {m}");
+            var mae = Util.MAE(y, yPred);
+            System.Console.WriteLine($"SSR {ssr:g6} MSE {ssr / y.Length:g6} RMSE {Math.Sqrt(ssr / y.Length):g6} NMSE {nmse:g6} R2 {1 - nmse:g4} MAE {mae:g4}  LogLik {logLik:g6} AIC {nlr.AIC:f2} AICc {aicc:f2} BIC {bic:f2} DL {dl:f2} DL_lattice {dlLattice:f2} neg. Evidence {evidence:f2} DoF {p.Length} m {m}");
           }
           else if (options.Likelihood == LikelihoodEnum.Bernoulli) {
-            System.Console.WriteLine($"Deviance: {nlr.Deviance:g6} LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DoF: {p.Length} m: {m}");
+            System.Console.WriteLine($"Deviance {nlr.Deviance:g6} LogLik {logLik:g6} AIC {nlr.AIC:f2} AICc {aicc:f2} BIC {bic:f2} DL {dl:f2}  DL_lattice {dlLattice:f2} neg. Evidence {evidence:f2} DoF {p.Length} m {m}");
           }
         }
         catch (Exception e) {
