@@ -117,7 +117,7 @@ namespace HEAL.NonlinearRegression.Console {
           if (options.Likelihood == LikelihoodEnum.Gaussian) {
             var yPred = nlr.Predict(x);
             var ssr = Util.SSR(y, yPred);
-            var nmse = ssr / y.Length / Util.Variance(y);
+            var nmse = Util.NMSE(y, yPred);
             var mae = Util.MAE(y, yPred);
             System.Console.WriteLine($"SSR: {ssr:g6} MSE: {ssr / y.Length:g6} RMSE: {Math.Sqrt(ssr / y.Length):g6} NMSE: {nmse:g6} R2: {1 - nmse:g4} MAE: {mae:g4}  LogLik: {logLik:g6} AIC: {nlr.AIC:f2} AICc: {aicc:f2} BIC: {bic:f2} DL: {dl:f2} DL_lattice: {dlLattice:f2} neg. Evidence: {evidence:f2} DoF: {p.Length} m: {m}");
           }

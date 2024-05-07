@@ -12,6 +12,11 @@ namespace HEAL.NonlinearRegression {
       return ssr;
     }
 
+    public static double MSE(double[] y, double[] yPred) => SSR(y, yPred) / y.Length;
+    public static double NMSE(double[] y, double[] yPred) => MSE(y, yPred) / Util.Variance(y);
+    public static double R2(double[] y, double[] yPred) => 1.0 - NMSE(y, yPred);
+
+
     public static double MAE(double[] y, double[] yPred) {
       if (y.Length != yPred.Length) throw new ArgumentException("arrays must have the same length");
       var sae = 0.0;
@@ -45,5 +50,6 @@ namespace HEAL.NonlinearRegression {
       }
       return xc;
     }
+
   }
 }
