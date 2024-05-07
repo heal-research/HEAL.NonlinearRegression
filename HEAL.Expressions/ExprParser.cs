@@ -21,6 +21,9 @@ namespace HEAL.Expressions.Parser {
     private readonly ParameterExpression variableSymbol;
     private readonly ParameterExpression parameterSymbol;
 
+    public ExprParser(string input, string[] variableNames) 
+      : this(input, variableNames, Expression.Parameter(typeof(double[]), "x"), Expression.Parameter(typeof(double[]), "p")) { }
+
     // the parser returns a lambda expression (variableSym, parameterSym) => f(variableSym, parameterSym)
     // variableSym and parameterSym must have double[] type
     public ExprParser(string input, string[] variableNames, ParameterExpression variableSymbol, ParameterExpression parameterSymbol) {
@@ -30,6 +33,18 @@ namespace HEAL.Expressions.Parser {
       this.variableNames = variableNames;
       this.variableSymbol = variableSymbol;
       this.parameterSymbol = parameterSymbol;
+    }
+
+    /// <summary>
+    /// Parses an infix expression.
+    /// </summary>
+    /// <param name="input">The expression in infix notation.</param>
+    /// <param name="variableNames">Array of all variable names (the expression only uses variable indices instead of names).</param>
+    /// <returns>Tuple with expression and vector of coefficients</returns>
+    public static (Expression<Expr.ParametricFunction>, double[]) Parse(string input, string[] variableNames) {
+      var parser = new ExprParser(input, variableNames);
+      var expr = parser.Parse();
+      return (expr, parser.ParameterValues);
     }
 
     public Expression<Expr.ParametricFunction> Parse() {
