@@ -1,8 +1,8 @@
 ﻿using System;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Reflection.Metadata;
 using System.Text;
 
 namespace HEAL.Expressions {
@@ -21,7 +21,7 @@ namespace HEAL.Expressions {
       this.sb = new StringBuilder();
     }
 
-    internal static string ToString(Expression<Expr.ParametricFunction> expr, string[] varNames, double[] p) {
+    public static string ToString(Expression<Expr.ParametricFunction> expr, string[] varNames, double[] p) {
       var f = new ExprFormatter(varNames, p, expr.Parameters[0], expr.Parameters[1]);
       f.Visit(expr.Body);
       return f.sb.ToString();
@@ -30,7 +30,7 @@ namespace HEAL.Expressions {
     protected override Expression VisitBinary(BinaryExpression node) {
       if (node.NodeType == ExpressionType.ArrayIndex) {
         if (node.Left == pParam) {
-          sb.Append($"{p[GetIndex(node)]:g8}");
+          sb.AppendFormat(CultureInfo.InvariantCulture, "{0:g8}", p[GetIndex(node)]);
         } else if (node.Left == varParam) {
           sb.Append(EscapeVarName(varNames[GetIndex(node)]));
         } else throw new ArgumentException();
@@ -50,7 +50,7 @@ namespace HEAL.Expressions {
 
 
     protected override Expression VisitConstant(ConstantExpression node) {
-      sb.Append(node.Value.ToString()).Append('f'); // f stands for fixed (see ExprParser)
+      sb.AppendFormat(CultureInfo.InvariantCulture, "{0}f", node.Value); // f stands for fixed (see ExprParser)
       return node;
     }
 
