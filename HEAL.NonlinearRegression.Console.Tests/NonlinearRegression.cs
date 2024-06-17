@@ -1,5 +1,6 @@
-﻿using NUnit.Framework;
-using System.Globalization;
+﻿using System.Globalization;
+using NUnit.Framework;
+using NUnit.Framework.Legacy;
 
 namespace HEAL.NonlinearRegression.Console.Tests {
   public class NLR {
@@ -53,13 +54,13 @@ namespace HEAL.NonlinearRegression.Console.Tests {
       nlr.WriteStatistics();
 
       System.Console.WriteLine($"Deviance: {nlr.Deviance:e4}, BIC: {nlr.BIC:f2}");
-      Assert.AreEqual(96.91354730673082, nlr.BIC, 1e-5);
+      ClassicAssert.AreEqual(96.91354730673082, nlr.BIC, 1e-5);
 
       var prediction = nlr.PredictWithIntervals(x, IntervalEnum.LaplaceApproximation);
       System.Console.WriteLine($"pred: {prediction[0, 0]}, low: {prediction[0, 2]}, high: {prediction[0, 3]}");
-      Assert.AreEqual(50.565977770482867, prediction[0, 0], 1e-4);
-      Assert.AreEqual(41.543747215791058, prediction[0, 2], 1e-4);
-      Assert.AreEqual(59.588208325174676, prediction[0, 3], 1e-6);
+      ClassicAssert.AreEqual(50.565977770482867, prediction[0, 0], 1e-4);
+      ClassicAssert.AreEqual(41.543747215791058, prediction[0, 2], 1e-4);
+      ClassicAssert.AreEqual(59.588208325174676, prediction[0, 3], 1e-6);
     }
   }
 }

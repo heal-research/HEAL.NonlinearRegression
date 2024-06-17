@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -166,7 +165,9 @@ namespace HEAL.Expressions {
 
       if (result.values.Length == 1) {
         // parameters or constants
-        Array.Fill(f, result.GetValue(0), startRow, batchSize);
+        // Array.Fill(f, result.GetValue(0), startRow, batchSize);
+        var val = result.GetValue(0);
+        for (int i = startRow; i < startRow + batchSize; i++) f[i] = val;
       } else {
         Array.Copy(result.values, 0, f, startRow, batchSize);
       }
@@ -193,12 +194,15 @@ namespace HEAL.Expressions {
       // clear arrays
       if (jacX != null) Array.Clear(jacX, startRow * jacX.GetLength(1), batchSize * jacX.GetLength(1));
       if (jacTheta != null) Array.Clear(jacTheta, startRow * jacTheta.GetLength(1), batchSize * jacTheta.GetLength(1));
-      for (int i = 0; i < instructions.Count; i++) if (instructions[i].diffValues != null) Array.Clear(instructions[i].diffValues);
+      for (int i = 0; i < instructions.Count; i++) if (instructions[i].diffValues != null) Array.Clear(instructions[i].diffValues, 0, instructions[i].diffValues.Length);
 
 
       // backpropagate
       var lastInstr = instructions.Last();
-      if (lastInstr.diffValues != null) Array.Fill(lastInstr.diffValues, 1.0);
+      if (lastInstr.diffValues != null) {
+        // Array.Fill(lastInstr.diffValues, 1.0);
+        for (int i = 0; i < lastInstr.diffValues.Length; i++) lastInstr.diffValues[i] = 1.0;
+      }
 
       for (int instrIdx = instructions.Count - 1; instrIdx >= 0; instrIdx--) {
         var curInstr = instructions[instrIdx];
@@ -369,11 +373,11 @@ namespace HEAL.Expressions {
     private struct Instruction {
       public enum OpcEnum { None, Const, Param, Var, Neg, Add, Sub, Mul, Div, Log, Abs, Exp, Sin, Cos, Cosh, Tanh, Pow, PowAbs, Sqrt, Cbrt, Sign, Logistic, InvLogistic, LogisticPrime, InvLogisticPrime };
 
-      public int idx1 { get; init; } // child idx1 for internal nodes, index into p or x for parameters or variables
-      public int idx2 { get; init; } // child idx2 for internal nodes (only for binary operations)
-      public OpcEnum opc { get; init; }
-      public double[] values { get; init; }// for internal nodes and variables
-      public double[] diffValues { get; init; } // for reverse autodiff
+      public int idx1 { get; set; } // child idx1 for internal nodes, index into p or x for parameters or variables
+      public int idx2 { get; set; } // child idx2 for internal nodes (only for binary operations)
+      public OpcEnum opc { get; set; }
+      public double[] values { get; set; }// for internal nodes and variables
+      public double[] diffValues { get; set; } // for reverse autodiff
 
       public double GetValue(int idx) => values.Length == 1 ? values[0] : values[idx];
     }

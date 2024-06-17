@@ -15,9 +15,9 @@ namespace HEAL.Expressions {
     private ParameterExpression p;
     private List<double> pValues;
 
-    private readonly List<(string rule, Expression expr)> matchedRules = new(); // for debugging which rules are actually used
+    private readonly List<(string rule, Expression expr)> matchedRules = new List<(string rule, Expression expr)>(); // for debugging which rules are actually used
 
-    private readonly Dictionary<string, Expression> visitCache = new(); // for memoization of Visit() methods
+    private readonly Dictionary<string, Expression> visitCache = new Dictionary<string, Expression>(); // for memoization of Visit() methods
 
     private RuleBasedSimplificationVisitor(ParameterExpression p, double[] pValues, bool debugRules = false) {
       this.p = p;
@@ -1021,7 +1021,7 @@ namespace HEAL.Expressions {
       // only parameters and constants (rule for folding constants should be applied first)
       new MethodCallExpressionRule(
         "fold parameters and constants in method calls",
-        e => e.Arguments.All(e => IsParameter(e) || IsConstant(e)),
+        e => e.Arguments.All(arg => IsParameter(arg) || IsConstant(arg)),
         e => NewParameter((double) e.Method.Invoke(e.Object, e.Arguments.Select(GetParameterOrConstantValue).OfType<object>().ToArray()))
         ),
       // 
@@ -1340,12 +1340,12 @@ namespace HEAL.Expressions {
       var right = Visit(node.Right);
       result = node.Update(left, null, right);
 
-      var r = binaryRules.FirstOrDefault(r => r.Match((BinaryExpression)result));
+      var r = binaryRules.FirstOrDefault(ru => ru.Match((BinaryExpression)result));
       while (r != default(BinaryExpressionRule)) {
         MarkUsage(r.Description, result);
         result = r.Apply((BinaryExpression)result);
         if (result is BinaryExpression binExpr) {
-          r = binaryRules.FirstOrDefault(r => r.Match(binExpr));
+          r = binaryRules.FirstOrDefault(ru => ru.Match(binExpr));
         } else break;
       }
 
@@ -1359,12 +1359,12 @@ namespace HEAL.Expressions {
 
       var opd = Visit(node.Operand);
       result = node.Update(opd);
-      var r = unaryRules.FirstOrDefault(r => r.Match((UnaryExpression)result));
+      var r = unaryRules.FirstOrDefault(ru => ru.Match((UnaryExpression)result));
       while (r != default(UnaryExpressionRule)) {
         MarkUsage(r.Description, result);
         result = r.Apply((UnaryExpression)result);
         if (result is UnaryExpression unaryExpr) {
-          r = unaryRules.FirstOrDefault(r => r.Match(unaryExpr));
+          r = unaryRules.FirstOrDefault(ru => ru.Match(unaryExpr));
         } else break;
       }
 
@@ -1376,12 +1376,12 @@ namespace HEAL.Expressions {
       if (visitCache.TryGetValue(node.ToString(), out var result)) return result;
 
       result = node.Update(node.Object, node.Arguments.Select(Visit));
-      var r = callRules.FirstOrDefault(r => r.Match((MethodCallExpression)result));
+      var r = callRules.FirstOrDefault(ru => ru.Match((MethodCallExpression)result));
       while (r != default(MethodCallExpressionRule)) {
         MarkUsage(r.Description, result);
         result = r.Apply((MethodCallExpression)result);
         if (result is MethodCallExpression callExpr) {
-          r = callRules.FirstOrDefault(r => r.Match(callExpr));
+          r = callRules.FirstOrDefault(ru => ru.Match(callExpr));
         } else break;
       }
 
@@ -1392,7 +1392,7 @@ namespace HEAL.Expressions {
 
     // for debugging rules
     private void MarkUsage(string description, Expression expr) {
-      matchedRules.Add(new(description, expr));
+      matchedRules.Add(ValueTuple.Create(description, expr));
     }
 
     private int Compare(Expression left, Expression right) {
@@ -1488,8 +1488,8 @@ namespace HEAL.Expressions {
     private bool IsPower(MethodInfo method) => method == pow || method == powabs;
 
     private IEnumerable<Expression> FoldTerms(IEnumerable<Expression> terms) {
-      Dictionary<string, Expression> exprStr2scale = new();
-      Dictionary<string, Expression> exprStr2expr = new();
+      var exprStr2scale = new Dictionary<string, Expression>();
+      var exprStr2expr = new Dictionary<string, Expression>();
       foreach (var t in terms) {
         (var scaledTerm, var scale) = ExtractScaleExprFromTerm(t);
         var scaledTermStr = scaledTerm.ToString();

@@ -30,13 +30,13 @@ namespace HEAL.Expressions {
     protected override Expression VisitBinary(BinaryExpression node) {
       if (node.NodeType == ExpressionType.ArrayIndex) {
         if (node.Left == pParam) {
-          sb.AppendFormat(CultureInfo.InvariantCulture, "{0:g8}", p[GetIndex(node)]);
+          sb.AppendFormat(CultureInfo.InvariantCulture, "{0:g8}", p[ExprFormatter.GetIndex(node)]);
         } else if (node.Left == varParam) {
-          sb.Append(EscapeVarName(varNames[GetIndex(node)]));
+          sb.Append(ExprFormatter.EscapeVarName(varNames[ExprFormatter.GetIndex(node)]));
         } else throw new ArgumentException();
       } else {
         FormatLeftChildExpr(node.NodeType, node.Left);
-        sb.Append($" {OpSymbol(node.NodeType)} ");
+        sb.Append($" {ExprFormatter.OpSymbol(node.NodeType)} ");
         if (!IsBinaryOp(node.Right)) {
           Visit(node.Right);
         } else if (node.NodeType == ExpressionType.Subtract || node.NodeType == ExpressionType.Divide) {
@@ -81,7 +81,7 @@ namespace HEAL.Expressions {
     protected override Expression VisitUnary(UnaryExpression node) {
       if (node.NodeType == ExpressionType.UnaryPlus) Visit(node.Operand);
       else {
-        if (!IsBinaryOp(node.Operand) && Priority(node.NodeType) >= Priority(node.Operand.NodeType)) {
+        if (!IsBinaryOp(node.Operand) && ExprFormatter.Priority(node.NodeType) >= ExprFormatter.Priority(node.Operand.NodeType)) {
           sb.Append("-(");
           Visit(node.Operand);
           sb.Append(')');
@@ -115,34 +115,40 @@ namespace HEAL.Expressions {
         Visit(childExpr);
       }
     }
-    private int Priority(ExpressionType nodeType) =>
-      nodeType switch {
-        ExpressionType.Constant => 13,
-        ExpressionType.Call or ExpressionType.ArrayIndex => 12,
-        ExpressionType.UnaryPlus or ExpressionType.Negate => 10,
-        ExpressionType.Multiply or ExpressionType.Divide => 9,
-        ExpressionType.Add or ExpressionType.Subtract => 7,
-        _ => throw new ArgumentException()
-      };
 
-    private string OpSymbol(ExpressionType nodeType) =>
-      nodeType switch {
-        ExpressionType.Add => "+",
-        ExpressionType.Subtract => "-",
-        ExpressionType.Multiply => "*",
-        ExpressionType.Divide => "/",
-        _ => throw new ArgumentException()
-      };
+    private static int Priority(ExpressionType nodeType) {
+      switch(nodeType) {
+        case ExpressionType.Constant: return 13;
+        case ExpressionType.Call:
+        case ExpressionType.ArrayIndex: return 12;
+        case ExpressionType.UnaryPlus:
+        case ExpressionType.Negate: return 10;
+        case ExpressionType.Multiply:
+        case ExpressionType.Divide: return 9;
+        case ExpressionType.Add:
+        case ExpressionType.Subtract: return 7;
+        default: throw new ArgumentException();
+      }
+    }
+
+    private static string OpSymbol(ExpressionType nodeType) {
+      switch(nodeType) {
+        case ExpressionType.Add: return "+";
+        case ExpressionType.Subtract: return "-";
+        case ExpressionType.Multiply: return "*";
+        case ExpressionType.Divide: return "/";
+        default: throw new ArgumentException();
+      }
+    }
 
 
-
-    private int GetIndex(BinaryExpression node) {
+    private static int GetIndex(BinaryExpression node) {
       return (int)((ConstantExpression)node.Right).Value;
     }
 
 
 
-    private string EscapeVarName(string v) {
+    private static string EscapeVarName(string v) {
       if (v.Contains(' ')) return $"'{v}'";
       else return v;
     }

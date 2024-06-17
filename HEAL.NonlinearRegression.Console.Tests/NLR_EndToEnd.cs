@@ -1,4 +1,5 @@
 ﻿using NUnit.Framework;
+using NUnit.Framework.Legacy;
 using System.Globalization;
 
 namespace HEAL.NonlinearRegression.Console.Tests {
@@ -484,7 +485,7 @@ Deviance_Factor,numPar,AICc,dAICc,BIC,dBIC,Model
         }
         var actual = File.ReadAllText(randFilename);
         System.Console.WriteLine(actual);
-        Assert.AreEqual(expected.ReplaceLineEndings(), actual.ReplaceLineEndings());
+        ClassicAssert.AreEqual(expected.ReplaceLineEndings(), actual.ReplaceLineEndings());
       } finally {
         if (File.Exists(randFilename))
           File.Delete(randFilename);
