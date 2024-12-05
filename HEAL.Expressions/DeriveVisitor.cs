@@ -67,6 +67,7 @@ namespace HEAL.Expressions {
     private readonly MethodInfo cos = typeof(Math).GetMethod("Cos", new[] { typeof(double) });
     private readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
     private readonly MethodInfo log = typeof(Math).GetMethod("Log", new[] { typeof(double) });
+    private readonly MethodInfo log10 = typeof(Math).GetMethod("Log10", new[] { typeof(double) });
     private readonly MethodInfo tanh = typeof(Math).GetMethod("Tanh", new[] { typeof(double) });
     private readonly MethodInfo cosh = typeof(Math).GetMethod("Cosh", new[] { typeof(double) });
     private readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
@@ -99,6 +100,8 @@ namespace HEAL.Expressions {
         dfx = node;
       } else if (node.Method == log) {
         dfx = Expression.Divide(Expression.Constant(1.0), x);
+      } else if (node.Method == log10) {
+        dfx = Expression.Divide(Expression.Divide(Expression.Constant(1.0), x), Expression.Constant(Math.Log(10)));
       } else if (node.Method == tanh) {
         dfx = Expression.Divide(
           Expression.Constant(2.0),

@@ -136,6 +136,7 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.Div: for (int i = 0; i < batchSize; i++) { curVal[i] = left.GetValue(i) / right.GetValue(i); } break;
 
           case Instruction.OpcEnum.Log: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Log(left.GetValue(i)); } break;
+          case Instruction.OpcEnum.Log10: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Log(left.GetValue(i)) / Math.Log(10); } break;
           case Instruction.OpcEnum.Abs: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Abs(left.GetValue(i)); } break;
           case Instruction.OpcEnum.Exp: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Exp(left.GetValue(i)); } break;
           case Instruction.OpcEnum.Sin: for (int i = 0; i < batchSize; i++) { curVal[i] = Math.Sin(left.GetValue(i)); } break;
@@ -184,6 +185,9 @@ namespace HEAL.Expressions {
       }
       return f;
     }
+
+
+    private static double Protect(double x) => double.IsNaN(x) || double.IsInfinity(x) ? 0.0 : x;
 
     private void EvaluateWithJac(double[] theta, double[] f, int startRow, int batchSize, double[,] jacX, double[,] jacTheta) {
       // evaluate forward
@@ -247,6 +251,9 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.Log:
             if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] / left.GetValue(i); }
             break;
+          case Instruction.OpcEnum.Log10:
+            if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] / (left.GetValue(i) * Math.Log(10)); }
+            break;
           case Instruction.OpcEnum.Abs:
             if (leftDiff != null) for (int i = 0; i < batchSize; i++) { leftDiff[i] += curDiff[i] * (double.IsNaN(left.GetValue(i)) ? double.NaN : Math.Sign(left.GetValue(i))); }
             break;
@@ -260,21 +267,21 @@ namespace HEAL.Expressions {
           case Instruction.OpcEnum.Pow:
             if (leftDiff != null)
               for (int i = 0; i < batchSize; i++) {
-                leftDiff[i] += curDiff[i] * right.GetValue(i) * curInstr.GetValue(i) / left.GetValue(i); // curDiff[i] * right.GetValue(i) * Math.Pow(left.GetValue(i), right.GetValue(i) - 1);
+                leftDiff[i] += curDiff[i] * right.GetValue(i) * Protect(curInstr.GetValue(i) / left.GetValue(i)); // curDiff[i] * right.GetValue(i) * Math.Pow(left.GetValue(i), right.GetValue(i) - 1);
               }
             if (rightDiff != null)
               for (int i = 0; i < batchSize; i++) {
-                rightDiff[i] += curDiff[i] * curInstr.GetValue(i) * Math.Log(left.GetValue(i));
+                rightDiff[i] += curDiff[i] * curInstr.GetValue(i) * Protect(Math.Log(left.GetValue(i)));
               }
             break;
           case Instruction.OpcEnum.PowAbs:
             if (leftDiff != null)
               for (int i = 0; i < batchSize; i++) {
-                leftDiff[i] += curDiff[i] * right.GetValue(i) * left.GetValue(i) * Math.Pow(Math.Abs(left.GetValue(i)), right.GetValue(i) - 2);  //f'(x) * f(x) * g(y) * abs(f(x))^(g(y) - 2)
+                leftDiff[i] += curDiff[i] * right.GetValue(i) * left.GetValue(i) * Protect(Math.Pow(Math.Abs(left.GetValue(i)), right.GetValue(i) - 2));  //f'(x) * f(x) * g(y) * abs(f(x))^(g(y) - 2)
               }
             if (rightDiff != null)
               for (int i = 0; i < batchSize; i++) {
-                rightDiff[i] += curDiff[i] * curInstr.GetValue(i) * Math.Log(Math.Abs(left.GetValue(i))); // check
+                rightDiff[i] += curDiff[i] * curInstr.GetValue(i) * Protect(Math.Log(Math.Abs(left.GetValue(i)))); // check
               }
             break;
           case Instruction.OpcEnum.Sqrt:
@@ -316,6 +323,7 @@ namespace HEAL.Expressions {
     private static readonly MethodInfo cos = typeof(Math).GetMethod("Cos", new[] { typeof(double) });
     private static readonly MethodInfo exp = typeof(Math).GetMethod("Exp", new[] { typeof(double) });
     private static readonly MethodInfo log = typeof(Math).GetMethod("Log", new[] { typeof(double) });
+    private static readonly MethodInfo log10 = typeof(Math).GetMethod("Log10", new[] { typeof(double) });
     private static readonly MethodInfo tanh = typeof(Math).GetMethod("Tanh", new[] { typeof(double) });
     private static readonly MethodInfo cosh = typeof(Math).GetMethod("Cosh", new[] { typeof(double) });
     private static readonly MethodInfo sqrt = typeof(Math).GetMethod("Sqrt", new[] { typeof(double) });
@@ -348,6 +356,7 @@ namespace HEAL.Expressions {
         case ExpressionType.Call: {
             var callExpr = (MethodCallExpression)expression;
             if (callExpr.Method == log) return Instruction.OpcEnum.Log;
+            if (callExpr.Method == log10) return Instruction.OpcEnum.Log10;
             if (callExpr.Method == abs) return Instruction.OpcEnum.Abs;
             if (callExpr.Method == exp) return Instruction.OpcEnum.Exp;
             if (callExpr.Method == sin) return Instruction.OpcEnum.Sin;
@@ -371,7 +380,7 @@ namespace HEAL.Expressions {
     }
 
     private struct Instruction {
-      public enum OpcEnum { None, Const, Param, Var, Neg, Add, Sub, Mul, Div, Log, Abs, Exp, Sin, Cos, Cosh, Tanh, Pow, PowAbs, Sqrt, Cbrt, Sign, Logistic, InvLogistic, LogisticPrime, InvLogisticPrime };
+      public enum OpcEnum { None, Const, Param, Var, Neg, Add, Sub, Mul, Div, Log, Log10, Abs, Exp, Sin, Cos, Cosh, Tanh, Pow, PowAbs, Sqrt, Cbrt, Sign, Logistic, InvLogistic, LogisticPrime, InvLogisticPrime };
 
       public int idx1 { get; set; } // child idx1 for internal nodes, index into p or x for parameters or variables
       public int idx2 { get; set; } // child idx2 for internal nodes (only for binary operations)

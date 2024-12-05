@@ -118,6 +118,15 @@ namespace HEAL.Expressions {
       return Expression.Lambda<T>(newExpr, expr.Parameters);
     }
 
+    public static (Expression<ParametricFunction>, double[]) ReplaceParametersWithValues<T>(Expression<ParametricFunction> expr,
+      double[] parameterValues, int[] paramIndexes) {
+      var parameter = expr.Parameters[0];
+      var v = new ReplaceParameterWithNumberVisitor(parameter, parameterValues, paramIndexes);
+      var newExprBody = v.Visit(expr.Body);
+      var newExpr = CollectParametersVisitor.Execute(Expression.Lambda<ParametricFunction>(newExprBody, expr.Parameters), parameterValues, out var newParamValues);
+      return (newExpr, newParamValues);
+    }
+
     public static Expression<ParametricJacobianFunction> Broadcast(Expression<ParametricGradientFunction> fx) {
       // original parameters
       var thetaParam = fx.Parameters[0];

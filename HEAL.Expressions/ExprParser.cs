@@ -312,6 +312,17 @@ namespace HEAL.Expressions.Parser {
               Token = TokenEnum.Eof;
               break;
             }
+          case '<': {
+              // fitting parameters (without values)
+              Token = TokenEnum.Parameter;
+              NextCh(); // skip <
+              while (ch != '>') {
+                NextCh();
+              }
+              NextCh(); // skip >
+              NumberVal = 1.0;
+              break;
+            }
           default: {
               if (char.IsLetter(ch) || ch == '_') {
                 // parse identifier

@@ -18,6 +18,7 @@ namespace HEAL.Expressions {
     private static readonly MethodInfo[] SupportedMethods = new[] {
       typeof(Math).GetMethod("Abs", new [] {typeof(double)}),
       typeof(Math).GetMethod("Log", new[] {typeof(double)}),
+      typeof(Math).GetMethod("Log10", new[] {typeof(double)}),
       typeof(Math).GetMethod("Exp", new[] {typeof(double)}),
       typeof(Math).GetMethod("Sqrt", new[] {typeof(double)}),
       typeof(Math).GetMethod("Sin", new[] {typeof(double)}),
